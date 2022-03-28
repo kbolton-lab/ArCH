@@ -452,19 +452,11 @@ workflow boltonlab_CH {
             vcf_tbi = mutectSanitizeVcf.sanitized_vcf_tbi
         }
 
-        # Decomposes the multialleic variants. Not sure if really needed because of bcftools norm
-        # TODO: Check whether we need to "Decompose Variants", most likely not
-        call vtDecompose as mutectDecomposeVariants {
-            input:
-            vcf = mutectNormalize.normalized_vcf,
-            vcf_tbi = mutectNormalize.normalized_vcf_tbi
-        }
-
         # Removes any germline variant that is reported in gnomAD
         call bcftoolsIsecComplement as mutect_isec_complement_gnomAD {
             input:
-            vcf = mutectDecomposeVariants.decomposed_vcf,
-            vcf_tbi = mutectDecomposeVariants.decomposed_vcf_tbi,
+            vcf = mutectNormalize.normalized_vcf,
+            vcf_tbi = mutectNormalize.normalized_vcf_tbi,
             exclude_vcf = normalized_gnomad_exclude,
             exclude_vcf_tbi = normalized_gnomad_exclude_tbi,
             output_vcf_name = "mutect." + tumor_sample_name + ".gnomAD_AF_filter.vcf",
@@ -535,19 +527,11 @@ workflow boltonlab_CH {
             vcf_tbi = vardictSanitizeVcf.sanitized_vcf_tbi
         }
 
-        # Decomposes the multialleic variants. Not sure if really needed because of bcftools norm
-        # TODO: Check whether we need to "Decompose Variants", most likely not
-        call vtDecompose as vardictDecomposeVariants {
-            input:
-            vcf=vardictNormalize.normalized_vcf,
-            vcf_tbi=vardictNormalize.normalized_vcf_tbi
-        }
-
         # Removes any germline variant that is reported in gnomAD
         call bcftoolsIsecComplement as vardict_isec_complement_gnomAD {
             input:
-            vcf = vardictDecomposeVariants.decomposed_vcf,
-            vcf_tbi = vardictDecomposeVariants.decomposed_vcf_tbi,
+            vcf = vardictNormalize.normalized_vcf,
+            vcf_tbi = vardictNormalize.normalized_vcf_tbi,
             exclude_vcf = normalized_gnomad_exclude,
             exclude_vcf_tbi = normalized_gnomad_exclude_tbi,
             output_vcf_name = "vardict." + tumor_sample_name + ".gnomAD_AF_filter.vcf",
@@ -611,19 +595,11 @@ workflow boltonlab_CH {
             vcf_tbi = lofreqSanitizeVcf.sanitized_vcf_tbi
         }
 
-        # Decomposes the multialleic variants. Not sure if really needed because of bcftools norm
-        # TODO: Check whether we need to "Decompose Variants", most likely not
-        call vtDecompose as lofreqDecomposeVariants {
-            input:
-            vcf = lofreqNormalize.normalized_vcf,
-            vcf_tbi = lofreqNormalize.normalized_vcf_tbi
-        }
-
         # Removes any germline variant that is reported in gnomAD
         call bcftoolsIsecComplement as lofreq_isec_complement_gnomAD {
             input:
-            vcf = lofreqDecomposeVariants.decomposed_vcf,
-            vcf_tbi = lofreqDecomposeVariants.decomposed_vcf_tbi,
+            vcf = lofreqNormalize.normalized_vcf,
+            vcf_tbi = lofreqNormalize.normalized_vcf_tbi,
             exclude_vcf = normalized_gnomad_exclude,
             exclude_vcf_tbi = normalized_gnomad_exclude_tbi,
             output_vcf_name = "lofreq." + tumor_sample_name + ".gnomAD_AF_filter.vcf",
@@ -712,14 +688,6 @@ workflow boltonlab_CH {
             reference_fai = reference_fai,
             vcf = pindelSanitizeVcf.sanitized_vcf,
             vcf_tbi = pindelSanitizeVcf.sanitized_vcf_tbi
-        }
-
-        # Decomposes the multialleic variants. Not sure if really needed because of bcftools norm
-        # TODO: Check whether we need to "Decompose Variants", most likely not
-        call vtDecompose as pindelDecomposeVariants {
-            input:
-            vcf = pindelNormalize.normalized_vcf,
-            vcf_tbi = pindelNormalize.normalized_vcf_tbi
         }
 
         # In order to be efficient, we run all of the annotation and filtering ONCE. In order to do this, we need to merge
@@ -852,8 +820,8 @@ workflow boltonlab_CH {
 
     call mergeVcf as merge_mutect_full {
         input:
-            vcfs = mutectDecomposeVariants.decomposed_vcf,
-            vcf_tbis = mutectDecomposeVariants.decomposed_vcf_tbi,
+            vcfs = mutectNormalize.normalized_vcf,
+            vcf_tbis = mutectNormalize.normalized_vcf_tbi,
             merged_vcf_basename = "mutect_full." + tumor_sample_name
     }
     call mergeVcf as merge_mutect_pon {
@@ -871,8 +839,8 @@ workflow boltonlab_CH {
 
     call mergeVcf as merge_vardict_full {
         input:
-            vcfs = vardictDecomposeVariants.decomposed_vcf,
-            vcf_tbis = vardictDecomposeVariants.decomposed_vcf_tbi,
+            vcfs = vardictNormalize.normalized_vcf,
+            vcf_tbis = vardictNormalize.normalized_vcf_tbi,
             merged_vcf_basename = "vardict_full." + tumor_sample_name
     }
     call mergeVcf as merge_vardict_pon {
@@ -890,8 +858,8 @@ workflow boltonlab_CH {
 
     call mergeVcf as merge_lofreq_full {
         input:
-            vcfs = lofreqDecomposeVariants.decomposed_vcf,
-            vcf_tbis = lofreqDecomposeVariants.decomposed_vcf_tbi,
+            vcfs = lofreqNormalize.normalized_vcf,
+            vcf_tbis = lofreqNormalize.normalized_vcf_tbi,
             merged_vcf_basename = "lofreq_full." + tumor_sample_name
     }
     call mergeVcf as merge_lofreq_pon {
@@ -909,8 +877,8 @@ workflow boltonlab_CH {
 
     call mergeVcf as merge_pindel_full {
         input:
-            vcfs = pindelDecomposeVariants.decomposed_vcf,
-            vcf_tbis = pindelDecomposeVariants.decomposed_vcf_tbi,
+            vcfs = pindelNormalize.normalized_vcf,
+            vcf_tbis = pindelNormalize.normalized_vcf_tbi,
             merged_vcf_basename = "pindel_full." + tumor_sample_name
     }
 
@@ -1680,7 +1648,7 @@ task fastQC {
     String bamroot = basename(bam, ".bam")
 
     command <<<
-        /usr/local/bin/fastqc ~{bam}
+        /usr/local/bin/fastqc ~{bam} -outdir $PWD
     >>>
 
     output {
@@ -1962,37 +1930,6 @@ task bcftoolsNorm {
     output {
         File normalized_vcf = "bcftools_norm.vcf.gz"
         File normalized_vcf_tbi = "bcftools_norm.vcf.gz.tbi"
-    }
-}
-
-task vtDecompose {
-    input {
-        File vcf
-        File vcf_tbi
-    }
-
-    Int space_needed_gb = 5 + round(size([vcf, vcf_tbi], "GB")*2)
-    Int cores = 1
-    Int preemptible = 1
-    Int maxRetries = 0
-
-    runtime {
-        memory: "6GB"
-        docker: "kboltonlab/vt"
-        disks: "local-disk ~{space_needed_gb} SSD"
-        cpu: cores
-        preemptible: preemptible
-        maxRetries: maxRetries
-    }
-
-    command <<<
-        /opt/vt/vt decompose -s -o decomposed.vcf.gz ~{vcf}
-        /usr/bin/tabix decomposed.vcf.gz
-    >>>
-
-    output {
-        File decomposed_vcf = "decomposed.vcf.gz"
-        File decomposed_vcf_tbi = "decomposed.vcf.gz.tbi"
     }
 }
 
@@ -2469,7 +2406,7 @@ task catOut {
   Int space_needed_gb = 10 + round(size(pindel_outs, "GB")*2)
   runtime {
     memory: "6GB"
-    docker: "ubuntu:xenial"
+    docker: "ubuntu:bionic"
     disks: "local-disk ~{space_needed_gb} SSD"
     cpu: cores
     preemptible: preemptible
