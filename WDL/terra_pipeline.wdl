@@ -34,10 +34,10 @@ struct VepCustomAnnotation {
 # The SpliceAI Plugin requires two files be provided, so rather than having 4 files passed individually
 # it makes things cleaner to have a single structure hold all four.
 struct VepSpliceAIPlugin {
-    File spliceAI_snv
-    File spliceAI_snv_tbi
-    File spliceAI_indel
-    File spliceAI_indel_tbi
+    File? spliceAI_snv
+    File? spliceAI_snv_tbi
+    File? spliceAI_indel
+    File? spliceAI_indel_tbi
 }
 
 # Main Workflow
@@ -2661,7 +2661,7 @@ task mskGetBaseCounts {
         File reference
         File reference_fai
         File reference_dict
-        Pair[String, String] normal_bam
+        Pair[File, File] normal_bam
         String? pon_final_name = "pon.pileup"
         File vcf
         Int? mapq = 5
@@ -2787,6 +2787,8 @@ task vep {
     Float vcf_size = 2*size(vcf, "GB")  # doubled for output vcf
     Float reference_size = size([reference, reference_fai, reference_dict], "GB")
     Int space_needed_gb = 50 + round(reference_size + vcf_size + cache_size + size(synonyms_file, "GB"))
+    Int preemptible = 1
+    Int maxRetries = 0
 
     runtime {
         memory: "64GB"
@@ -2794,6 +2796,8 @@ task vep {
         cpu: 4
         docker: "kboltonlab/ic_vep"
         disks: "local-disk ~{space_needed_gb} SSD"
+        preemptible: preemptible
+        maxRetries: maxRetries
     }
 
     String annotated_path = basename(basename(vcf, ".gz"), ".vcf") + "_annotated.vcf"
