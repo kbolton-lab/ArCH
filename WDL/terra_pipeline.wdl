@@ -31,6 +31,15 @@ struct VepCustomAnnotation {
     Array[File]? secondary_files
 }
 
+# The SpliceAI Plugin requires two files be provided, so rather than having 4 files passed individually
+# it makes things cleaner to have a single structure hold all four.
+struct VepSpliceAIPlugin {
+    File spliceAI_snv
+    File spliceAI_snv_tbi
+    File spliceAI_indel
+    File spliceAI_indel_tbi
+}
+
 # Main Workflow
 workflow boltonlab_CH {
     input {
@@ -138,6 +147,7 @@ workflow boltonlab_CH {
         String vep_ensembl_version
         String vep_ensembl_species
         Array[String] vep_plugins = ["Frameshift", "Wildtype"]
+        VepSpliceAIPlugin? vep_plugin_spliceAI_files
         File? synonyms_file
         Boolean? annotate_coding_only = true
         Array[VepCustomAnnotation] vep_custom_annotations
@@ -740,20 +750,21 @@ workflow boltonlab_CH {
         # Using the fake VCF of all the variants calls, perform VEP on all the variants
         call vep {
           input:
-              vcf=mergeCallers.merged_vcf,
-              cache_dir_zip=vep_cache_dir_zip,
-              reference=reference,
-              reference_fai=reference_fai,
-              reference_dict=reference_dict,
-              plugins=vep_plugins,
-              ensembl_assembly=vep_ensembl_assembly,
-              ensembl_version= vep_ensembl_version,
-              ensembl_species=vep_ensembl_species,
-              synonyms_file=synonyms_file,
+              vcf = mergeCallers.merged_vcf,
+              cache_dir_zip = vep_cache_dir_zip,
+              reference = reference,
+              reference_fai = reference_fai,
+              reference_dict = reference_dict,
+              plugins = vep_plugins,
+              spliceAI_files = vep_plugin_spliceAI_files,
+              ensembl_assembly = vep_ensembl_assembly,
+              ensembl_version = vep_ensembl_version,
+              ensembl_species = vep_ensembl_species,
+              synonyms_file = synonyms_file,
               custom_annotations = vep_custom_annotations,
-              coding_only=annotate_coding_only,
-              everything=everything,
-              pick=vep_pick
+              coding_only = annotate_coding_only,
+              everything = everything,
+              pick = vep_pick
         }
 
         # Using the "pileup", perform a Fisher's Exact Test with the Variants in each Caller
@@ -2411,6 +2422,7 @@ task catOut {
     cpu: cores
     preemptible: preemptible
     maxRetries: maxRetries
+    continueOnReturnCode: [0,1]
   }
 
   command <<<
@@ -2761,6 +2773,7 @@ task vep {
         String ensembl_version
         String ensembl_species
         Array[String] plugins
+        VepSpliceAIPlugin? spliceAI_files
         Boolean coding_only = false
         Array[VepCustomAnnotation] custom_annotations = []
         Boolean everything = true
@@ -2817,6 +2830,7 @@ task vep {
         --dir ~{cache_dir} \
         --fasta ~{reference} \
         ~{sep=" " prefix("--plugin ", plugins)}  \
+        ~{if defined(spliceAI_files) then "--plugin SpliceAI,snv=~{spliceAI_files.spliceAI_snv},indel=~{spliceAI_files.spliceAI_indel}" else ""} \
         ~{if everything then "--everything" else ""} \
         --assembly ~{ensembl_assembly} \
         --cache_version ~{ensembl_version} \
