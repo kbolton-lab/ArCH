@@ -113,7 +113,7 @@
         "vcf_fields" : [ "AF", "AF_ami", "AF_oth", "AF_afr", "AF_sas", "AF_asj", "AF_fin", "AF_amr", "AF_nfe", "AF_eas"],
         "check_existing" : true
     }],
-    "boltonlab_CH.pd_annotation_file": "/storage1/fs1/bolton/Active/projects/annotation_files/pd_table_kbreview_bick_trunc2.txt",
+    "boltonlab_CH.pd_annotation_file": "/storage1/fs1/bolton/Active/projects/annotation_files/pd_table_kbreview_bick_trunc3.txt",
     "boltonlab_CH.bolton_bick_vars": "/storage1/fs1/bolton/Active/projects/annotation_files/bick.bolton.vars3.txt",
     "boltonlab_CH.mut2_bick": "/storage1/fs1/bolton/Active/projects/annotation_files/topmed.n2.mutation.1.c.p.txt",
     "boltonlab_CH.mut2_kelly": "/storage1/fs1/bolton/Active/projects/annotation_files/kelly.n2.mutation.1.c.p.txt",
