@@ -118,7 +118,7 @@
     "boltonlab_CH.mut2_bick": "/storage1/fs1/bolton/Active/projects/annotation_files/topmed.n2.mutation.1.c.p.txt",
     "boltonlab_CH.mut2_kelly": "/storage1/fs1/bolton/Active/projects/annotation_files/kelly.n2.mutation.1.c.p.txt",
     "boltonlab_CH.truncating": "/storage1/fs1/bolton/Active/projects/annotation_files/BB.truncating.more.than.1.tsv",
-    "boltonlab_CH.oncoKB_curated": "/storage1/fs1/bolton/Active/projects/annotation_files/all_curated_genes_v2.0.tsv",
+    "boltonlab_CH.oncoKB_curated": "/storage1/fs1/bolton/Active/projects/annotation_files/all_curated_genes_v4.0.tsv",
     "boltonlab_CH.cosmic_dir_zip": "/storage1/fs1/bolton/Active/projects/annotation_files/cosmic/cosmic_zip.zip",
     "boltonlab_CH.matches2": "/storage1/fs1/bolton/Active/projects/annotation_files/matches.2.c.p.txt",
     "boltonlab_CH.TSG_file": "/storage1/fs1/bolton/Active/projects/annotation_files/gene_census_TSG.txt",
