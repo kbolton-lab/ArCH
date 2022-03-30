@@ -995,6 +995,7 @@ workflow boltonlab_CH {
         File mutect_complex = xgb_model.mutect_complex
         File pindel_complex = xgb_model.pindel_complex
         File lofreq_complex = xgb_model.lofreq_complex
+        File caller_filters = xgb_model.caller_filters
     }
 }
 
@@ -3226,5 +3227,6 @@ task xgb_model {
         File mutect_complex = "output_mutect_complex_~{tumor_sample_name}.tsv.gz"
         File pindel_complex = "output_pindel_complex_~{tumor_sample_name}.tsv.gz"
         File lofreq_complex = "output_lofreq_complex_~{tumor_sample_name}.tsv.gz"
+        File caller_filters = "Caller_Filters.raw.tsv.gz"
     }
 }
