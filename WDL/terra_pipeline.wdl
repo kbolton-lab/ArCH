@@ -991,7 +991,7 @@ workflow boltonlab_CH {
 
         # Model
         File model_output = xgb_model.model_output
-        File model_raw_output = model.model_raw_output
+        File model_raw_output = xgb_model.model_raw_output
         File mutect_complex = xgb_model.mutect_complex
         File pindel_complex = xgb_model.pindel_complex
         File lofreq_complex = xgb_model.lofreq_complex
