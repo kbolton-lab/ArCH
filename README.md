@@ -5,7 +5,9 @@ This pipeline is designed to process mutant/wildtype H.sapiens sequencing data f
 ## Installation
 
 ## Usage
-The default input for this pipeline is Illumina FASTQ files with UMI tags within the individual reads. However, unaligned BAM files with the same format structure is allowed. If consensus sequencing was performed prior to using this pipeline, an aligned consensus BAM can also be provided.
+The default input for this pipeline is Illumina FASTQ files with UMI tags within the individual reads. However, unaligned BAM files with the same format structure is allowed. If consensus sequencing was performed prior to using this pipeline, an aligned consensus BAM can also be provided. 
+
+This Pipeline has been tested and configured to run using Cromwell-70 as well as on TERRAbio.
 
 ### Inputs
 | Variable | Type | Definition |
@@ -117,6 +119,7 @@ Most of the files can be found inside our Files directory, however, the followin
 6.	BCBio Filter Parameters
 
 ## Example
+An example input can be found inside pipeline.json
 
 ## Limitations | TODO
 - VEP Annotations are hardcoded to be consistent so additional plugins or lack of plugins will cause issues with downstream annotation
