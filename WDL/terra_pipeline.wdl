@@ -151,9 +151,6 @@ workflow boltonlab_CH {
         File? synonyms_file
         Boolean? annotate_coding_only = true
         Array[VepCustomAnnotation] vep_custom_annotations
-        Array[String] variants_to_table_fields = ["CHROM","POS","ID","REF","ALT","set","AC","AF"]
-        Array[String]? variants_to_table_genotype_fields = ["GT","AD"]
-        Array[String]? vep_to_table_fields = ["HGVSc","HGVSp"]
         String vep_pick = "pick"
         Boolean everything = true
 
@@ -3190,6 +3187,20 @@ task annotatePD {
     }
 }
 
+# Generates an output file that combines all repeated columns (features that are not unique to each caller)
+# Adds additional features and runs select features through a trained (on ArcherDX Samples) XGBoost Model.
+# False positive filters are run to tag additional artifacts from the final list,
+
+# Additionally performs complex variant matching by looking for complex variants called by Vardict and matching possible
+# components found in Mutect or Lofreq. If complex variants are identified they are matched with Pindel as a final stop
+# to determine the validity of real complex variants.
+
+# Additional features are added such as the Z-score for the number of reference reads for all variants in a caller.
+# The Z-score tells us whether the alignment step correctly worked for all positions as one would except the reference depth to be fairly consistent for all variants.
+# An outlier indicates that this region may be over or under aligned. Another feature is the Fisher’s test with the forward and reverse reference / alternate reads.
+# A significant value here would indicate that the forward and reverse strands are not consistent and strand bias is occurring. We were not able to calculate a cutoff p-value so this feature is not used in our analysis.
+
+# Finally a predicted probabiliy from the XGBoost Model is calculated for each variant
 task xgb_model {
     input {
         File mutect_tsv
