@@ -928,14 +928,28 @@ workflow boltonlab_CH {
             pon_pvalue = pon_pvalue
     }
 
-    call xgb_model {
-        input:
-        mutect_tsv = annotatePD.mutect_vcf_annotate_pd,
-        lofreq_tsv = annotatePD.lofreq_vcf_annotate_pd,
-        vardict_tsv = annotatePD.vardict_vcf_annotate_pd,
-        pindel_full_vcf = merge_pindel_full.merged_vcf,
-        pon = merge_pon.merged_vcf,
-        tumor_sample_name = tumor_sample_name
+    if (platform == 'ArcherDX') {
+        call xgb_model {
+            input:
+            mutect_tsv = annotatePD.mutect_vcf_annotate_pd,
+            lofreq_tsv = annotatePD.lofreq_vcf_annotate_pd,
+            vardict_tsv = annotatePD.vardict_vcf_annotate_pd,
+            pindel_full_vcf = merge_pindel_full.merged_vcf,
+            pon = merge_pon.merged_vcf,
+            tumor_sample_name = tumor_sample_name
+        }
+    }
+
+    if (platform != 'ArcherDX') {
+        call no_xgb_model {
+            input:
+            mutect_tsv = annotatePD.mutect_vcf_annotate_pd,
+            lofreq_tsv = annotatePD.lofreq_vcf_annotate_pd,
+            vardict_tsv = annotatePD.vardict_vcf_annotate_pd,
+            pindel_full_vcf = merge_pindel_full.merged_vcf,
+            pon = merge_pon.merged_vcf,
+            tumor_sample_name = tumor_sample_name
+        }
     }
 
     output {
@@ -987,12 +1001,12 @@ workflow boltonlab_CH {
         File vardict_annotate_pd = annotatePD.vardict_vcf_annotate_pd
 
         # Model
-        File model_output = xgb_model.model_output
-        File model_raw_output = xgb_model.model_raw_output
-        File mutect_complex = xgb_model.mutect_complex
-        File pindel_complex = xgb_model.pindel_complex
-        File lofreq_complex = xgb_model.lofreq_complex
-        File caller_filters = xgb_model.caller_filters
+        File model_output = select_first([xgb_model.model_output, no_xgb_model.model_output])
+        File model_raw_output = select_first([xgb_model.model_raw_output, no_xgb_model.model_raw_output])
+        File mutect_complex = select_first([xgb_model.mutect_complex, no_xgb_model.mutect_complex])
+        File pindel_complex = select_first([xgb_model.pindel_complex, no_xgb_model.pindel_complex])
+        File lofreq_complex = select_first([xgb_model.lofreq_complex, no_xgb_model.lofreq_complex])
+        File caller_filters = select_first([xgb_model.caller_filters, no_xgb_model.caller_filters])
     }
 }
 
@@ -3202,6 +3216,47 @@ task annotatePD {
 
 # Finally a predicted probabiliy from the XGBoost Model is calculated for each variant
 task xgb_model {
+    input {
+        File mutect_tsv
+        File lofreq_tsv
+        File vardict_tsv
+        File pindel_full_vcf
+        File pon
+        String tumor_sample_name
+    }
+
+    Float caller_size = size([mutect_tsv, lofreq_tsv, vardict_tsv, pindel_full_vcf, pon], "GB")
+    Int space_needed_gb = 10 + round(caller_size)
+    Int cores = 1
+    Int preemptible = 1
+    Int maxRetries = 0
+
+    runtime {
+      cpu: cores
+      docker: "kboltonlab/xgb:latest"
+      memory: "6GB"
+      disks: "local-disk ~{space_needed_gb} SSD"
+      preemptible: preemptible
+      maxRetries: maxRetries
+    }
+
+    command <<<
+        /opt/bin/xgbappcompiled/bin/xgbapp ~{lofreq_tsv} ~{mutect_tsv} ~{vardict_tsv} ~{pindel_full_vcf} ~{pon} ""
+        echo "Model Finished..."
+    >>>
+
+
+    output {
+        File model_output = "output_~{tumor_sample_name}.tsv.gz"
+        File model_raw_output = "output_~{tumor_sample_name}.raw.tsv.gz"
+        File mutect_complex = "output_mutect_complex_~{tumor_sample_name}.tsv.gz"
+        File pindel_complex = "output_pindel_complex_~{tumor_sample_name}.tsv.gz"
+        File lofreq_complex = "output_lofreq_complex_~{tumor_sample_name}.tsv.gz"
+        File caller_filters = "Caller_Filters.raw.tsv.gz"
+    }
+}
+
+task no_xgb_model {
     input {
         File mutect_tsv
         File lofreq_tsv
