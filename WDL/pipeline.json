@@ -72,7 +72,6 @@
     "boltonlab_CH.vep_ensembl_species": "homo_sapiens",
     "boltonlab_CH.vep_ensembl_version": "104",
     "boltonlab_CH.vep_ensembl_assembly": "GRCh38",
-    "boltonlab_CH.vep_to_table_fields": ["HGVSc","HGVSp"],
     "boltonlab_CH.vep_plugins": ["Frameshift", "Wildtype"],
     "boltonlab_CH.vep_plugin_spliceAI_files":{
         "spliceAI_snv":"/storage1/fs1/bolton/Active/data/hg38/vcf/spliceai_scores.raw.snv.hg38.vcf.gz",
