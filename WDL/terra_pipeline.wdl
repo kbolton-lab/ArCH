@@ -159,7 +159,7 @@ workflow boltonlab_CH {
         File normalized_gnomad_exclude_tbi
 
         # Used for Pilot Data. Leave FALSE
-        Boolean? pilot = true
+        Boolean? pilot = false
     }
 
     # If the BAM file is already aligned and consensus sequencing was done, then alignment can be skipped
@@ -462,21 +462,22 @@ workflow boltonlab_CH {
             vcf_tbi = mutectSanitizeVcf.sanitized_vcf_tbi
         }
 
+        if (!pilot) {
         # Removes any germline variant that is reported in gnomAD
-        call bcftoolsIsecComplement as mutect_isec_complement_gnomAD {
-            input:
-            vcf = mutectNormalize.normalized_vcf,
-            vcf_tbi = mutectNormalize.normalized_vcf_tbi,
-            exclude_vcf = normalized_gnomad_exclude,
-            exclude_vcf_tbi = normalized_gnomad_exclude_tbi,
-            output_vcf_name = "mutect." + tumor_sample_name + ".gnomAD_AF_filter.vcf",
-            output_type = "z"
+            call bcftoolsIsecComplement as mutect_isec_complement_gnomAD {
+                input:
+                vcf = mutectNormalize.normalized_vcf,
+                vcf_tbi = mutectNormalize.normalized_vcf_tbi,
+                exclude_vcf = normalized_gnomad_exclude,
+                exclude_vcf_tbi = normalized_gnomad_exclude_tbi,
+                output_vcf_name = "mutect." + tumor_sample_name + ".gnomAD_AF_filter.vcf",
+                output_type = "z"
+            }
         }
-
         # Removes any variants that appeared in two of our PoN Samples at 2% VAF or higher
         call pon2Percent as mutect_pon2 {
             input:
-            vcf = mutect_isec_complement_gnomAD.complement_vcf,
+            vcf = select_first([mutect_isec_complement_gnomAD.complement_vcf, mutectNormalize.normalized_vcf]),
             vcf2PON = mutect_pon2_file,
             vcf2PON_tbi = mutect_pon2_file_tbi,
             caller = "mutect",
@@ -537,21 +538,22 @@ workflow boltonlab_CH {
             vcf_tbi = vardictSanitizeVcf.sanitized_vcf_tbi
         }
 
-        # Removes any germline variant that is reported in gnomAD
-        call bcftoolsIsecComplement as vardict_isec_complement_gnomAD {
-            input:
-            vcf = vardictNormalize.normalized_vcf,
-            vcf_tbi = vardictNormalize.normalized_vcf_tbi,
-            exclude_vcf = normalized_gnomad_exclude,
-            exclude_vcf_tbi = normalized_gnomad_exclude_tbi,
-            output_vcf_name = "vardict." + tumor_sample_name + ".gnomAD_AF_filter.vcf",
-            output_type = "z"
+        if (!pilot) {
+            # Removes any germline variant that is reported in gnomAD
+            call bcftoolsIsecComplement as vardict_isec_complement_gnomAD {
+                input:
+                vcf = vardictNormalize.normalized_vcf,
+                vcf_tbi = vardictNormalize.normalized_vcf_tbi,
+                exclude_vcf = normalized_gnomad_exclude,
+                exclude_vcf_tbi = normalized_gnomad_exclude_tbi,
+                output_vcf_name = "vardict." + tumor_sample_name + ".gnomAD_AF_filter.vcf",
+                output_type = "z"
+            }
         }
-
         # Removes any variants that appeared in two of our PoN Samples at 2% VAF or higher
         call pon2Percent as vardict_pon2 {
             input:
-            vcf = vardict_isec_complement_gnomAD.complement_vcf,
+            vcf = select_first([vardict_isec_complement_gnomAD.complement_vcf, vardictNormalize.normalized_vcf]),
             vcf2PON = vardict_pon2_file,
             vcf2PON_tbi = vardict_pon2_file_tbi,
             caller = "vardict",
@@ -605,21 +607,23 @@ workflow boltonlab_CH {
             vcf_tbi = lofreqSanitizeVcf.sanitized_vcf_tbi
         }
 
-        # Removes any germline variant that is reported in gnomAD
-        call bcftoolsIsecComplement as lofreq_isec_complement_gnomAD {
-            input:
-            vcf = lofreqNormalize.normalized_vcf,
-            vcf_tbi = lofreqNormalize.normalized_vcf_tbi,
-            exclude_vcf = normalized_gnomad_exclude,
-            exclude_vcf_tbi = normalized_gnomad_exclude_tbi,
-            output_vcf_name = "lofreq." + tumor_sample_name + ".gnomAD_AF_filter.vcf",
-            output_type = "z"
+        if (!pilot) {
+            # Removes any germline variant that is reported in gnomAD
+            call bcftoolsIsecComplement as lofreq_isec_complement_gnomAD {
+                input:
+                vcf = lofreqNormalize.normalized_vcf,
+                vcf_tbi = lofreqNormalize.normalized_vcf_tbi,
+                exclude_vcf = normalized_gnomad_exclude,
+                exclude_vcf_tbi = normalized_gnomad_exclude_tbi,
+                output_vcf_name = "lofreq." + tumor_sample_name + ".gnomAD_AF_filter.vcf",
+                output_type = "z"
+            }
         }
 
         # Removes any variants that appeared in two of our PoN Samples at 2% VAF or higher
         call pon2Percent as lofreq_pon2 {
             input:
-            vcf = lofreq_isec_complement_gnomAD.complement_vcf,
+            vcf = select_first([lofreq_isec_complement_gnomAD.complement_vcf, lofreqNormalize.normalized_vcf]),
             vcf2PON = lofreq_pon2_file,
             vcf2PON_tbi = lofreq_pon2_file_tbi,
             caller = "lofreq",
