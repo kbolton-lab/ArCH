@@ -1696,7 +1696,7 @@ task intervalsToBed {
     Int preemptible = 1
     Int maxRetries = 0
     Float data_size = size(interval_list, "GB")
-    Int space_needed_gb = 1 + round(data_size)
+    Int space_needed_gb = 10 + round(data_size)
 
     runtime {
         docker: "ubuntu:bionic"
