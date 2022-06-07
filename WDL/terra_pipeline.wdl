@@ -157,6 +157,9 @@ workflow boltonlab_CH {
         # Variants within gnomAD that have a VAF higher than 0.5%
         File normalized_gnomad_exclude
         File normalized_gnomad_exclude_tbi
+
+        # Used for Pilot Data. Leave FALSE
+        Boolean? pilot = false
     }
 
     # If the BAM file is already aligned and consensus sequencing was done, then alignment can be skipped
@@ -459,21 +462,22 @@ workflow boltonlab_CH {
             vcf_tbi = mutectSanitizeVcf.sanitized_vcf_tbi
         }
 
+        if (!pilot) {
         # Removes any germline variant that is reported in gnomAD
-        call bcftoolsIsecComplement as mutect_isec_complement_gnomAD {
-            input:
-            vcf = mutectNormalize.normalized_vcf,
-            vcf_tbi = mutectNormalize.normalized_vcf_tbi,
-            exclude_vcf = normalized_gnomad_exclude,
-            exclude_vcf_tbi = normalized_gnomad_exclude_tbi,
-            output_vcf_name = "mutect." + tumor_sample_name + ".gnomAD_AF_filter.vcf",
-            output_type = "z"
+            call bcftoolsIsecComplement as mutect_isec_complement_gnomAD {
+                input:
+                vcf = mutectNormalize.normalized_vcf,
+                vcf_tbi = mutectNormalize.normalized_vcf_tbi,
+                exclude_vcf = normalized_gnomad_exclude,
+                exclude_vcf_tbi = normalized_gnomad_exclude_tbi,
+                output_vcf_name = "mutect." + tumor_sample_name + ".gnomAD_AF_filter.vcf",
+                output_type = "z"
+            }
         }
-
         # Removes any variants that appeared in two of our PoN Samples at 2% VAF or higher
         call pon2Percent as mutect_pon2 {
             input:
-            vcf = mutect_isec_complement_gnomAD.complement_vcf,
+            vcf = select_first([mutect_isec_complement_gnomAD.complement_vcf, mutectNormalize.normalized_vcf]),
             vcf2PON = mutect_pon2_file,
             vcf2PON_tbi = mutect_pon2_file_tbi,
             caller = "mutect",
@@ -534,21 +538,22 @@ workflow boltonlab_CH {
             vcf_tbi = vardictSanitizeVcf.sanitized_vcf_tbi
         }
 
-        # Removes any germline variant that is reported in gnomAD
-        call bcftoolsIsecComplement as vardict_isec_complement_gnomAD {
-            input:
-            vcf = vardictNormalize.normalized_vcf,
-            vcf_tbi = vardictNormalize.normalized_vcf_tbi,
-            exclude_vcf = normalized_gnomad_exclude,
-            exclude_vcf_tbi = normalized_gnomad_exclude_tbi,
-            output_vcf_name = "vardict." + tumor_sample_name + ".gnomAD_AF_filter.vcf",
-            output_type = "z"
+        if (!pilot) {
+            # Removes any germline variant that is reported in gnomAD
+            call bcftoolsIsecComplement as vardict_isec_complement_gnomAD {
+                input:
+                vcf = vardictNormalize.normalized_vcf,
+                vcf_tbi = vardictNormalize.normalized_vcf_tbi,
+                exclude_vcf = normalized_gnomad_exclude,
+                exclude_vcf_tbi = normalized_gnomad_exclude_tbi,
+                output_vcf_name = "vardict." + tumor_sample_name + ".gnomAD_AF_filter.vcf",
+                output_type = "z"
+            }
         }
-
         # Removes any variants that appeared in two of our PoN Samples at 2% VAF or higher
         call pon2Percent as vardict_pon2 {
             input:
-            vcf = vardict_isec_complement_gnomAD.complement_vcf,
+            vcf = select_first([vardict_isec_complement_gnomAD.complement_vcf, vardictNormalize.normalized_vcf]),
             vcf2PON = vardict_pon2_file,
             vcf2PON_tbi = vardict_pon2_file_tbi,
             caller = "vardict",
@@ -602,21 +607,23 @@ workflow boltonlab_CH {
             vcf_tbi = lofreqSanitizeVcf.sanitized_vcf_tbi
         }
 
-        # Removes any germline variant that is reported in gnomAD
-        call bcftoolsIsecComplement as lofreq_isec_complement_gnomAD {
-            input:
-            vcf = lofreqNormalize.normalized_vcf,
-            vcf_tbi = lofreqNormalize.normalized_vcf_tbi,
-            exclude_vcf = normalized_gnomad_exclude,
-            exclude_vcf_tbi = normalized_gnomad_exclude_tbi,
-            output_vcf_name = "lofreq." + tumor_sample_name + ".gnomAD_AF_filter.vcf",
-            output_type = "z"
+        if (!pilot) {
+            # Removes any germline variant that is reported in gnomAD
+            call bcftoolsIsecComplement as lofreq_isec_complement_gnomAD {
+                input:
+                vcf = lofreqNormalize.normalized_vcf,
+                vcf_tbi = lofreqNormalize.normalized_vcf_tbi,
+                exclude_vcf = normalized_gnomad_exclude,
+                exclude_vcf_tbi = normalized_gnomad_exclude_tbi,
+                output_vcf_name = "lofreq." + tumor_sample_name + ".gnomAD_AF_filter.vcf",
+                output_type = "z"
+            }
         }
 
         # Removes any variants that appeared in two of our PoN Samples at 2% VAF or higher
         call pon2Percent as lofreq_pon2 {
             input:
-            vcf = lofreq_isec_complement_gnomAD.complement_vcf,
+            vcf = select_first([lofreq_isec_complement_gnomAD.complement_vcf, lofreqNormalize.normalized_vcf]),
             vcf2PON = lofreq_pon2_file,
             vcf2PON_tbi = lofreq_pon2_file_tbi,
             caller = "lofreq",
@@ -936,18 +943,22 @@ workflow boltonlab_CH {
             vardict_tsv = annotatePD.vardict_vcf_annotate_pd,
             pindel_full_vcf = merge_pindel_full.merged_vcf,
             pon = merge_pon.merged_vcf,
+            pon_pvalue = pon_pvalue,
+            model = true,
             tumor_sample_name = tumor_sample_name
         }
     }
 
     if (platform != 'ArcherDX') {
-        call no_xgb_model {
+        call xgb_model as no_xgb_model {
             input:
             mutect_tsv = annotatePD.mutect_vcf_annotate_pd,
             lofreq_tsv = annotatePD.lofreq_vcf_annotate_pd,
             vardict_tsv = annotatePD.vardict_vcf_annotate_pd,
             pindel_full_vcf = merge_pindel_full.merged_vcf,
             pon = merge_pon.merged_vcf,
+            pon_pvalue = pon_pvalue,
+            model = false,
             tumor_sample_name = tumor_sample_name
         }
     }
@@ -1657,7 +1668,7 @@ task fastQC {
     Int preemptible = 1
     Int maxRetries = 0
     Float data_size = size([bam, bam_bai], "GB")
-    Int space_needed_gb = 1 + round(data_size)
+    Int space_needed_gb = 10 + round(data_size)
 
     runtime {
         docker: "biocontainers/fastqc:v0.11.9_cv8"
@@ -1689,7 +1700,7 @@ task intervalsToBed {
     Int preemptible = 1
     Int maxRetries = 0
     Float data_size = size(interval_list, "GB")
-    Int space_needed_gb = 1 + round(data_size)
+    Int space_needed_gb = 10 + round(data_size)
 
     runtime {
         docker: "ubuntu:bionic"
@@ -2070,6 +2081,7 @@ task vardictTumorOnly {
 
         /opt/VarDictJava/build/install/VarDict/bin/VarDict \
             -U -G ~{reference} \
+            -X 1 \
             -f ~{min_var_freq} \
             -N ~{tumor_sample_name} \
             -b ~{tumor_bam} \
@@ -2128,6 +2140,7 @@ task vardictNormal {
 
         /opt/VarDictJava/build/install/VarDict/bin/VarDict \
             -U -G ~{reference} \
+            -X 1 \
             -f ~{min_var_freq} \
             -N ~{tumor_sample_name} \
             -b "~{tumor_bam}|~{normal_bam}" \
@@ -2941,7 +2954,7 @@ task normalFisher {
                 return(0)
             } else if (x[2]==0 & x[1]!=0) {
                 return(0)
-            } else if ((x[1]==0 & x[2]!=0) | (x[3]==0 & x[4]!=0)) {
+            } else if ((x[1]==0 & x[2]!=0) & (x[3]==0 & x[4]!=0)) {
                 return(1)
             } else if (x[2]/(x[1]+x[2]) >= x[4]/(x[3]+ x[4])) {
                 return(1)
@@ -2985,7 +2998,7 @@ task normalFisher {
                 return(0)
             } else if (x[2]==0 & x[1]!=0) {
                 return(0)
-            } else if ((x[1]==0 & x[2]!=0) | (ref==0 & alt!=0)) {
+            } else if ((x[1]==0 & x[2]!=0) & (ref==0 & alt!=0)) {
                 return(1)
             } else if (x[2]/(x[1]+x[2]) >= alt/(ref+alt)) {
                 return(1)
@@ -3024,7 +3037,7 @@ task normalFisher {
                 return(0)
             } else if (x[2]==0 & x[1]!=0) {
                 return(0)
-            } else if ((x[1]==0 & x[2]!=0) | (x[3]==0 & x[4]!=0)) {
+            } else if ((x[1]==0 & x[2]!=0) & (x[3]==0 & x[4]!=0)) {
                 return(1)
             } else if (x[2]/(x[1]+x[2]) >= x[4]/(x[3]+x[4])) {
                 return(1)
@@ -3049,7 +3062,7 @@ task normalFisher {
             bcftools filter -i "INFO/PON_FISHER<~{p_value}" $name.pileup.fisherPON.vcf.gz -Oz -o $name.filtered.pileup.fisherPON.vcf.gz && tabix $name.filtered.pileup.fisherPON.vcf.gz
         else
             bcftools annotate -h fisher.header $name.sample.pileup.vcf.gz -Oz -o $name.pileup.fisherPON.vcf.gz && tabix $name.pileup.fisherPON.vcf.gz
-            bcftools filter -i "INFO/PON_FISHER<~{p_value}" $name.pileup.fisherPON.vcf.gz -Oz -o $name.filtered.pileup.fisherPON.vcf.gz && tabix $name.filtered.pileup.fisherPON.vcf.gz
+            bcftools filter -i "INFO/PON_FISHER<=~{p_value}" $name.pileup.fisherPON.vcf.gz -Oz -o $name.filtered.pileup.fisherPON.vcf.gz && tabix $name.filtered.pileup.fisherPON.vcf.gz
         fi
     >>>
 
@@ -3223,6 +3236,8 @@ task xgb_model {
         File vardict_tsv
         File pindel_full_vcf
         File pon
+        String? pon_pvalue = "2.114164905e-6"
+        Boolean model = true
         String tumor_sample_name
     }
 
@@ -3234,7 +3249,7 @@ task xgb_model {
 
     runtime {
       cpu: cores
-      docker: "kboltonlab/xgb:model"
+      docker: "kboltonlab/xgb"
       memory: "6GB"
       disks: "local-disk ~{space_needed_gb} SSD"
       preemptible: preemptible
@@ -3242,48 +3257,11 @@ task xgb_model {
     }
 
     command <<<
-        /opt/bin/xgbappcompiled/bin/xgbapp ~{lofreq_tsv} ~{mutect_tsv} ~{vardict_tsv} ~{pindel_full_vcf} ~{pon} ""
-        echo "Model Finished..."
-    >>>
-
-
-    output {
-        File model_output = "output_~{tumor_sample_name}.tsv.gz"
-        File model_raw_output = "output_~{tumor_sample_name}.raw.tsv.gz"
-        File mutect_complex = "output_mutect_complex_~{tumor_sample_name}.tsv.gz"
-        File pindel_complex = "output_pindel_complex_~{tumor_sample_name}.tsv.gz"
-        File lofreq_complex = "output_lofreq_complex_~{tumor_sample_name}.tsv.gz"
-        File caller_filters = "Caller_Filters.raw.tsv.gz"
-    }
-}
-
-task no_xgb_model {
-    input {
-        File mutect_tsv
-        File lofreq_tsv
-        File vardict_tsv
-        File pindel_full_vcf
-        File pon
-        String tumor_sample_name
-    }
-
-    Float caller_size = size([mutect_tsv, lofreq_tsv, vardict_tsv, pindel_full_vcf, pon], "GB")
-    Int space_needed_gb = 10 + round(caller_size)
-    Int cores = 1
-    Int preemptible = 1
-    Int maxRetries = 0
-
-    runtime {
-      cpu: cores
-      docker: "kboltonlab/xgb:nomodel"
-      memory: "6GB"
-      disks: "local-disk ~{space_needed_gb} SSD"
-      preemptible: preemptible
-      maxRetries: maxRetries
-    }
-
-    command <<<
-        /opt/bin/xgbappcompiled_nomodel/bin/xgbapp_nomodel ~{lofreq_tsv} ~{mutect_tsv} ~{vardict_tsv} ~{pindel_full_vcf} ~{pon} ""
+        if [ ~{model} == true ]; then
+            /opt/bin/xgbappcompiled/bin/xgbapp ~{lofreq_tsv} ~{mutect_tsv} ~{vardict_tsv} ~{pindel_full_vcf} ~{pon} --pvalue ~{pon_pvalue}
+        else
+            /opt/bin/xgbappcompiled/bin/xgbapp ~{lofreq_tsv} ~{mutect_tsv} ~{vardict_tsv} ~{pindel_full_vcf} ~{pon} --pvalue ~{pon_pvalue} --nomodel
+        fi
         echo "Model Finished..."
     >>>
 
