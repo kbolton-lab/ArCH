@@ -1242,7 +1242,7 @@ task fastQC {
     Int preemptible = 1
     Int maxRetries = 0
     Float data_size = size([bam, bam_bai], "GB")
-    Int space_needed_gb = 1 + round(data_size)
+    Int space_needed_gb = 10 + round(data_size)
 
     runtime {
         docker: "biocontainers/fastqc:v0.11.9_cv8"
