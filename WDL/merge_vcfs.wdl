@@ -48,8 +48,8 @@ workflow merge_vcfs {
 
 		output {
 			# merged VCF
-			File merged_vcf = mergeVcf.merged_vcf
-			File merged_vcf_tbi = mergeVcf.merged_vcf_tbi
+			File merged_vcf = bcftoolsMerge.merged_vcf
+			File merged_vcf_tbi = bcftoolsMerge.merged_vcf_tbi
 		}
 }
 
