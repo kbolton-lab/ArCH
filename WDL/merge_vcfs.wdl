@@ -39,7 +39,7 @@ workflow merge_vcfs {
 		}	
 
 
-        call mergeVcf {
+        call bcftoolsMerge {
             input:
             vcfs = bcftoolsNorm.normalized_vcf,
             vcf_tbis = bcftoolsNorm.normalized_vcf_tbi,
@@ -89,7 +89,7 @@ task bcftoolsNorm {
     }
 }
 
-task mergeVcf {
+task bcftoolsMerge {
     input {
         Array[File] vcfs
         Array[File] vcf_tbis
@@ -113,7 +113,7 @@ task mergeVcf {
     String output_file = merged_vcf_basename + ".vcf.gz"
 
     command <<<
-        /usr/local/bin/bcftools concat --allow-overlaps --remove-duplicates --output-type z -o ~{output_file} ~{sep=" " vcfs}
+        /usr/local/bin/bcftools merge --output-type z -o ~{output_file} ~{sep=" " vcfs}
         /usr/local/bin/tabix ~{output_file}
     >>>
 
