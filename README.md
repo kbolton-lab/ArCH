@@ -121,6 +121,44 @@ Most of the files can be found inside our Files directory, however, the followin
 ## Example
 An example input can be found inside pipeline.json
 
+## Output
+|File|Description|
+|---|---|
+|sample.fpfilter.vcf.gz|Results from Varscan's FP Filter on ALL of the variants found for every variant caller in VCF Format|
+|sample.pon.total.counts.vcf.gz|Results from the PoN Pileup. Contains information regarding the reference depth, alternate depth, depth for strand, etc.|
+|CALLER_FILTERS.tsv.gz|Original untouched filters from the individual callers for each specific variant|
+|caller.sample.final.annotated.tsv|Variant calls after being annotated with our putative driver annotation script|
+|caller.sample.final.annotated.vcf.gz|Filtered variant calls that have been annotated with VEP|
+|caller.sample.pileup.fisherPON.vcf.gz|Variant calls after being filtered with our PoN Fisher's Exact Test|
+|caller_full.sample.vcf.gz|Base variant calls from the callers without any post variant caller filtering|
+|output_sample.tsv.gz|The FINAL output file that contains all merged information from the pipeline|
+|output_caller_complex_sample.tsv.gz|Individual files containing variant calls annotated as complex with their assumed support|
+
+## Post Pipeline Steps
+After the pipeline has finished running there should be several files that are generated. The final output file would be output_sample.tsv.gz. All of these files generated for all the samples should be combined together into a final file using the following command
+```sh
+# Grab the header from one of the output files
+zcat output_sample.tsv.gz | head -n1 > final.combined.tsv
+
+# Merge all output files together
+for dir in $(ls -d */); do
+  sample_name=$(basename $dir);
+  zcat $dir/output_$sample_name.tsv.gz | tail -n+2 >> final.combined.tsv;
+done
+
+# If the resulting file is too large, we can pre-filter the results prior to running our post filtering script
+# Find the relative index position for the "all_fp_pass_XGB" filter
+head -n1 final.combined.tsv | awk -F'\t' -vs='all_fp_pass_XGB' '{for (i=1;i<=NF;i++)if($i~"^"s"$"){print i;exit;}}'
+
+# For all of the output files, only keep the variants that had passed all our applied filters via checking the "all_fp_pass_XGB" column
+# In this case, our column is index position 337
+for dir in $(ls -d */); do 
+  sample_name=$(basename $dir); 
+  zcat $dir/output_$sample_name.tsv.gz | tail -n+2 | awk -F'\t' '{if($337=="true")print $0}' >> final.combined.FPpass.tsv; 
+done
+```
+Now the resulting final.combined.FPpass.tsv can be read into our PostPipelineFilters.R and the resulting file will be the final combined list of all variants that have been filtered, annotated, and checked.
+
 ## Limitations | TODO
 - VEP Annotations are hardcoded to be consistent so additional plugins or lack of plugins will cause issues with downstream annotation
 
