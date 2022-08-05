@@ -980,7 +980,9 @@ workflow boltonlab_CH {
         File tumor_flagstats = samtoolsFlagstat.flagstats
         File tumor_verify_bam_id_metrics = verifyBamId.verify_bam_id_metrics
         File tumor_verify_bam_id_depth = verifyBamId.verify_bam_id_depth
+        File fastqc_html = fastQC.fastqc_html
         File fastqc = fastQC.fastqc
+
 
         # Mutect
         File mutect_full =  merge_mutect_full.merged_vcf                                # Raw Mutect Ouput
@@ -1687,7 +1689,8 @@ task fastQC {
     >>>
 
     output {
-        File fastqc = "~{bamroot}_fastqc.html"
+        File fastqc_html = "~{bamroot}_fastqc.html"
+        File fastqc = "~{bamroot}_fastqc.zip"
     }
 }
 

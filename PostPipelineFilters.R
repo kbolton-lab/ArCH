@@ -17,7 +17,7 @@ final <- read.table(Final, sep='\t', header = TRUE)
 final <- final %>% dplyr::filter(all_fp_pass_XGB == "true")
 
 # Remove Off-Target & Introns          
-final <- final %>% dplyr::filter(!is.na(Consequence_VEP))
+final <- final %>% dplyr::filter(Consequence_VEP != "")
 
 # Remove Duplicated Rows
 final <- final[!(duplicated(final) | duplicated(final, fromLast = TRUE)), ]
@@ -177,4 +177,4 @@ final <- final %>% mutate(germline = ifelse(average_AF > 0.35 & (sourcetotalsc_X
 final <- final %>% mutate(germline = ifelse(average_AF > 0.25 & average_AF <= 0.35 & sourcetotalsc_XGB < 5 & CosmicCount < 25 & max_gnomAD_AF > 0.0001, 1, germline))
 final <- final %>% mutate(germline = ifelse(median_VAF > 0.35 & average_AF >= 0.25, 1, germline))
 
-write.table(final, "prostate.final.combined.FPpass.filtered.tsv", sep='\t', row.names = FALSE)
+write.table(final %>% filter(germline == 0), "final.combined.FPpass.filtered.tsv", sep='\t', row.names = FALSE)
