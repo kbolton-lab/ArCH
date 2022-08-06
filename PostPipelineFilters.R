@@ -317,14 +317,14 @@ nonsense_mutation <- c("frameshift_variant", "start_lost", "inframe_deletion", "
 SF3B1_positions <- c(622, 623, 624, 625, 626, 662, 663, 664, 665, 666, 700, 701, 702, 703, 704, 740, 741, 742)
 
 final <- final %>% mutate(putative_driver = case_when(
-  Gene %in% nonsense_gene_list & VariantClass %in% nonsense_mutation & (near.BB.HS != "" | near.heme.cosmic.HS != "") ~ 1,
-  Gene %in% nonsense_gene_list & VariantClass %in% nonsense_mutation & grepl("Oncogenic", oncoKB) ~ 1,
-  Gene == "SRSF2" & VariantClass == "missense_variant" & aa.pos == 95 ~ 1,
-  Gene == "SF3B1" & VariantClass == "missense_variant" & aa.pos %in% SF3B1_positions ~ 1,
-  Gene == "JAK2" & grepl("Oncogenic", oncoKB) ~ 1,
-  Gene == "PPM1D" & VariantClass %in% nonsense_mutation & EXON_VEP == "6/6" ~ 1
+  nsamples_min_vaf <= 1 & Gene %in% nonsense_gene_list & VariantClass %in% nonsense_mutation & (near.BB.HS != "" | near.heme.cosmic.HS != "") ~ 1,
+  nsamples_min_vaf <= 1 & Gene %in% nonsense_gene_list & VariantClass %in% nonsense_mutation & grepl("Oncogenic", oncoKB) ~ 1,
+  nsamples_min_vaf <= 1 & Gene == "SRSF2" & VariantClass == "missense_variant" & aa.pos == 95 ~ 1,
+  nsamples_min_vaf <= 1 & Gene == "SF3B1" & VariantClass == "missense_variant" & aa.pos %in% SF3B1_positions ~ 1,
+  nsamples_min_vaf <= 1 & Gene == "JAK2" & grepl("Oncogenic", oncoKB) ~ 1,
+  nsamples_min_vaf <= 1 & Gene == "PPM1D" & VariantClass %in% nonsense_mutation & EXON_VEP == "6/6" ~ 1
 ))
 
-write.table(final %>% filter(germline == 0), "prostate.final.combined.FPpass.filtered.tsv", sep='\t', row.names = FALSE)
+write.table(final, "final.combined.FPpass.filtered.tsv", sep='\t', row.names = FALSE)
 
 
