@@ -2,7 +2,11 @@
 # May 1st, 2022
 
 library(dplyr)
+library(stringr)
+library(jsonlite)
 
+bolton_bick_vars <- "/Users/irenaeuschan/Documents/Irenaeus/data/bick.bolton.vars3.txt"
+cosmic_hotspots <- "/Users/irenaeuschan/Documents/Irenaeus/data/COSMIC.heme.myeloid.hotspot.tsv2"
 #Pilot <- "/Users/irenaeuschan/Documents/Irenaeus/archer_pilot_data/pilot.archer.combined.FPpass.tsv"
 #Pilot <- "/Users/irenaeuschan/Documents/Irenaeus/archer_pilot_data/pilot.mgi.combined.FPpass.tsv"
 #Trios <- "/Users/irenaeuschan/Documents/Irenaeus/MGI_Yizhe/trios.combined.tsv"
@@ -177,4 +181,150 @@ final <- final %>% mutate(germline = ifelse(average_AF > 0.35 & (sourcetotalsc_X
 final <- final %>% mutate(germline = ifelse(average_AF > 0.25 & average_AF <= 0.35 & sourcetotalsc_XGB < 5 & CosmicCount < 25 & max_gnomAD_AF > 0.0001, 1, germline))
 final <- final %>% mutate(germline = ifelse(median_VAF > 0.35 & average_AF >= 0.25, 1, germline))
 
-write.table(final %>% filter(germline == 0), "final.combined.FPpass.filtered.tsv", sep='\t', row.names = FALSE)
+# Adding INDEL
+final <- final %>% mutate(alt_len = nchar(ALT), ref_len = nchar(REF))
+
+# Adding Near Columns
+vars <- read.table(bolton_bick_vars, sep = "\t", header = T, comment.char = "")
+vars$gene_aachange <- paste(vars$SYMBOL_VEP, vars$AAchange2, sep = "_")
+vars$gene_cDNAchange <- paste(vars$SYMBOL_VEP, gsub(".*:","",vars$HGVSc_VEP), sep="_")
+vars <- vars %>% dplyr::mutate(key = paste0(CHROM, ':', POS, ' ', REF, '>', ALT))
+
+vars$aa.pos <- as.numeric(str_extract(vars$loci.vep, "\\d+"))
+vars$CHROM.POS <- with(vars, paste0(CHROM,":",POS))
+vars$GENE.AA.POS <- with(vars, paste(SYMBOL_VEP,aa.pos,sep=":"))
+vars$gene_aachange <- with(vars, paste(SYMBOL_VEP,AAchange2,sep=":"))
+vars$gene_cDNAchange <- paste(vars$SYMBOL_VEP, gsub(".*:","",vars$HGVSc_VEP), sep="_")
+
+## new lines to handle DNMT3A:NA, ASXL1:NA etc.
+vars$GENE.AA.POS <- with(vars, ifelse(is.na(vars$aa.pos),NA,paste(SYMBOL_VEP,aa.pos,sep=":"))) # new line
+vars$GENE.AA.POS[vars$GENE.AA.POS=="NA:NA"] = NA # new line
+vars$gene_cDNAchange <-gsub("_",":", vars$gene_cDNAchange)
+vars$gene_aachange <- with(vars, paste(SYMBOL_VEP,AAchange2,sep=":"))
+
+final$aa.pos <- as.numeric(str_extract(final$AAchange.x, "\\d+"))
+final$gene_aachange <- with(final, paste(SYMBOL_VEP, AAchange.x,sep=":"))
+
+res <- apply(final[,c("CHROM","POS","SYMBOL_VEP","aa.pos","gene_aachange", "gene_cDNAchange")], 1, function(x) {
+  p = c(-3:0,1:3)
+  n = c(-9:0,1:9)
+  
+  prot = p + as.integer(x["aa.pos"])
+  vector.p = paste(x["SYMBOL_VEP"], prot ,sep = ":")
+  any.in.p <- vector.p %in% vars$GENE.AA.POS
+  
+  nuc = n + as.integer(x["POS"])
+  vector.n = paste(x["CHROM"], nuc ,sep = ":")
+  any.in.n <- vector.n %in% vars$CHROM.POS
+  
+  if (any(any.in.p)) {
+    res <- unique(vars[vars$GENE.AA.POS %in% vector.p, c("gene_aachange","source.totals.p")])
+    my_pre_return <- c(x[["gene_aachange"]], paste0(res$gene_aachange, "(", res$source.totals.p,")"))
+    if(grepl("Ter", x["gene_aachange"])) {
+      return(my_pre_return[grepl("Ter", my_pre_return)])
+    } else {
+      return(my_pre_return[!grepl("Ter", my_pre_return)])
+    }
+  } else if (any(any.in.n)) {
+    res <- unique(vars[vars$CHROM.POS %in% vector.n, c("CHROM.POS", "source.totals.c", "gene_cDNAchange")])
+    my_pre_return <- c(x[["gene_cDNAchange"]], paste0(res$gene_cDNAchange, "(", res$source.totals.c,")"))
+    if(grepl("del|ins|dup", x["gene_cDNAchange"])) {
+      return(my_pre_return[grepl("del|ins|dup", my_pre_return)])
+    } else {
+      return(my_pre_return[!grepl("del|ins|dup", my_pre_return)])
+    }
+  } else {
+    return("")
+  }
+})
+
+if (nrow(final) > 1) {
+  final$near.BB.HS <- res 
+} else {
+  final$near.BB.HS <- list(unlist(as.list(res)))
+}
+
+# toJSON
+final$near.BB.HS <- sapply(final$near.BB.HS, function(x) {
+  if (x == "") {
+    return(x)
+  } else {
+    return(toJSON(x))
+  }
+})
+final$near.BB.HS <- ifelse(grepl(",", final$near.BB.HS), final$near.BB.HS, "")
+
+ct <- read.table(cosmic_hotspots,sep = "\t", quote = "", header = T, comment.char = "")
+ct$gene <- gsub("_.*", "", ct$Gene_HGVSp_VEP)
+ct$aa.pos <- gsub(".*_", "", ct$Gene_HGVSp_VEP)
+ct$cDNAchange <- gsub(".*:", "", ct$HGVSC)
+ct$aa.pos <- as.numeric(str_extract(ct$aa.pos, "\\d+"))
+colnames(ct)[2] <- "key"
+ct$CHROM.POS <- unlist(lapply(ct$key, function(x) paste(str_split(x,":")[[1]][1],str_split(x,":")[[1]][2],sep = ":")))
+ct$GENE.AA.POS <- with(ct, paste(gene, aa.pos, sep=":"))
+ct$Gene_HGVSp_VEP
+ct$Gene_HGVSc_VEP <- with(ct, paste(gene, cDNAchange, sep=":"))
+
+final$near.heme.cosmic.HS <- apply(final[,c("CHROM","POS","SYMBOL_VEP","aa.pos","gene_aachange","gene_cDNAchange")], 1, function(x) {
+  p = c(-3:0,1:3)
+  n = c(-9:0,1:9)
+  
+  prot = p + as.integer(x["aa.pos"])
+  vector.p = paste(x["SYMBOL_VEP"], prot ,sep = ":")
+  any.in.p <- vector.p %in% ct$GENE.AA.POS
+  
+  nuc = n + as.integer(x["POS"])
+  vector.n = paste(x["CHROM"], nuc ,sep = ":")
+  any.in.n <- vector.n %in% ct$CHROM.POS
+  
+  if (any(any.in.p)) {
+    return(
+      c(x[["gene_aachange"]],
+        paste(ct$Gene_HGVSp_VEP[ct$GENE.AA.POS %in% vector.p],
+              paste0(ct$GENOMIC_MUTATION_ID[ct$GENE.AA.POS %in% vector.p],
+                     "(",ct$cosmic_count_chr[ct$GENE.AA.POS %in% vector.p],",",
+                     ct$haematopoietic_and_lymphoid_tissue_count_chr[ct$GENE.AA.POS %in% vector.p],",",
+                     ct$myeloid_count_chr[ct$GENE.AA.POS %in% vector.p],")"),
+              sep="|"))
+    )
+  } else if (any(any.in.n)) {
+    return(
+      c(x[["gene_cDNAchange"]],
+        paste(ct$Gene_HGVSc_VEP[ct$CHROM.POS %in% vector.n],
+              paste0(ct$GENOMIC_MUTATION_ID[ct$CHROM.POS %in% vector.n],
+                     "(",ct$cosmic_count_chr[ct$CHROM.POS %in% vector.n],",",
+                     ct$haematopoietic_and_lymphoid_tissue_count_chr[ct$CHROM.POS %in% vector.n],",",
+                     ct$myeloid_count_chr[ct$CHROM.POS %in% vector.n],")"),
+              sep="|"))
+    )
+  } else {
+    return("")
+  }
+})
+
+# toJSON
+final$near.heme.cosmic.HS <- sapply(final$near.heme.cosmic.HS, function(x) {
+  if (x == "") {
+    return(x)
+  } else {
+    return(toJSON(x))
+  }
+})
+
+# Nonsense Mutations (Stop Gained)
+nonsense_gene_list <- c("ASXL1", "CHEK2", "TP53", "DNMT3A", "TET2")
+nonsense_mutation <- c("frameshift_variant", "start_lost", "inframe_deletion", "stop_gained", "inframe_insertion")
+SF3B1_positions <- c(622, 623, 624, 625, 626, 662, 663, 664, 665, 666, 700, 701, 702, 703, 704, 740, 741, 742)
+
+final <- final %>% mutate(putative_driver = case_when(
+  Gene %in% nonsense_gene_list & VariantClass %in% nonsense_mutation & (near.BB.HS != "" | near.heme.cosmic.HS != "") ~ 1,
+  Gene %in% nonsense_gene_list & VariantClass %in% nonsense_mutation & grepl("Oncogenic", oncoKB) ~ 1,
+  Gene == "SRSF2" & VariantClass == "missense_variant" & aa.pos == 95 ~ 1,
+  Gene == "SF3B1" & VariantClass == "missense_variant" & aa.pos %in% SF3B1_positions ~ 1,
+  Gene == "JAK2" & grepl("Oncogenic", oncoKB) ~ 1,
+  Gene == "PPM1D" & VariantClass %in% nonsense_mutation & EXON_VEP == "6/6" ~ 1
+))
+
+write.table(final %>% filter(germline == 0), "prostate.final.combined.FPpass.filtered.tsv", sep='\t', row.names = FALSE)
+
+
