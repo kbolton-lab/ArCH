@@ -12,7 +12,9 @@ cosmic_hotspots <- "/Users/irenaeuschan/Documents/Irenaeus/data/COSMIC.heme.myel
 #Trios <- "/Users/irenaeuschan/Documents/Irenaeus/MGI_Yizhe/trios.combined.tsv"
 #Dilution <- "/Users/irenaeuschan/Documents/Irenaeus/archer_pilot_data/dilution.combined.tsv"
 Final <- "/Volumes/bolton/Active/projects/ProstateCancer/TERRA/prostate.final.combined.FPpass.tsv"
+Prostate <- "/Users/irenaeuschan/Documents/Irenaeus/ProstateCancer/prostate.final.combined.FPpass.filtered_KB2.csv"
 #Final <- "/Users/irenaeuschan/Documents/Irenaeus/ArcherDX/final.combined.FPpass.tsv"
+#orig <- "/Users/irenaeuschan/Documents/Irenaeus/ArcherDX/data/variant_review_IC_31722_KB_complete_updated.csv"
 #Alex_Filter <- "/Users/irenaeuschan/Documents/Irenaeus/archer_pilot_data/alex_filter.csv"
 # alex_filter <- read.csv(Alex_Filter, header = TRUE)
 final <- read.table(Final, sep='\t', header = TRUE)
@@ -174,12 +176,13 @@ final <- final %>% dplyr::filter(!(nsamples_min_vaf >= bb_count_threshold & sour
 
 # Germline Filters
 # Keep variants that are below our gnomAD VAF filter (<= gnomAD Population VAF of 0.0005)
-final <- final %>% rowwise() %>% mutate(max_gnomAD_AF = max(max_gnomAD_AF_VEP, max_gnomADe_AF_VEP, max_gnomADg_AF_VEP, na.rm = TRUE)) %>% ungroup()
+final <- final %>% dplyr::rename(pass_max_sub_gnomAD_AF = max_gnomAD_AF)
+final <- final %>% rowwise() %>% mutate(max_sub_gnomAD_AF = max(max_gnomAD_AF_VEP, max_gnomADe_AF_VEP, max_gnomADg_AF_VEP, na.rm = TRUE)) %>% ungroup()
 final$max_pop_gnomAD_AF <- final %>% dplyr::select(gnomAD_AF_VEP, gnomADe_AF_VEP, gnomADg_AF_VEP) %>% apply(., 1, function(x){max(x, na.rm = T)})
-final <- final %>% mutate(germline = ifelse(max_pop_gnomAD_AF <= 0.0005, 0, 1))
-final <- final %>% mutate(germline = ifelse(average_AF > 0.35 & (sourcetotalsc_XGB <= 25 | CosmicCount <= 50), 1, germline))
-final <- final %>% mutate(germline = ifelse(average_AF > 0.25 & average_AF <= 0.35 & sourcetotalsc_XGB < 5 & CosmicCount < 25 & max_gnomAD_AF > 0.0001, 1, germline))
-final <- final %>% mutate(germline = ifelse(median_VAF > 0.35 & average_AF >= 0.25, 1, germline))
+final <- final %>% mutate(germline = ifelse(max_pop_gnomAD_AF <= 0.0005 | (key == 'chr20 32434638 A>AG' & average_AF >= 0.05) | (key == 'chr20 32434638 A>AGG' & average_AF >= 0.05), 0, 1))
+final <- final %>% mutate(germline = ifelse(average_AF >= 0.35 & (sourcetotalsc_XGB <= 25 | CosmicCount <= 50), 1, germline))
+final <- final %>% mutate(germline = ifelse(average_AF >= 0.25 & average_AF < 0.35 & sourcetotalsc_XGB < 5 & CosmicCount < 25 & max_sub_gnomAD_AF > 0.0001, 1, germline))
+final <- final %>% mutate(germline = ifelse(median_VAF >= 0.35 & average_AF >= 0.25, 1, germline))
 
 # Adding INDEL
 final <- final %>% mutate(alt_len = nchar(ALT), ref_len = nchar(REF))
@@ -317,14 +320,19 @@ nonsense_mutation <- c("frameshift_variant", "start_lost", "inframe_deletion", "
 SF3B1_positions <- c(622, 623, 624, 625, 626, 662, 663, 664, 665, 666, 700, 701, 702, 703, 704, 740, 741, 742)
 
 final <- final %>% mutate(putative_driver = case_when(
-  nsamples_min_vaf <= 1 & Gene %in% nonsense_gene_list & VariantClass %in% nonsense_mutation & (near.BB.HS != "" | near.heme.cosmic.HS != "") ~ 1,
-  nsamples_min_vaf <= 1 & Gene %in% nonsense_gene_list & VariantClass %in% nonsense_mutation & grepl("Oncogenic", oncoKB) ~ 1,
+  nsamples_min_vaf <= 1 & Gene %in% nonsense_gene_list & VariantClass %in% nonsense_mutation  ~ 1,
+  nsamples_min_vaf <= 1 & Gene %in% nonsense_gene_list & VariantClass == "missense_variant" & grepl("Oncogenic", oncoKB) ~ 1,
+  nsamples_min_vaf <= 1 & Gene %in% nonsense_gene_list & VariantClass == "missense_variant" & grepl("Neutral", oncoKB) ~ 0,
+  nsamples_min_vaf <= 1 & Gene %in% nonsense_gene_list & VariantClass == "missense_variant" & CosmicCount >= 10 & (heme_cosmic_count >= 1 | myeloid_cosmic_count >= 1) ~ 1,
+  nsamples_min_vaf <= 1 & Gene %in% nonsense_gene_list & VariantClass == "missense_variant" & n.HGVSp.y >= 5 ~ 1,
+  nsamples_min_vaf <= 1 & Gene %in% nonsense_gene_list & VariantClass == "missense_variant" & n.loci.vep >= 1 & grepl("deleterious", SIFT_VEP) & grepl("damaging", PolyPhen_VEP) ~ 1,
+  nsamples_min_vaf <= 1 & Gene %in% nonsense_gene_list & VariantClass == "missense_variant" & (near.BB.HS != "" | near.heme.cosmic.HS != "") & grepl("deleterious", SIFT_VEP) & grepl("damaging", PolyPhen_VEP) ~ 1,
   nsamples_min_vaf <= 1 & Gene == "SRSF2" & VariantClass == "missense_variant" & aa.pos == 95 ~ 1,
   nsamples_min_vaf <= 1 & Gene == "SF3B1" & VariantClass == "missense_variant" & aa.pos %in% SF3B1_positions ~ 1,
   nsamples_min_vaf <= 1 & Gene == "JAK2" & grepl("Oncogenic", oncoKB) ~ 1,
   nsamples_min_vaf <= 1 & Gene == "PPM1D" & VariantClass %in% nonsense_mutation & EXON_VEP == "6/6" ~ 1
 ))
 
-write.table(final, "final.combined.FPpass.filtered.tsv", sep='\t', row.names = FALSE)
+write.csv(final, "final.combined.FPpass.filtered.csv", row.names = FALSE)
 
 

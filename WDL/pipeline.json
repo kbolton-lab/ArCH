@@ -14,6 +14,7 @@
     "boltonlab_CH.tumor_sample_name": "Sample",
     "boltonlab_CH.read_structure": ["8M13S+T", "+T"],
     "boltonlab_CH.min_reads": [1],
+    "boltonlab_CH.has_umi": true,
     "boltonlab_CH.umi_paired": false,
     "boltonlab_CH.umi_length": 8,
     "boltonlab_CH.min_base_quality": 1,

@@ -69,6 +69,7 @@ workflow boltonlab_CH {
         File reference_sa
 
         # FASTQ Preprocessing
+        Boolean has_umi = true
         Boolean? umi_paired = true          # If the UMI is paired (R1 and R2) then set this flag
         Int umi_length = 8
         Array[Int] min_reads = [1]          # The minimum number of reads that constitutes a "read family"
@@ -209,45 +210,63 @@ workflow boltonlab_CH {
             }
         }
 
-        # Removes UMIs from Reads and adds them as RX Tag
-        call extractUmis {
-            input:
-            bam = select_first([archer_fastq_to_bam.bam, fastq_to_bam.bam, unaligned_bam]),
-            read_structure = read_structure,
-            umi_paired = umi_paired
+        if (has_umi) {
+            # Removes UMIs from Reads and adds them as RX Tag
+            if (platform != 'MGI') {
+                call extractUmis {
+                    input:
+                    bam = select_first([archer_fastq_to_bam.bam, fastq_to_bam.bam, unaligned_bam]),
+                    read_structure = read_structure,
+                    umi_paired = umi_paired
+                }
+                # Mark Adapters
+                call markIlluminaAdapters as markAdapters{
+                    input:
+                    bam = extractUmis.umi_extracted_bam
+                }
+            }
+
+            if (platform == 'MGI') {
+                call markIlluminaAdapters as markAdapters_MGI{
+                    input:
+                    bam = select_first([fastq_to_bam.bam, unaligned_bam])
+                }
+            }
+
+            # First Alignment
+            call umiAlign as align {
+                input:
+                bam = select_first([markAdapters.marked_bam, markAdapters_MGI.marked_bam]),
+                reference = reference,
+                reference_fai = reference_fai,
+                reference_dict = reference_dict,
+                reference_amb = reference_amb,
+                reference_ann = reference_ann,
+                reference_bwt = reference_bwt,
+                reference_pac = reference_pac,
+                reference_sa = reference_sa
+            }
+
+            # Create Read Families and Perform Consensus Calling
+            call groupReadsAndConsensus {
+                input:
+                bam = align.aligned_bam,
+                umi_paired = umi_paired,
+            }
         }
 
-        # Mark Adapters
-        call markIlluminaAdapters {
-            input:
-            bam = extractUmis.umi_extracted_bam
-        }
-
-        # First Alignment
-        call umiAlign as align {
-            input:
-            bam = markIlluminaAdapters.marked_bam,
-            reference = reference,
-            reference_fai = reference_fai,
-            reference_dict = reference_dict,
-            reference_amb = reference_amb,
-            reference_ann = reference_ann,
-            reference_bwt = reference_bwt,
-            reference_pac = reference_pac,
-            reference_sa = reference_sa
-        }
-
-        # Create Read Families and Perform Consensus Calling
-        call groupReadsAndConsensus {
-            input:
-            bam = align.aligned_bam,
-            umi_paired = umi_paired,
+        if (!has_umi) {
+            # Mark Adapters
+            call markIlluminaAdapters as markAdapters_NoUMI{
+                input:
+                bam = select_first([archer_fastq_to_bam.bam, fastq_to_bam.bam, unaligned_bam]),
+            }
         }
 
         # Realign the Consensus Called Reads
         call realign {
             input:
-            bam = groupReadsAndConsensus.consensus_bam,
+            bam = select_first([groupReadsAndConsensus.consensus_bam, markAdapters_NoUMI.marked_bam]),
             reference = reference,
             reference_fai = reference_fai,
             reference_dict = reference_dict,
@@ -258,21 +277,37 @@ workflow boltonlab_CH {
             reference_sa = reference_sa
         }
 
-        # Filter, Clip, and Collect QC Metrics
-        call filterClipAndCollectMetrics {
-            input:
-            bam = realign.consensus_aligned_bam,
-            reference = reference,
-            reference_fai = reference_fai,
-            reference_dict = reference_dict,
-            min_reads = min_reads,
-            max_read_error_rate = max_read_error_rate,
-            max_base_error_rate = max_base_error_rate,
-            min_base_quality = min_base_quality,
-            max_no_call_fraction = max_no_call_fraction,
-            target_intervals = target_intervals,
-            description = tumor_sample_name,
-            umi_paired = umi_paired
+        if (has_umi) {
+            # Filter, Clip, and Collect QC Metrics
+            call filterClipAndCollectMetrics {
+                input:
+                bam = realign.consensus_aligned_bam,
+                reference = reference,
+                reference_fai = reference_fai,
+                reference_dict = reference_dict,
+                min_reads = min_reads,
+                max_read_error_rate = max_read_error_rate,
+                max_base_error_rate = max_base_error_rate,
+                min_base_quality = min_base_quality,
+                max_no_call_fraction = max_no_call_fraction,
+                target_intervals = target_intervals,
+                description = tumor_sample_name,
+                umi_paired = umi_paired
+            }
+        }
+
+        if (!has_umi) {
+            # Filter, Clip, and Collect QC Metrics
+            call clipAndCollectMetrics {
+                input:
+                bam = realign.consensus_aligned_bam,
+                reference = reference,
+                reference_fai = reference_fai,
+                reference_dict = reference_dict,
+                target_intervals = target_intervals,
+                description = tumor_sample_name,
+                umi_paired = umi_paired
+            }
         }
     }
 
@@ -282,8 +317,8 @@ workflow boltonlab_CH {
         reference = reference,
         reference_fai = reference_fai,
         reference_dict = reference_dict,
-        bam = select_first([filterClipAndCollectMetrics.clipped_bam, aligned_bam_file]),
-        bam_bai = select_first([filterClipAndCollectMetrics.clipped_bam_bai, aligned_bam_file_bai]),
+        bam = select_first([filterClipAndCollectMetrics.clipped_bam, aligned_bam_file, clipAndCollectMetrics.clipped_bam]),
+        bam_bai = select_first([filterClipAndCollectMetrics.clipped_bam_bai, aligned_bam_file_bai, clipAndCollectMetrics.clipped_bam_bai]),
         intervals = bqsr_intervals,
         known_sites = bqsr_known_sites,
         known_sites_tbi = bqsr_known_sites_tbi
@@ -965,7 +1000,7 @@ workflow boltonlab_CH {
 
     output {
         # Alignments
-        File? aligned_bam = filterClipAndCollectMetrics.clipped_bam
+        File? aligned_bam = select_first([filterClipAndCollectMetrics.clipped_bam, clipAndCollectMetrics.clipped_bam])
         File bqsr_bam = bqsr.bqsr_bam
 
         # Tumor QC
@@ -1376,6 +1411,68 @@ task filterClipAndCollectMetrics {
 
         /usr/local/bin/fgbio FilterConsensusReads --input ~{bam} --output consensus_filtered.bam --ref ~{reference} --min-reads ~{sep=" " min_reads} --max-read-error-rate ~{max_read_error_rate} --max-base-error-rate ~{max_base_error_rate} --min-base-quality ~{min_base_quality} --max-no-call-fraction ~{max_no_call_fraction}
         /usr/local/bin/fgbio ClipBam --input consensus_filtered.bam --ref ~{reference} --clipping-mode Hard --clip-overlapping-reads true --output clipped.bam
+
+        PAIRED=~{umi_paired}
+        DESCRIPTION=~{description}
+        INTERVALS=~{target_intervals}
+
+        if [ "$PAIRED" == true ]; then
+            if [[ -z "$DESCRIPTION" ]]; then
+                if [[ -z "$INTERVALS" ]]; then
+                    /usr/local/bin/fgbio CollectDuplexSeqMetrics --input clipped.bam --output duplex_seq.metrics
+                else
+                    /usr/local/bin/fgbio CollectDuplexSeqMetrics --input clipped.bam --output duplex_seq.metrics --intervals ${INTERVALS}
+                fi
+            else
+                if [[ -z "$INTERVALS" ]]; then
+                    /usr/local/bin/fgbio CollectDuplexSeqMetrics --input clipped.bam --description ${DESCRIPTION} --output duplex_seq.metrics
+                else
+                    /usr/local/bin/fgbio CollectDuplexSeqMetrics --input clipped.bam --description ${DESCRIPTION} --output duplex_seq.metrics --intervals ${INTERVALS}
+                fi
+            fi
+        else
+            echo "Sample not UMI Paired" > duplex_seq.metrics.txt
+        fi
+    >>>
+
+    output {
+        File clipped_bam = "clipped.bam"
+        File clipped_bam_bai = "clipped.bai"
+        Array[File] duplex_seq_metrics = glob("duplex_seq.metrics.*")
+    }
+}
+
+task clipAndCollectMetrics {
+    input {
+        File bam
+        File reference
+        File reference_fai
+        File reference_dict
+        File? target_intervals
+        String description
+        Boolean umi_paired = true
+    }
+
+    Int cores = 1
+    Float data_size = size(bam, "GB")
+    Float reference_size = size([reference, reference_fai, reference_dict], "GB")
+    Int preemptible = 1
+    Int maxRetries = 0
+
+    runtime {
+        docker: "quay.io/biocontainers/fgbio:1.3.0--0"
+        memory: "6GB"
+        cpu: cores
+        bootDiskSizeGb: 10 + round(3*data_size + reference_size)
+        disks: "local-disk ~{10 + round(3*data_size + reference_size)} SSD"
+        preemptible: preemptible
+        maxRetries: maxRetries
+    }
+
+    command <<<
+        set -eo pipefail
+
+        /usr/local/bin/fgbio ClipBam --input ~{bam} --ref ~{reference} --clipping-mode Hard --clip-overlapping-reads true --output clipped.bam
 
         PAIRED=~{umi_paired}
         DESCRIPTION=~{description}
@@ -1961,7 +2058,7 @@ task bcftoolsNorm {
     }
 
     command <<<
-        /usr/local/bin/bcftools norm --multiallelics -any --output-type z --output bcftools_norm.vcf.gz ~{vcf} -f ~{reference}
+        /usr/local/bin/bcftools norm --check-ref w --multiallelics -any --output-type z --output bcftools_norm.vcf.gz ~{vcf} -f ~{reference}
         /usr/local/bin/tabix bcftools_norm.vcf.gz
     >>>
 
