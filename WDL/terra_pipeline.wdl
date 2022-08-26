@@ -57,6 +57,8 @@ workflow boltonlab_CH {
         Array[String] read_structure        # Used for the UMI processing see: https://github.com/fulcrumgenomics/fgbio/wiki/Read-Structures
         String tumor_sample_name
         File target_intervals               # Interval List
+        Int mem_limit = "6GB"               # Some applications will require more memory depending on BAM size and BED size...
+                                            # Need to account for these types of errors
 
         # Reference
         File reference
@@ -1063,6 +1065,7 @@ task filterArcherUmiLength {
         File fastq1
         File fastq2
         Int umi_length
+        Int mem_limit
     }
 
     Int cores = 1
@@ -1073,7 +1076,7 @@ task filterArcherUmiLength {
 
     runtime {
         docker: "ubuntu:bionic"
-        memory: "6GB"
+        memory: "~{cores}*~{mem_limit}GB"
         cpu: cores
         disks: "local-disk ~{space_needed_gb} SSD"
         bootDiskSizeGb: space_needed_gb
