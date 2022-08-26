@@ -57,7 +57,7 @@ workflow boltonlab_CH {
         Array[String] read_structure        # Used for the UMI processing see: https://github.com/fulcrumgenomics/fgbio/wiki/Read-Structures
         String tumor_sample_name
         File target_intervals               # Interval List
-        Int mem_limit = "6GB"               # Some applications will require more memory depending on BAM size and BED size...
+        Int? mem_limit = "6GB"              # Some applications will require more memory depending on BAM size and BED size...
                                             # Need to account for these types of errors
 
         # Reference
@@ -181,7 +181,8 @@ workflow boltonlab_CH {
                 input:
                 fastq1 = select_first([bamToFastq.fastq_one, fastq_one]),
                 fastq2 = select_first([bamToFastq.fastq_two, fastq_two]),
-                umi_length = umi_length
+                umi_length = umi_length,
+                mem_limit = mem_limit
             }
             call bbmapRepair as repair {
                 input:
