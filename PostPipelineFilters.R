@@ -12,10 +12,11 @@ cosmic_hotspots <- "/Users/irenaeuschan/Documents/Irenaeus/data/COSMIC.heme.myel
 #Pilot <- "/Users/irenaeuschan/Documents/Irenaeus/archer_pilot_data/pilot.mgi.combined.FPpass.tsv"
 #Trios <- "/Users/irenaeuschan/Documents/Irenaeus/MGI_Yizhe/trios.combined.tsv"
 #Dilution <- "/Users/irenaeuschan/Documents/Irenaeus/archer_pilot_data/dilution.combined.tsv"
-#Final <- "/Volumes/bolton/Active/projects/ProstateCancer/TERRA/prostate.final.combined.FPpass.tsv"
+Final <- "/Volumes/bolton/Active/projects/ProstateCancer/TERRA/prostate.final.combined.FPpass.tsv"
 #Prostate <- "/Users/irenaeuschan/Documents/Irenaeus/ProstateCancer/prostate.final.combined.FPpass.filtered_KB2.csv"
-Final <- "/Users/irenaeuschan/Documents/Irenaeus/ArcherDX/final.combined.FPpass.tsv"
-Orig <- "/Users/irenaeuschan/Documents/Irenaeus/ArcherDX/data/variant_review_IC_31722_KB_complete_updated.csv"#Alex_Filter <- "/Users/irenaeuschan/Documents/Irenaeus/archer_pilot_data/alex_filter.csv"
+#Final <- "/Users/irenaeuschan/Documents/Irenaeus/ArcherDX/final.combined.FPpass.tsv"
+#Orig <- "/Users/irenaeuschan/Documents/Irenaeus/ArcherDX/data/variant_review_IC_31722_KB_complete_updated.csv"
+#Alex_Filter <- "/Users/irenaeuschan/Documents/Irenaeus/archer_pilot_data/alex_filter.csv"
 # alex_filter <- read.csv(Alex_Filter, header = TRUE)
 final <- read.table(Final, sep='\t', header = TRUE)
 
@@ -178,7 +179,7 @@ final <- final %>% dplyr::left_join(., final %>%
 final <- final %>% dplyr::filter(nsamples_min_vaf <= count_threshold | (key == 'chr20 32434638 A>AG' & average_AF >= 0.05) | (key == 'chr20 32434638 A>AGG' & average_AF >= 0.05))        # Recurrent Filter
 
 # Last filter to remove any variants that have a high recurrent count but are not reported inside Kelly's or Bick's dataset
-final <- final %>% dplyr::filter(!(nsamples_min_vaf >= bb_count_threshold & source.totals.c == ""))
+final <- final %>% dplyr::filter(!(nsamples_min_vaf >= bb_count_threshold & (sourcetotalsc_XGB <= 25 | CosmicCount <= 50)))
 
 # Germline Filters
 # Keep variants that are below our gnomAD VAF filter (<= gnomAD Population VAF of 0.0005)
@@ -563,10 +564,10 @@ final <- final %>% mutate(Review = case_when(
   grepl('extTer', gene_aachange)~ "Termination Extension",
   Consequence_VEP == "splice_region_variant&synonymous_variant" ~ "Splice Region Variant",
   average_AF >= 0.2 ~ "High VAF",
-  grepl("deleterious", SIFT_VEP) & grepl("damaging", PolyPhen_VEP) ~ "SIFT + PolyPhen",
+  Gene %in% TSG_gene_list & VariantClass == "missense_variant" & grepl("deleterious", SIFT_VEP) & grepl("damaging", PolyPhen_VEP) ~ "Missense Review",
   Gene %in% TSG_gene_list & VariantClass == "missense_variant" & (near.BB.loci.HS.logic == TRUE | near.heme.cosmic.loci.HS.logic == TRUE) & (grepl("deleterious", SIFT_VEP) | grepl("damaging", PolyPhen_VEP)) & putative_driver == 0 ~ "Missense Review",
   Gene %in% TSG_gene_list & VariantClass == "missense_variant" & (n.loci.vep - n.loci.truncating.vep) >= 5 & (grepl("deleterious", SIFT_VEP) | grepl("damaging", PolyPhen_VEP)) & putative_driver == 0 ~ "Missense Review",
-  nsamples_min_vaf > 1 ~ "Recurrent"
+  nsamples_min_vaf > 1 & putative_driver == 1 ~ "Recurrent"
 ))
 
 final <- final %>% mutate(putative_driver = ifelse(putative_driver == 0 & grepl("deleterious", SIFT_VEP) & grepl("damaging", PolyPhen_VEP), 1, putative_driver))
