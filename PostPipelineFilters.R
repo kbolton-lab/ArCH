@@ -12,10 +12,10 @@ cosmic_hotspots <- "/Users/irenaeuschan/Documents/Irenaeus/data/COSMIC.heme.myel
 #Pilot <- "/Users/irenaeuschan/Documents/Irenaeus/archer_pilot_data/pilot.mgi.combined.FPpass.tsv"
 #Trios <- "/Users/irenaeuschan/Documents/Irenaeus/MGI_Yizhe/trios.combined.tsv"
 #Dilution <- "/Users/irenaeuschan/Documents/Irenaeus/archer_pilot_data/dilution.combined.tsv"
-Final <- "/Volumes/bolton/Active/projects/ProstateCancer/TERRA/prostate.final.combined.FPpass.tsv"
+#Final <- "/Volumes/bolton/Active/projects/ProstateCancer/TERRA/prostate.final.combined.FPpass.tsv"
 #Prostate <- "/Users/irenaeuschan/Documents/Irenaeus/ProstateCancer/prostate.final.combined.FPpass.filtered_KB2.csv"
-#Final <- "/Users/irenaeuschan/Documents/Irenaeus/ArcherDX/final.combined.FPpass.tsv"
-#Orig <- "/Users/irenaeuschan/Documents/Irenaeus/ArcherDX/data/variant_review_IC_31722_KB_complete_updated.csv"
+Final <- "/Users/irenaeuschan/Documents/Irenaeus/ArcherDX/final.combined.FPpass.tsv"
+Orig <- "/Users/irenaeuschan/Documents/Irenaeus/ArcherDX/data/variant_review_IC_31722_KB_complete_updated.csv"
 #Alex_Filter <- "/Users/irenaeuschan/Documents/Irenaeus/archer_pilot_data/alex_filter.csv"
 # alex_filter <- read.csv(Alex_Filter, header = TRUE)
 final <- read.table(Final, sep='\t', header = TRUE)
@@ -103,11 +103,11 @@ final <- final %>% dplyr::filter(ch_pd2 >= 1)
 final <- final %>% dplyr::filter(PASS_BY_1 == 'true')
 # Filter out Low VAF Mutect Calls
 final <- final %>% filter(!(CALL_BY_CALLER == "mutect" & average_AF < 0.01))
+# Throw out Silent Mutations
+final <- final %>% filter(Consequence_VEP != "synonymous_variant")
 
 # Strand Bias Filter - 90/10
-final <- final %>% rowwise() %>% 
-  mutate(pass_strand_bias = ifelse(sum(pass_strand_bias_Mutect, pass_strand_bias_Lofreq, pass_strand_bias_Vardict, na.rm = TRUE) >= 1, TRUE, FALSE)) %>% ungroup() %>%
-  filter(pass_strand_bias)
+final <- final %>% rowwise() %>% mutate(pass_strand_bias = ifelse(sum(pass_strand_bias_Mutect, pass_strand_bias_Lofreq, pass_strand_bias_Vardict, na.rm = TRUE) >= 1, TRUE, FALSE))
 
 # Redefine homopolymer filters from string to boolean
 final <- final %>%
@@ -140,9 +140,9 @@ final <- final %>%
         dust_score < 7
     ))
 
-# Filter Homopolymer
+# Filter Homopolymer that are not "Exact Match in BB
 #rescue <- final %>% filter(!as.logical(pass_homopolymer_filter))
-#final <- final %>% filter(as.logical(pass_homopolymer_filter))
+final <- final %>% filter(!(as.logical(pass_homopolymer_filter) == FALSE & sourcetotalsloci_XGB == 0))
 #rescue <- rescue %>% filter(sourcetotalsloci_XGB >= 5 | CosmicCount >= 25 | heme_cosmic_count >= 10 | myeloid_cosmic_count >= 5)
 #final <- rbind(final, rescue)
 
@@ -179,7 +179,13 @@ final <- final %>% dplyr::left_join(., final %>%
 final <- final %>% dplyr::filter(nsamples_min_vaf <= count_threshold | (key == 'chr20 32434638 A>AG' & average_AF >= 0.05) | (key == 'chr20 32434638 A>AGG' & average_AF >= 0.05))        # Recurrent Filter
 
 # Last filter to remove any variants that have a high recurrent count but are not reported inside Kelly's or Bick's dataset
-final <- final %>% dplyr::filter(!(nsamples_min_vaf >= bb_count_threshold & (sourcetotalsc_XGB <= 25 | CosmicCount <= 50)))
+final <- final %>% dplyr::filter(!(nsamples_min_vaf >= bb_count_threshold & (sourcetotalsc_XGB <= 25 & CosmicCount <= 50)))
+
+# Nonsense Mutations (Stop Gained)
+TSG_gene_list <- c("ASXL1", "CHEK2", "TP53", "DNMT3A", "TET2")
+nonsense_mutation <- c("frameshift_variant", "start_lost", "inframe_deletion", "stop_gained")
+SF3B1_positions <- c(622, 623, 624, 625, 626, 662, 663, 664, 665, 666, 700, 701, 702, 703, 704, 740, 741, 742)
+clinvar_sig_terms <- c("Likely_pathogenic", "Likely_pathogenic&_drug_response", "Pathogenic", "Pathogenic/Likely_pathogenic", "Pathogenic/Likely_pathogenic&_drug_response")
 
 # Germline Filters
 # Keep variants that are below our gnomAD VAF filter (<= gnomAD Population VAF of 0.0005)
@@ -188,6 +194,7 @@ final <- final %>% rowwise() %>% mutate(max_sub_gnomAD_AF = max(max_gnomAD_AF_VE
 final$max_pop_gnomAD_AF <- final %>% dplyr::select(gnomAD_AF_VEP, gnomADe_AF_VEP, gnomADg_AF_VEP) %>% apply(., 1, function(x){max(x, na.rm = T)})
 final <- final %>% mutate(germline = ifelse(max_pop_gnomAD_AF <= 0.0005 | (key == 'chr20 32434638 A>AG' & average_AF >= 0.05) | (key == 'chr20 32434638 A>AGG' & average_AF >= 0.05), 0, 1))
 final <- final %>% mutate(germline = ifelse(average_AF >= 0.35 & (sourcetotalsc_XGB <= 25 | CosmicCount <= 50), 1, germline))
+final <- final %>% mutate(germline = ifelse(average_AF >= 0.35 & Gene %in% c("DNMT3A", "TET2", "ASXL1", "PPM1D") & VariantClass %in% nonsense_mutation, 0, germline))
 final <- final %>% mutate(germline = ifelse(average_AF >= 0.25 & average_AF < 0.35 & sourcetotalsc_XGB < 5 & CosmicCount < 25 & max_sub_gnomAD_AF > 0.0001, 1, germline))
 final <- final %>% mutate(germline = ifelse(median_VAF >= 0.35 & average_AF >= 0.25, 1, germline))
 
@@ -252,11 +259,7 @@ final$near.BB.HS <- apply(final[,c("CHROM","POS","SYMBOL_VEP","aa.pos","gene_aac
 
 # toJSON
 final$near.BB.HS <- sapply(final$near.BB.HS, function(x) {
-  if (x == "") {
-    return(x)
-  } else {
-    return(toJSON(x))
-  }
+  ifelse (x == "", return(x), return(toJSON(x)))
 })
 final$near.BB.HS <- ifelse(grepl(",", final$near.BB.HS), final$near.BB.HS, "")
 
@@ -309,11 +312,7 @@ final$near.heme.cosmic.HS <- apply(final[,c("CHROM","POS","SYMBOL_VEP","aa.pos",
 
 # toJSON
 final$near.heme.cosmic.HS <- sapply(final$near.heme.cosmic.HS, function(x) {
-  if (x == "") {
-    return(x)
-  } else {
-    return(toJSON(x))
-  }
+  ifelse (x == "", return(x), return(toJSON(x)))
 })
 
 final$near.BB.loci.HS <- apply(final[,c("CHROM","POS","SYMBOL_VEP","aa.pos","gene_aachange", "gene_cDNAchange")], 1, function(x) {
@@ -371,11 +370,7 @@ final$near.BB.loci.HS <- apply(final[,c("CHROM","POS","SYMBOL_VEP","aa.pos","gen
 
 # toJSON
 final$near.BB.loci.HS <- sapply(final$near.BB.loci.HS, function(x) {
-  if (x == "") {
-    return(x)
-  } else {
-    return(toJSON(x))
-  }
+  ifelse (x == "", return(x), return(toJSON(x)))
 })
 final$near.BB.loci.HS <- ifelse(grepl(",", final$near.BB.loci.HS), final$near.BB.loci.HS, "")
 
@@ -440,11 +435,7 @@ final$near.heme.cosmic.loci.HS <- apply(final[,c("CHROM","POS","SYMBOL_VEP","aa.
 
 # toJSON
 final$near.heme.cosmic.loci.HS <- sapply(final$near.heme.cosmic.loci.HS, function(x) {
-  if (x == "") {
-    return(x)
-  } else {
-    return(toJSON(x))
-  }
+  ifelse (x == "", return(x), return(toJSON(x)))
 })
 
 
@@ -468,7 +459,6 @@ final$near.heme.cosmic.loci.HS.logic <- unlist(lapply(final$near.heme.cosmic.loc
   }
 }))
 
-# toJSON
 final$near.BB.loci.HS.logic <- unlist(lapply(final$near.BB.loci.HS, function(x) {
   total_source <- 0
   if (x == "") {
@@ -512,11 +502,23 @@ final <- final[!duplicated(final),]
 paste0("dims match after sqldf: ",dim(final)[[1]] == dims)
 final <- final %>% dplyr::select(-truncating)
 
-# Nonsense Mutations (Stop Gained)
-TSG_gene_list <- c("ASXL1", "CHEK2", "TP53", "DNMT3A", "TET2")
-nonsense_mutation <- c("frameshift_variant", "start_lost", "inframe_deletion", "stop_gained", "inframe_insertion")
-SF3B1_positions <- c(622, 623, 624, 625, 626, 662, 663, 664, 665, 666, 700, 701, 702, 703, 704, 740, 741, 742)
-clinvar_sig_terms <- c("Likely_pathogenic", "Likely_pathogenic&_drug_response", "Pathogenic", "Pathogenic/Likely_pathogenic", "Pathogenic/Likely_pathogenic&_drug_response")
+# Adding Recurrent Proportions
+total_samples = length(unique(final$SN_TAG)) # 1934 (for Archer)
+total_heme_cosmic = 29234
+total_BB = 122691
+final <- final %>% mutate(prop_nsamples = nsamples_min_vaf/total_samples, 
+                          prop_Cosmic = heme_cosmic_count/total_heme_cosmic, 
+                          prop_BB = sourcetotalsc_XGB/total_BB) %>%
+  mutate(ratio_to_BB = prop_nsamples/prop_BB, ratio_to_cosmic = prop_nsamples/prop_Cosmic)
+
+# These are considered to be recurrent
+final <- final %>% mutate(pass_prop_recurrent = case_when(
+  nsamples_min_vaf > 1 & sourcetotalsc_XGB == 0 & CosmicCount == 0 & nsamples_min_vaf > 20 ~ FALSE,
+  nsamples_min_vaf > 1 & sourcetotalsc_XGB == 0 & CosmicCount != 0 & ratio_to_cosmic > 600 & ratio_to_cosmic != Inf ~ FALSE,
+  nsamples_min_vaf > 1 & sourcetotalsc_XGB != 0 & CosmicCount == 0 & ratio_to_BB > 700 & ratio_to_BB != Inf ~ FALSE,
+  nsamples_min_vaf > 1 & sourcetotalsc_XGB != 0 & CosmicCount != 0 & (ratio_to_BB > 700 & ratio_to_BB != Inf) & (ratio_to_cosmic > 600 & ratio_to_cosmic != Inf) ~ FALSE,
+  TRUE ~ TRUE
+)) %>% filter(pass_prop_recurrent == TRUE)
 
 # Putative Driver Rules 
 # ---------------------
@@ -554,7 +556,7 @@ final <- final %>% mutate(putative_driver = case_when(
   TRUE ~ 0
 ))
 
-final <- final %>% mutate(putative_driver = ifelse(grepl("Oncogenic", oncoKB) & Consequence_VEP == "splice_region_variant&synonymous_variant", 0, putative_driver))
+final <- final %>% mutate(putative_driver = ifelse(grepl("Oncogenic", oncoKB) & Consequence_VEP == "splice_region_variant&synonymous_variant" & !(clinvar_CLINSIGN_VEP %in% clinvar_sig_terms), 0, putative_driver))
 
 # Review high VAF stuff
 final <- final %>% mutate(Review = case_when(
@@ -567,9 +569,7 @@ final <- final %>% mutate(Review = case_when(
   Gene %in% TSG_gene_list & VariantClass == "missense_variant" & grepl("deleterious", SIFT_VEP) & grepl("damaging", PolyPhen_VEP) ~ "Missense Review",
   Gene %in% TSG_gene_list & VariantClass == "missense_variant" & (near.BB.loci.HS.logic == TRUE | near.heme.cosmic.loci.HS.logic == TRUE) & (grepl("deleterious", SIFT_VEP) | grepl("damaging", PolyPhen_VEP)) & putative_driver == 0 ~ "Missense Review",
   Gene %in% TSG_gene_list & VariantClass == "missense_variant" & (n.loci.vep - n.loci.truncating.vep) >= 5 & (grepl("deleterious", SIFT_VEP) | grepl("damaging", PolyPhen_VEP)) & putative_driver == 0 ~ "Missense Review",
-  nsamples_min_vaf > 1 & putative_driver == 1 ~ "Recurrent"
+  nsamples_min_vaf > ceiling(length(unique((final$SN_TAG)))*0.001) & putative_driver == 1 ~ "Recurrent" # Only present in 0.1% of our samples
 ))
-
-final <- final %>% mutate(putative_driver = ifelse(putative_driver == 0 & grepl("deleterious", SIFT_VEP) & grepl("damaging", PolyPhen_VEP), 1, putative_driver))
                             
 write.csv(final, "final.combined.FPpass.filtered.csv", row.names = FALSE)
