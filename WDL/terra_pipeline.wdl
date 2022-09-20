@@ -98,6 +98,8 @@ workflow boltonlab_CH {
         String picard_metric_accumulation_level
         Int? qc_minimum_mapping_quality = 0
         Int? qc_minimum_base_quality = 0
+        File chrom_sizes
+        File af_only_snp_only_vcf
 
         # Variant Calling
         Array[Pair[File, File]] pon_bams            # List of BAMs within the Panel of Normals (PoN)
@@ -323,7 +325,8 @@ workflow boltonlab_CH {
         bam_bai = select_first([filterClipAndCollectMetrics.clipped_bam_bai, aligned_bam_file_bai, clipAndCollectMetrics.clipped_bam_bai]),
         intervals = bqsr_intervals,
         known_sites = bqsr_known_sites,
-        known_sites_tbi = bqsr_known_sites_tbi
+        known_sites_tbi = bqsr_known_sites_tbi,
+        output_name = tumor_sample_name
     }
 
     # Obtains Alignment Metrics and Insert Size Metrics
@@ -445,6 +448,24 @@ workflow boltonlab_CH {
     # Some of our callers use BED file instead of interval list
     call intervalsToBed as interval_to_bed {
         input: interval_list = target_intervals
+    }
+
+    # Perform Somalier
+    call createSomalierVcf {
+        input:
+        interval_bed = interval_to_bed.interval_bed,
+        chrom_sizes = chrom_sizes,
+        af_only_snp_only_vcf = af_only_snp_only_vcf,
+        reference = reference
+    }
+
+    call somalier {
+        input:
+        somalier_vcf = createSomalierVcf.somalier_vcf,
+        reference = reference,
+        bam = bqsr.bqsr_bam,
+        bam_bai = bqsr.bqsr_bam_bai,
+        sample_name = tumor_sample_name
     }
 
     # In order to parallelize as much as the workflow as possible, we analyze by chromosome
@@ -1019,6 +1040,7 @@ workflow boltonlab_CH {
         File tumor_verify_bam_id_depth = verifyBamId.verify_bam_id_depth
         File fastqc_html = fastQC.fastqc_html
         File fastqc = fastQC.fastqc
+        File somalier_out = somalier.somalier_out
 
 
         # Mutect
@@ -1892,6 +1914,75 @@ task intervalsToBed {
 
     output {
         File interval_bed = "interval_list.bed"
+    }
+}
+
+task createSomalierVcf {
+    input {
+        File interval_bed
+        File chrom_sizes
+        File af_only_snp_only_vcf
+        File reference
+    }
+
+    Int cores = 1
+    Int preemptible = 1
+    Int maxRetries = 0
+    Float data_size = size([interval_bed, chrom_sizes, af_only_snp_only_vcf, reference], "GB")
+    Int space_needed_gb = 10 + round(data_size)
+
+    runtime {
+        docker: "kboltonlab/bst:1.0"
+        memory: "6GB"
+        cpu: cores
+        disks: "local-disk ~{space_needed_gb} SSD"
+        bootDiskSizeGb: space_needed_gb
+        preemptible: preemptible
+        maxRetries: maxRetries
+    }
+
+    command <<<
+        bedtools slop -i ~{interval_bed} -g ~{chrom_sizes} -b 100 > somalier.bed
+        bedtools intersect -a ~{af_only_snp_only_vcf} -b somalier.bed -header > somalier.vcf
+        bcftools norm --multiallelics -any -Oz -o somalier.norm.vcf.gz -f ~{reference} somalier.vcf
+    >>>
+
+    output {
+        File somalier_vcf = "somalier.norm.vcf"
+    }
+}
+
+task somalier {
+    input {
+        File somalier_vcf
+        File reference
+        File bam
+        File bam_bai
+        String sample_name = "tumor"
+    }
+
+    Int cores = 1
+    Int preemptible = 1
+    Int maxRetries = 0
+    Float data_size = size([somalier_vcf, reference, bam, bam_bai], "GB")
+    Int space_needed_gb = 10 + round(data_size)
+
+    runtime {
+        docker: "brentp/somalier:latest"
+        memory: "6GB"
+        cpu: cores
+        disks: "local-disk ~{space_needed_gb} SSD"
+        bootDiskSizeGb: space_needed_gb
+        preemptible: preemptible
+        maxRetries: maxRetries
+    }
+
+    command <<<
+        somalier extract --sites ~{somalier_vcf} -f ~{reference} ~{bam}
+    >>>
+
+    output {
+        File somalier_out = "sample_name.somalier"
     }
 }
 
