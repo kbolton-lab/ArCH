@@ -1357,7 +1357,7 @@ task groupReadsAndConsensus {
     Int maxRetries = 0
     Float data_size = size(bam, "GB")
     Int space_needed_gb = ceil(10 + 2 * data_size)
-    Float memory = select_first([mem_limit_override, if 2.0 * data_size > 6.0 then ceil(2.0 * data_size) else 6.0])
+    Float memory = select_first([mem_limit_override, if 2.0 * data_size > 6.0 then ceil(4.0 * data_size) else 6.0])
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 32) else 1])
 
     runtime {
@@ -1948,7 +1948,7 @@ task createSomalierVcf {
     >>>
 
     output {
-        File somalier_vcf = "somalier.norm.vcf"
+        File somalier_vcf = "somalier.norm.vcf.gz"
     }
 }
 
@@ -1982,7 +1982,7 @@ task somalier {
     >>>
 
     output {
-        File somalier_out = "sample_name.somalier"
+        File somalier_out = "~{sample_name}.somalier"
     }
 }
 

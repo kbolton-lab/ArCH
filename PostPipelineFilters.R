@@ -15,7 +15,7 @@ TSG_list <- "/Users/irenaeuschan/Documents/Irenaeus/data/TSG_only_list.tsv"
 #Dilution <- "/Users/irenaeuschan/Documents/Irenaeus/archer_pilot_data/dilution.combined.tsv"
 #Final <- "/Volumes/bolton/Active/projects/ProstateCancer/TERRA/prostate.final.FPpass.tsv"
 #Prostate <- "/Users/irenaeuschan/Documents/Irenaeus/ProstateCancer/prostate.final.combined.FPpass.filtered_KB2.csv"
-#Final <- "/Volumes/bolton/Active/projects/GoodCell/TERRA/GoodCell.combined.FPpass.tsv"
+Final <- "/Volumes/bolton/Active/projects/GoodCell/TERRA/GoodCell.combined.FPpass.tsv"
 Final <- "/Users/irenaeuschan/Documents/Irenaeus/ArcherDX/final.combined.FPpass.tsv"
 Orig <- "/Users/irenaeuschan/Documents/Irenaeus/ArcherDX/data/variant_review_IC_31722_KB_complete_updated.csv"
 #Alex_Filter <- "/Users/irenaeuschan/Documents/Irenaeus/archer_pilot_data/alex_filter.csv"
@@ -40,6 +40,11 @@ final <- final[!(duplicated(final) | duplicated(final, fromLast = TRUE)), ]
 #final <- final %>% mutate(sample_key = paste0(Sample, " ", key))
 #dilution_final <- left_join(alex_filter %>% dplyr::select(sample_key, Germline), final, by=c("sample_key"="sample_key"))
 #final <- final %>% mutate(SN_TAG = unlist(lapply(strsplit(SN_TAG, "_", fixed = TRUE), "[[", 1)),)
+
+# Filter PoN P-Value
+GoodCell_pvalue = 0.05/97819
+Archer_pvalue = 0.05/23650
+#final <- final %>% filter(pon_pvalue_Lofreq_Raw <= GoodCell_pvalue | is.na(pon_pvalue_Lofreq_Raw), pon_pvalue_Mutect_Raw <= GoodCell_pvalue | is.na(pon_pvalue_Mutect_Raw), pon_pvalue_Vardict_Raw <= GoodCell_pvalue | is.na(pon_pvalue_Vardict_Raw))
 
 # Dealing with FP_filter
 # First filter out which samples failed out other FP filters:
@@ -119,6 +124,12 @@ final <- final %>% mutate(enough_strand_evidence_Mutect = ifelse(gt_AD_alt_Mutec
                  enough_strand_evidence_Vardict = ifelse(gt_AD_alt_Vardict >= 5 & (AltFwd_Vardict_Raw == 0 | AltRev_Vardict_Raw == 0), 0, 1))
 final <- final %>% rowwise() %>% mutate(pass_strand_evidence = ifelse(sum(enough_strand_evidence_Mutect, enough_strand_evidence_Lofreq, enough_strand_evidence_Vardict, na.rm = TRUE) >= 1, TRUE, FALSE))
 final <- final %>% filter(pass_strand_evidence == TRUE)
+# Min Alt Count
+final <- final %>% mutate(min_alt_count_Mutect = ifelse((AltFwd_Mutect_Raw+AltRev_Mutect_Raw) < 5, 0, 1))
+final <- final %>% mutate(min_alt_count_Lofreq = ifelse((AltFwd_Lofreq_Raw+AltRev_Lofreq_Raw) < 5, 0, 1))
+final <- final %>% mutate(min_alt_count_Vardict = ifelse((AltFwd_Vardict_Raw+AltRev_Vardict_Raw) < 5, 0, 1))
+final <- final %>% rowwise() %>% mutate(pass_min_alt_count = ifelse(sum(min_alt_count_Mutect, min_alt_count_Lofreq, min_alt_count_Vardict, na.rm = TRUE) >= 1, TRUE, FALSE))
+final <- final %>% filter(pass_min_alt_count == TRUE) %>% dplyr::select(-min_alt_count_Mutect, -min_alt_count_Lofreq, -min_alt_count_Vardict)
 
 # Redefine homopolymer filters from string to boolean
 final <- final %>%
@@ -463,7 +474,7 @@ final$near.heme.cosmic.loci.HS.logic <- unlist(lapply(final$near.heme.cosmic.loc
       heme<-as.numeric(unlist(lapply(strsplit(totals, " ", fixed = TRUE), "[[", 2)))
       myeloid<-as.numeric(unlist(lapply(strsplit(totals, " ", fixed = TRUE), "[[", 3)))
       
-      if (cosmic > 25 & (heme >= 10 | myeloid >= 5)) {
+      if (cosmic > 25 | (heme >= 10 | myeloid >= 5)) {
         return(TRUE)
       }
     }
