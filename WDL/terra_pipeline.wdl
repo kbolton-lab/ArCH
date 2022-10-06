@@ -1351,6 +1351,7 @@ task groupReadsAndConsensus {
         Boolean umi_paired = true
         Float? mem_limit_override
         Int? cpu_override
+        Int? reads_per_umi_group = 1
     }
 
     Int preemptible = 1
@@ -1381,7 +1382,7 @@ task groupReadsAndConsensus {
         else
             /usr/local/bin/fgbio GroupReadsByUmi --strategy adjacency --assign-tag MI --raw-tag RX --min-map-q 1 --edits 1 --input $BAM --output umi_grouped.bam
         fi
-        /usr/local/bin/fgbio CallMolecularConsensusReads --input umi_grouped.bam --error-rate-pre-umi 45 --error-rate-post-umi 30 --min-input-base-quality 30 --min-reads 1 --output consensus_unaligned.bam
+        /usr/local/bin/fgbio CallMolecularConsensusReads --input umi_grouped.bam --error-rate-pre-umi 45 --error-rate-post-umi 30 --min-input-base-quality 30 --min-reads ~{reads_per_umi_group} --output consensus_unaligned.bam
     >>>
 
     output {
@@ -1942,7 +1943,12 @@ task createSomalierVcf {
     }
 
     command <<<
-        bedtools slop -i ~{interval_bed} -g ~{chrom_sizes} -b 100 > somalier.bed
+        bed_size=$(cat ~{interval_bed} | awk -F'\t' 'BEGIN{SUM=0}{ SUM+=$3-$2 }END{print SUM}')
+        if (( ${bed_size} > 2*65535 )); then
+            cp ~{interval_bed} somalier.bed
+        else
+            bedtools slop -i ~{interval_bed} -g ~{chrom_sizes} -b 100 > somalier.bed
+        fi
         bedtools intersect -a ~{af_only_snp_only_vcf} -b somalier.bed -header > somalier.vcf
         bcftools norm --multiallelics -any -Oz -o somalier.norm.vcf.gz -f ~{reference} somalier.vcf
     >>>
@@ -3312,7 +3318,7 @@ task normalFisher {
             df[,2]=sprintf("%1.0f", df[,2])
             write.table(df, file=args[2], row.names = F, quote = F, col.names = F, sep = "\t")
             ' > fisherTestInput.R
-            bcftools annotate -a RD_AD.vcf.gz -c PON_RefDepth,PON_AltDepth $name.sample.vcf.gz -Oz -o $name.sample.pileup.vcf.gz;
+            bcftools annotate -a RD_AD.vcf.gz -c PON_RefDepth,PON_AltDepth $name.sample.vcf.gz -Oz -o $name.sample.pileup.vcf.gsjPlotz;
             bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%INFO/PON_RefDepth\t%INFO/PON_AltDepth\t[%AD]\n' $name.sample.pileup.vcf.gz > $name.fisher.input;
 
         fi
