@@ -474,6 +474,14 @@ workflow boltonlab_CH {
         interval_bed = interval_to_bed.interval_bed
     }
 
+    call lofreq_indelqual {
+        input:
+        reference = reference,
+        reference_fai = reference_fai,
+        tumor_bam = bqsr.bqsr_bam,
+        tumor_bam_bai = bqsr.bqsr_bam_bai
+    }
+
     scatter (chr_bed in split_bed_to_chr.split_chr) {
         # Mutect
         if (tumor_only) {
@@ -624,8 +632,8 @@ workflow boltonlab_CH {
                 input:
                 reference = reference,
                 reference_fai = reference_fai,
-                tumor_bam = bqsr.bqsr_bam,
-                tumor_bam_bai = bqsr.bqsr_bam_bai,
+                tumor_bam = lofreq_indelqual.output_indel_qual_bam,
+                tumor_bam_bai = lofreq_indelqual.output_indel_qual_bai,
                 interval_bed = chr_bed
             }
         }
@@ -635,8 +643,8 @@ workflow boltonlab_CH {
                 input:
                 reference = reference,
                 reference_fai = reference_fai,
-                tumor_bam = bqsr.bqsr_bam,
-                tumor_bam_bai = bqsr.bqsr_bam_bai,
+                tumor_bam = lofreq_indelqual.output_indel_qual_bam,
+                tumor_bam_bai = lofreq_indelqual.output_indel_qual_bai,
                 normal_bam = normal_bam,
                 normal_bam_bai = normal_bam_bai,
                 interval_bed = chr_bed
@@ -2478,6 +2486,42 @@ task bcftoolsFilterBcbio {
     }
 }
 
+task lofreq_indelqual {
+    input {
+        File reference
+        File reference_fai
+        File tumor_bam
+        File tumor_bam_bai
+    }
+
+    Int cores = 1
+    Float reference_size = size([reference, reference_fai], "GB")
+    Float bam_size = size([tumor_bam, tumor_bam_bai], "GB")
+    Int space_needed_gb = 10 + round(reference_size + 2*bam_size)
+    Int preemptible = 1
+    Int maxRetries = 0
+
+    runtime {
+        docker: "kboltonlab/lofreq:latest"
+        memory: "6GB"
+        cpu: cores
+        bootDiskSizeGb: space_needed_gb
+        disks: "local-disk ~{space_needed_gb} SSD"
+        preemptible: preemptible
+        maxRetries: maxRetries
+    }
+
+    command <<<
+        /opt/lofreq/bin/lofreq indelqual --dindel -f ~{reference} -o output.indel.bam ~{tumor_bam}
+        samtools index output.indel.bam
+    >>>
+
+    output {
+        File output_indel_qual_bam = "output.indel.bam"
+        File output_indel_qual_bai = "output.indel.bam.bai"
+    }
+}
+
 task lofreqTumorOnly {
     input {
         File reference
@@ -2506,9 +2550,7 @@ task lofreqTumorOnly {
     }
 
     command <<<
-        /opt/lofreq/bin/lofreq indelqual --dindel -f ~{reference} -o output.indel.bam ~{tumor_bam}
-        samtools index output.indel.bam
-        /opt/lofreq/bin/lofreq call-parallel --pp-threads ~{cores} -A -B -f ~{reference} --call-indels --bed ~{interval_bed} -o ~{output_name} output.indel.bam --force-overwrite
+        /opt/lofreq/bin/lofreq call-parallel --pp-threads ~{cores} -A -B -f ~{reference} --call-indels --bed ~{interval_bed} -o ~{output_name} ~{tumor_bam} --force-overwrite
         bgzip ~{output_name} && tabix ~{output_name}.gz
     >>>
 
@@ -2549,8 +2591,7 @@ task lofreqNormal {
     }
 
     command <<<
-        /opt/lofreq/bin/lofreq indelqual --dindel -f ~{reference} -o output.indel.bam ~{tumor_bam}
-        /opt/lofreq/bin/lofreq somatic --call-indels -n ~{normal_bam} -t output.indel.bam -f ~{reference} -l ~{interval_bed} -o lofreq_ --threads ~{cores}
+        /opt/lofreq/bin/lofreq somatic --call-indels -n ~{normal_bam} -t ~{tumor_bam} -f ~{reference} -l ~{interval_bed} -o lofreq_ --threads ~{cores}
         tabix lofreq_somatic_final.snvs.vcf.gz
         tabix lofreq_somatic_final.indels.vcf.gz
         bcftools concat -a lofreq_somatic_final.snvs.vcf.gz lofreq_somatic_final.indels.vcf.gz > ~{output_name}.vcf
