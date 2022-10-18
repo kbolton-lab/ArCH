@@ -1031,7 +1031,7 @@ workflow boltonlab_CH {
 
     output {
         # Alignments
-        File? aligned_bam = select_first([filterClipAndCollectMetrics.clipped_bam, clipAndCollectMetrics.clipped_bam])
+        File? aligned_bam = select_first([filterClipAndCollectMetrics.clipped_bam, clipAndCollectMetrics.clipped_bam, aligned_bam_file])
         File bqsr_bam = bqsr.bqsr_bam
 
         # Tumor QC
@@ -1087,6 +1087,40 @@ workflow boltonlab_CH {
         File pindel_complex = select_first([xgb_model.pindel_complex, no_xgb_model.pindel_complex])
         File lofreq_complex = select_first([xgb_model.lofreq_complex, no_xgb_model.lofreq_complex])
         File caller_filters = select_first([xgb_model.caller_filters, no_xgb_model.caller_filters])
+    }
+}
+
+task CRAMtoBAM {
+    input {
+        File cram
+        File cram_bai
+        File reference
+        File reference_fai
+        File reference_dict
+    }
+
+    Int space_needed_gb = 10 + 4*round(size([cram, cram_bai, reference, reference_fai, reference_dict], "GB"))
+    Int preemptible = 1
+    Int maxRetries = 0
+    Int cores = 1
+
+    runtime {
+        memory: "6GB"
+        docker: "kboltonlab/bst:latest"
+        disks: "local-disk ~{space_needed_gb} SSD"
+        cpu: cores
+        preemptible: preemptible
+        maxRetries: maxRetries
+    }
+
+    command <<<
+        /usr/local/bin/samtools view -b -T ~{reference} -o $(basename ~{cram} .cram).bam ~{cram}
+        /usr/local/bin/samtools index $(basename ~{cram} .cram).bam
+    >>>
+
+    output {
+        File bam = basename(cram, ".cram") + ".bam"
+        File bam_bai = basename(cram, ".cram") + ".bam.bai"
     }
 }
 

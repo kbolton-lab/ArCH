@@ -31,6 +31,8 @@
     "boltonlab_CH.reference_amb": "/storage1/fs1/bga/Active/gmsroot/gc2560/core/model_data/2887491634/build21f22873ebe0486c8e6f69c15435aa96/all_sequences.fa.amb",
     "boltonlab_CH.target_intervals": "/storage1/fs1/bolton/Active/data/hg38/bed/archer_panel.hg38.interval_list",
     "boltonlab_CH.bait_intervals": "/storage1/fs1/bolton/Active/data/hg38/bed/archer_panel.hg38.interval_list",
+    "boltonlab_CH.chrom_sizes":"/storage1/fs1/bolton/Active/data/hg38/bed/hg38.chrom.sizes",
+    "boltonlab_CH.af_only_snp_only_vcf":"/storage1/fs1/bolton/Active/data/hg38/vcf/af-only-gnomad.only_snp.hg38.vcf.gz",
     "boltonlab_CH.picard_metric_accumulation_level": "LIBRARY",
     "boltonlab_CH.qc_minimum_base_quality": 0,
     "boltonlab_CH.qc_minimum_mapping_quality": 0,
