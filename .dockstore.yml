@@ -1,11 +1,9 @@
 --- 
 version: 1.2
 workflows: 
-  - 
-    authors: 
-      - 
-        email: chani@wustl.edu
-        name: "Irenaeus Chan"
+  - subclass: WDL
     primaryDescriptorPath: /WDL/terra_pipeline.wdl
-    subclass: WDL
-    testParameterFiles: /WDL/pipeline.json
+    testParameterFiles: /WDL/pipeline.json 
+    authors: 
+      - email: chani@wustl.edu
+        name: "Irenaeus Chan"
