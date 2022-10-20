@@ -1,4 +1,4 @@
-version: 1.0
+version:1.1
 workflows:
   - subclass: WDL
     primaryDescriptorPath: /WDL/terra_pipeline.wdl
