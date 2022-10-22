@@ -65,6 +65,8 @@ This Pipeline has been tested and configured to run using Cromwell-70 as well as
 |bqsr_known_sites|Array[File]|A series of VCF denoted sites in which have known variation to avoid confusing real variation with errors|
 |bqsr_known_sites_tbi|Array[File]|The index for the VCFs within bqsr_known_sites|
 |bqsr_intervals|Array[String]|A list of chromosomes which to apply the base quality score recalibration|
+|chrom_sizes|File|A file containing the chromosome and the total size (bp) of the chromosome|
+|af_only_snp_only_vcf|File|A VCF file that contains specific SNPs sites of interest, used for Somalier. Can be from https://github.com/brentp/somalier/releases/tag/v0.2.15|
 
 ### Variant Callers
 |Variable|Type|Definition|
