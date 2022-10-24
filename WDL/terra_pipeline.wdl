@@ -1972,7 +1972,7 @@ task createSomalierVcf {
     Int preemptible = 1
     Int maxRetries = 0
     Float data_size = size([interval_bed, chrom_sizes, af_only_snp_only_vcf, reference], "GB")
-    Int space_needed_gb = 10 + round(data_size)
+    Int space_needed_gb = 10 + 2*round(data_size)
 
     runtime {
         docker: "kboltonlab/bst:1.0"
@@ -2444,6 +2444,8 @@ task vardictNormal {
     command <<<
         set -o pipefail
         set -o errexit
+
+        export VAR_DICT_OPTS='"-Xms256m" "-Xmx64g"'
 
         /opt/VarDictJava/build/install/VarDict/bin/VarDict \
             -U -G ~{reference} \
