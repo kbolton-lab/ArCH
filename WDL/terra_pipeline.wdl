@@ -2384,7 +2384,7 @@ task vardictTumorOnly {
         set -o pipefail
         set -o errexit
 
-        export VAR_DICT_OPTS='"-Xms256m" "-Xmx64g"'
+        export VAR_DICT_OPTS='"-Xms256m" "-Xmx96g"'
 
         /opt/VarDictJava/build/install/VarDict/bin/VarDict \
             -U -G ~{reference} \
@@ -2445,7 +2445,7 @@ task vardictNormal {
         set -o pipefail
         set -o errexit
 
-        export VAR_DICT_OPTS='"-Xms256m" "-Xmx64g"'
+        export VAR_DICT_OPTS='"-Xms256m" "-Xmx96g"'
 
         /opt/VarDictJava/build/install/VarDict/bin/VarDict \
             -U -G ~{reference} \
