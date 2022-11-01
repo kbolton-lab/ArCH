@@ -44,11 +44,6 @@ final <- final[!(duplicated(final) | duplicated(final, fromLast = TRUE)), ]
 #dilution_final <- left_join(alex_filter %>% dplyr::select(sample_key, Germline), final, by=c("sample_key"="sample_key"))
 #final <- final %>% mutate(SN_TAG = unlist(lapply(strsplit(SN_TAG, "_", fixed = TRUE), "[[", 1)),)
 
-# Filter PoN P-Value
-GoodCell_pvalue = 0.05/97819
-Archer_pvalue = 0.05/23650
-#final <- final %>% filter(pon_pvalue_Lofreq_Raw <= GoodCell_pvalue | is.na(pon_pvalue_Lofreq_Raw), pon_pvalue_Mutect_Raw <= GoodCell_pvalue | is.na(pon_pvalue_Mutect_Raw), pon_pvalue_Vardict_Raw <= GoodCell_pvalue | is.na(pon_pvalue_Vardict_Raw))
-
 # Dealing with FP_filter
 # First filter out which samples failed out other FP filters:
 # - PoN 
