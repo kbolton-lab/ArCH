@@ -2359,7 +2359,7 @@ task vardictTumorOnly {
         String tumor_sample_name = "TUMOR"
         File interval_bed
         Float? min_var_freq = 0.005
-        Float? mem_limit_override
+        Int? mem_limit_override
         Int? cpu_override
     }
 
@@ -2425,7 +2425,7 @@ task vardictNormal {
         String? normal_sample_name = "NORMAL"
         File interval_bed
         Float? min_var_freq = 0.005
-        Float? mem_limit_override
+        Int? mem_limit_override
         Int? cpu_override
     }
 
