@@ -2359,18 +2359,22 @@ task vardictTumorOnly {
         String tumor_sample_name = "TUMOR"
         File interval_bed
         Float? min_var_freq = 0.005
+        Float? mem_limit_override
+        Int? cpu_override
     }
 
-    Int cores = 16
     Float reference_size = size([reference, reference_fai], "GB")
     Float bam_size = size([tumor_bam, tumor_bam_bai], "GB")
-    Int space_needed_gb = 10 + round(reference_size + 2*bam_size + size(interval_bed, "GB"))
+    Int space_needed_gb = 10 + round(reference_size + 4*bam_size + size(interval_bed, "GB"))
     Int preemptible = 1
     Int maxRetries = 0
+    Float memory = select_first([mem_limit_override, if 4.0 * bam_size > 96.0 then ceil(4.0 * bam_size) else 96.0])
+    Int cores = select_first([cpu_override, if memory > 96.0 then floor(memory / 96)*16 else 16])
+
 
     runtime {
         docker: "kboltonlab/vardictjava:1.0"
-        memory: "96GB"
+        memory: cores * memory + "GB"
         cpu: cores
         bootDiskSizeGb: space_needed_gb
         disks: "local-disk ~{space_needed_gb} SSD"
@@ -2421,18 +2425,21 @@ task vardictNormal {
         String? normal_sample_name = "NORMAL"
         File interval_bed
         Float? min_var_freq = 0.005
+        Float? mem_limit_override
+        Int? cpu_override
     }
 
-    Int cores = 16
     Float reference_size = size([reference, reference_fai], "GB")
-    Float bam_size = size([tumor_bam, tumor_bam_bai, normal_bam, normal_bam_bai], "GB")
-    Int space_needed_gb = 10 + round(reference_size + 2*bam_size + size(interval_bed, "GB"))
+    Float bam_size = size([tumor_bam, tumor_bam_bai], "GB")
+    Int space_needed_gb = 10 + round(reference_size + 4*bam_size + size(interval_bed, "GB"))
     Int preemptible = 1
     Int maxRetries = 0
+    Float memory = select_first([mem_limit_override, if 4.0 * bam_size > 96.0 then ceil(4.0 * bam_size) else 96.0])
+    Int cores = select_first([cpu_override, if memory > 96.0 then floor(memory / 96)*16 else 16])
 
     runtime {
         docker: "kboltonlab/vardictjava:1.0"
-        memory: "96GB"
+        memory: cores * memory + "GB"
         cpu: cores
         bootDiskSizeGb: space_needed_gb
         disks: "local-disk ~{space_needed_gb} SSD"
