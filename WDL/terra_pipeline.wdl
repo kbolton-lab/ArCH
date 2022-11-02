@@ -2363,18 +2363,18 @@ task vardictTumorOnly {
         Int? cpu_override
     }
 
+    Int cores = 16
     Float reference_size = size([reference, reference_fai], "GB")
     Float bam_size = size([tumor_bam, tumor_bam_bai], "GB")
     Int space_needed_gb = 10 + round(reference_size + 4*bam_size + size(interval_bed, "GB"))
     Int preemptible = 1
     Int maxRetries = 0
-    Float memory = select_first([mem_limit_override, if 4.0 * bam_size > 96.0 then ceil(4.0 * bam_size) else 96.0])
-    Int cores = select_first([cpu_override, if memory > 96.0 then floor(memory / 96)*16 else 16])
-
+    Int memory = select_first([mem_limit_override, if 2.0*bam_size > 96.0 then 12 else 6])
+    Int memory_total = cores * memory
 
     runtime {
         docker: "kboltonlab/vardictjava:1.0"
-        memory: cores * memory + "GB"
+        memory: memory_total + "GB"
         cpu: cores
         bootDiskSizeGb: space_needed_gb
         disks: "local-disk ~{space_needed_gb} SSD"
@@ -2388,7 +2388,7 @@ task vardictTumorOnly {
         set -o pipefail
         set -o errexit
 
-        export VAR_DICT_OPTS='"-Xms256m" "-Xmx96g"'
+        export VAR_DICT_OPTS='"-Xms256m" "-Xmx~{memory_total}g"'
 
         /opt/VarDictJava/build/install/VarDict/bin/VarDict \
             -U -G ~{reference} \
@@ -2429,17 +2429,18 @@ task vardictNormal {
         Int? cpu_override
     }
 
+    Int cores = 16
     Float reference_size = size([reference, reference_fai], "GB")
     Float bam_size = size([tumor_bam, tumor_bam_bai], "GB")
     Int space_needed_gb = 10 + round(reference_size + 4*bam_size + size(interval_bed, "GB"))
     Int preemptible = 1
     Int maxRetries = 0
-    Float memory = select_first([mem_limit_override, if 4.0 * bam_size > 96.0 then ceil(4.0 * bam_size) else 96.0])
-    Int cores = select_first([cpu_override, if memory > 96.0 then floor(memory / 96)*16 else 16])
+    Int memory = select_first([mem_limit_override, if 2.0*bam_size > 96.0 then 12 else 6])
+    Int memory_total = cores * memory
 
     runtime {
         docker: "kboltonlab/vardictjava:1.0"
-        memory: cores * memory + "GB"
+        memory: memory_total + "GB"
         cpu: cores
         bootDiskSizeGb: space_needed_gb
         disks: "local-disk ~{space_needed_gb} SSD"
@@ -2452,7 +2453,7 @@ task vardictNormal {
         set -o pipefail
         set -o errexit
 
-        export VAR_DICT_OPTS='"-Xms256m" "-Xmx96g"'
+        export VAR_DICT_OPTS='"-Xms256m" "-Xmx~{memory_total}g"'
 
         /opt/VarDictJava/build/install/VarDict/bin/VarDict \
             -U -G ~{reference} \
