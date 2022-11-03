@@ -2369,7 +2369,7 @@ task vardictTumorOnly {
     Int space_needed_gb = 10 + round(reference_size + 4*bam_size + size(interval_bed, "GB"))
     Int preemptible = 1
     Int maxRetries = 0
-    Int memory = select_first([mem_limit_override, if 2.0*bam_size > 96.0 then 12 else 6])
+    Int memory = select_first([mem_limit_override, if 2.0*bam_size > 96.0 then 12 else 8])
     Int memory_total = cores * memory
 
     runtime {
@@ -2388,7 +2388,9 @@ task vardictTumorOnly {
         set -o pipefail
         set -o errexit
 
-        export VAR_DICT_OPTS='"-Xms256m" "-Xmx~{memory_total}g"'
+        export VAR_DICT_OPTS='"-Xms256m" "-Xmx96g"'
+        echo VAR_DICT_OPTS
+        echo ~{space_needed_gb}
 
         /opt/VarDictJava/build/install/VarDict/bin/VarDict \
             -U -G ~{reference} \
