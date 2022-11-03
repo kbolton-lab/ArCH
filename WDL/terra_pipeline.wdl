@@ -2361,6 +2361,7 @@ task vardictTumorOnly {
         Float? min_var_freq = 0.005
         Int? mem_limit_override
         Int? cpu_override
+        Int? JavaXmx = 96
     }
 
     Int cores = 16
@@ -2389,7 +2390,7 @@ task vardictTumorOnly {
         set -o errexit
 
         export VAR_DICT_OPTS='"-Xms256m" "-Xmx96g"'
-        echo VAR_DICT_OPTS
+        echo $VAR_DICT_OPTS
         echo ~{space_needed_gb}
 
         /opt/VarDictJava/build/install/VarDict/bin/VarDict \
@@ -2429,6 +2430,7 @@ task vardictNormal {
         Float? min_var_freq = 0.005
         Int? mem_limit_override
         Int? cpu_override
+        Int? JavaXmx = 96
     }
 
     Int cores = 16
@@ -2437,7 +2439,7 @@ task vardictNormal {
     Int space_needed_gb = 10 + round(reference_size + 4*bam_size + size(interval_bed, "GB"))
     Int preemptible = 1
     Int maxRetries = 0
-    Int memory = select_first([mem_limit_override, if 2.0*bam_size > 96.0 then 12 else 6])
+    Int memory = select_first([mem_limit_override, if 2.0*bam_size > 96.0 then 12 else 8])
     Int memory_total = cores * memory
 
     runtime {
@@ -2455,7 +2457,10 @@ task vardictNormal {
         set -o pipefail
         set -o errexit
 
-        export VAR_DICT_OPTS='"-Xms256m" "-Xmx~{memory_total}g"'
+        export VAR_DICT_OPTS='"-Xms256m" "-Xmx96g"'
+        echo $VAR_DICT_OPTS
+        echo ~{space_needed_gb}
+
 
         /opt/VarDictJava/build/install/VarDict/bin/VarDict \
             -U -G ~{reference} \
