@@ -1634,7 +1634,7 @@ task bqsrApply {
     Int preemptible = 1
     Int maxRetries = 0
     Int space_needed_gb = ceil(10 + 4 * data_size + reference_size)
-    Float memory = select_first([mem_limit_override, if 2.0 * data_size > 6.0 then ceil(4.0 * data_size) else 18.0])
+    Float memory = select_first([mem_limit_override, if 2.0 * data_size > 6.0 then ceil(2.0 * data_size) else 18.0])
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 32) else 1])
 
     runtime {
