@@ -6,15 +6,11 @@ version 1.0
 # Contact: chani@wustl.edu
 # Date: 11/10/2022
 
-struct SampleInfo {
-    File sample_name
-    File bam
-    File bai
-}
-
 workflow ArCCH_PoN2 {
     input {
-        Array[SampleInfo] aligned_bam_bai
+        Array[File] aligned_bam
+        Array[File] aligned_bai
+        Array[String] sample_name
         File interval_bed
         File interval_list
 
@@ -23,6 +19,7 @@ workflow ArCCH_PoN2 {
         File reference_dict
     }
 
+     Array[Pair[String, Pair[String, String]]] aligned_bam_bai = zip(sample_name, zip(aligned_bam, aligned_bai))
     # In order to parallelize as much as the workflow as possible, we analyze by chromosome
     call splitBedToChr as split_bed_to_chr {
         input:
@@ -34,8 +31,8 @@ workflow ArCCH_PoN2 {
             input:
             reference = reference,
             reference_fai = reference_fai,
-            tumor_bam = bam.bam,
-            tumor_bam_bai = bam.bai
+            tumor_bam = bam.right.left,
+            tumor_bam_bai = bam.right.right
         }
 
         scatter (chr_bed in split_bed_to_chr.split_chr) {
@@ -45,8 +42,8 @@ workflow ArCCH_PoN2 {
               reference = reference,
               reference_fai = reference_fai,
               reference_dict = reference_dict,
-              tumor_bam = bam.bam,
-              tumor_bam_bai = bam.bai,
+              tumor_bam = bam.right.left,
+              tumor_bam_bai = bam.right.right,
               interval_list = chr_bed
             }
 
@@ -74,8 +71,8 @@ workflow ArCCH_PoN2 {
                 input:
                 reference = reference,
                 reference_fai = reference_fai,
-                tumor_bam = bam.bam,
-                tumor_bam_bai = bam.bai,
+                tumor_bam = bam.right.left,
+                tumor_bam_bai = bam.right.right,
                 interval_bed = chr_bed
             }
 
@@ -97,15 +94,15 @@ workflow ArCCH_PoN2 {
                 input:
                 reference = reference,
                 reference_fai = reference_fai,
-                tumor_bam = bam.bam,
-                tumor_bam_bai = bam.bai,
+                tumor_bam = bam.right.left,
+                tumor_bam_bai = bam.right.right,
                 interval_bed = chr_bed
             }
 
             call lofreqReformat as reformat {
                 input:
                 vcf = lofreqTask.vcf,
-                tumor_sample_name = bam.sample_name
+                tumor_sample_name = bam.left
             }
 
             call vcfSanitize as lofreqSanitizeVcf {
@@ -131,21 +128,21 @@ workflow ArCCH_PoN2 {
             input:
                 vcfs = mutectFilter.filtered_vcf,
                 vcf_tbis = mutectFilter.filtered_vcf_tbi,
-                merged_vcf_basename = "mutect_pon2." + bam.sample_name
+                merged_vcf_basename = "mutect_pon2." + bam.left
         }
 
         call mergeVcf as merge_vardict_sample_pon2 {
             input:
                 vcfs = vardictNormalize.normalized_vcf,
                 vcf_tbis = vardictNormalize.normalized_vcf_tbi,
-                merged_vcf_basename = "vardict_pon2." + bam.sample_name
+                merged_vcf_basename = "vardict_pon2." + bam.left
         }
 
         call mergeVcf as merge_lofreq_sample_pon2 {
             input:
                 vcfs = lofreqFilter.filtered_vcf,
                 vcf_tbis = lofreqFilter.filtered_vcf_tbi,
-                merged_vcf_basename = "lofreq_pon2." + bam.sample_name
+                merged_vcf_basename = "lofreq_pon2." + bam.left
         }
     }
 

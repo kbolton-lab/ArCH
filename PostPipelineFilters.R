@@ -576,37 +576,37 @@ final <- final %>% filter(ifelse(
 # 13) TSG + Missense Variant + Extension of Termination Codon --> PD = 1
 # 14) TSG + Splice Acceptor/Donor Variant --> PD = 1
 final <- final %>% mutate(putative_driver = case_when(
-  Gene %in% TSG_gene_list & VariantClass %in% nonsense_mutation  ~ 1,
+  Gene %in% gene_list & VariantClass %in% nonsense_mutation  ~ 1,
   grepl("Oncogenic", oncoKB) ~ 1,
-  Gene %in% TSG_gene_list & VariantClass %in% missense_mutation & n.HGVSp.y >= 10 ~ 1,
+  Gene %in% gene_list & VariantClass %in% missense_mutation & (n.HGVSp.y >= 10 | n.HGVSc.y >= 5) ~ 1,
   Gene %in% TSG_gene_list & grepl("Neutral", oncoKB) ~ 0,
-  Gene %in% TSG_gene_list & VariantClass %in% missense_mutation & CosmicCount >= 10 & (heme_cosmic_count >= 1 | myeloid_cosmic_count >= 1) ~ 1,
-  Gene %in% TSG_gene_list & VariantClass %in% missense_mutation & (n.loci.vep - n.loci.truncating.vep) >= 5 & grepl("deleterious", SIFT_VEP) & grepl("damaging", PolyPhen_VEP) ~ 1,
-  Gene %in% TSG_gene_list & VariantClass %in% missense_mutation & (near.BB.loci.HS.logic == TRUE | near.heme.cosmic.loci.HS.logic == TRUE) & grepl("deleterious", SIFT_VEP) & grepl("damaging", PolyPhen_VEP) ~ 1,
+  Gene %in% gene_list & VariantClass %in% missense_mutation & (CosmicCount >= 10 | heme_cosmic_count >= 1 | myeloid_cosmic_count >= 1) ~ 1,
+  Gene %in% gene_list & VariantClass %in% missense_mutation & (n.loci.vep - n.loci.truncating.vep) >= 5 & grepl("deleterious", SIFT_VEP) & grepl("damaging", PolyPhen_VEP) ~ 1,
+  Gene %in% gene_list & VariantClass %in% missense_mutation & (near.BB.loci.HS.logic == TRUE | near.heme.cosmic.loci.HS.logic == TRUE) & grepl("deleterious", SIFT_VEP) & grepl("damaging", PolyPhen_VEP) ~ 1,
   Gene == "SRSF2" & VariantClass %in% missense_mutation & aa.pos == 95 ~ 1,
   Gene == "SF3B1" & VariantClass %in% missense_mutation & aa.pos %in% SF3B1_positions ~ 1,
   Gene == "JAK2" & grepl("Oncogenic", oncoKB) ~ 1,
   Gene == "PPM1D" & VariantClass %in% nonsense_mutation & EXON_VEP == "6/6" ~ 1,
-  Gene %in% TSG_gene_list & VariantClass %in% missense_mutation & n.HGVSp.y >= 1 & (grepl("deleterious", SIFT_VEP) | grepl("damaging", PolyPhen_VEP)) ~ 1,
-  Gene %in% TSG_gene_list & VariantClass %in% missense_mutation & grepl('extTer', gene_aachange) ~ 1,
+  Gene %in% gene_list & VariantClass %in% missense_mutation & n.HGVSp.y >= 1 & (grepl("deleterious", SIFT_VEP) | grepl("damaging", PolyPhen_VEP)) ~ 1,
+  Gene %in% gene_list & VariantClass %in% missense_mutation & grepl('extTer', gene_aachange) ~ 1,
   Gene %in% TSG_gene_list & (VariantClass == "splice_donor_variant" | VariantClass == "splice_aceptor_variant") ~ 1, 
   Gene %in% TSG_gene_list & clinvar_CLINSIGN_VEP %in% clinvar_sig_terms ~ 1,
   Gene %in% TSG_gene_list & Consequence_VEP == "splice_region_variant&synonymous_variant" ~ 0,
   TRUE ~ 0
 ), pd_reason = case_when(
-  Gene %in% TSG_gene_list & VariantClass %in% nonsense_mutation  ~ "Nonsense Mutation in TSG",
+  Gene %in% gene_list & VariantClass %in% nonsense_mutation  ~ "Nonsense Mutation in TSG",
   grepl("Oncogenic", oncoKB) ~ "OncoKB",
-  Gene %in% TSG_gene_list & VariantClass %in% missense_mutation & n.HGVSp.y >= 10 ~ "B/B Hotspot >= 10",
+  Gene %in% gene_list & VariantClass %in% missense_mutation & (n.HGVSp.y >= 10 | n.HGVSc.y >= 5) ~ "B/B Hotspot >= 10",
   Gene %in% TSG_gene_list & grepl("Neutral", oncoKB) ~ "Not PD",
-  Gene %in% TSG_gene_list & VariantClass %in% missense_mutation & CosmicCount >= 10 & (heme_cosmic_count >= 1 | myeloid_cosmic_count >= 1) ~ "COSMIC",
-  Gene %in% TSG_gene_list & VariantClass %in% missense_mutation & (n.loci.vep - n.loci.truncating.vep) >= 5 & grepl("deleterious", SIFT_VEP) & grepl("damaging", PolyPhen_VEP) ~ "Loci + SIFT/PolyPhen",
-  Gene %in% TSG_gene_list & VariantClass %in% missense_mutation & (near.BB.loci.HS.logic == TRUE | near.heme.cosmic.loci.HS.logic == TRUE) & grepl("deleterious", SIFT_VEP) & grepl("damaging", PolyPhen_VEP) ~ "Near Hotspot + SIFT/PolyPhen",
+  Gene %in% gene_list & VariantClass %in% missense_mutation & (CosmicCount >= 10 | heme_cosmic_count >= 1 | myeloid_cosmic_count >= 1) ~ "COSMIC",
+  Gene %in% gene_list & VariantClass %in% missense_mutation & (n.loci.vep - n.loci.truncating.vep) >= 5 & grepl("deleterious", SIFT_VEP) & grepl("damaging", PolyPhen_VEP) ~ "Loci + SIFT/PolyPhen",
+  Gene %in% gene_list & VariantClass %in% missense_mutation & (near.BB.loci.HS.logic == TRUE | near.heme.cosmic.loci.HS.logic == TRUE) & grepl("deleterious", SIFT_VEP) & grepl("damaging", PolyPhen_VEP) ~ "Near Hotspot + SIFT/PolyPhen",
   Gene == "SRSF2" & VariantClass %in% missense_mutation & aa.pos == 95 ~ "SRSF2 Hotspot",
   Gene == "SF3B1" & VariantClass %in% missense_mutation & aa.pos %in% SF3B1_positions ~ "SF3B1 Hotspot",
   Gene == "JAK2" & grepl("Oncogenic", oncoKB) ~ "JAK2 OncoKB",
   Gene == "PPM1D" & VariantClass %in% nonsense_mutation & EXON_VEP == "6/6" ~ "Nonsense Mutation on Exon 6",
-  Gene %in% TSG_gene_list & VariantClass %in% missense_mutation & n.HGVSp.y >= 1 & (grepl("deleterious", SIFT_VEP) | grepl("damaging", PolyPhen_VEP)) ~ "B/B Hotspot + SIFT/PolyPhen",
-  Gene %in% TSG_gene_list & VariantClass %in% missense_mutation & grepl('extTer', gene_aachange) ~ "Termination Extension",
+  Gene %in% gene_list & VariantClass %in% missense_mutation & n.HGVSp.y >= 1 & (grepl("deleterious", SIFT_VEP) | grepl("damaging", PolyPhen_VEP)) ~ "B/B Hotspot + SIFT/PolyPhen",
+  Gene %in% gene_list & VariantClass %in% missense_mutation & grepl('extTer', gene_aachange) ~ "Termination Extension",
   Gene %in% TSG_gene_list & (VariantClass == "splice_donor_variant" | VariantClass == "splice_aceptor_variant") ~ "Splicing Mutation", 
   Gene %in% TSG_gene_list & clinvar_CLINSIGN_VEP %in% clinvar_sig_terms ~ "ClinVar",
   Gene %in% TSG_gene_list & Consequence_VEP == "splice_region_variant&synonymous_variant" ~ "Not PD",
@@ -653,23 +653,28 @@ final <- final %>% mutate(Review = case_when(
   TRUE ~ Review
 ))
 final <- final %>% mutate(Review = case_when(
-  Review == "No Review" & Gene %in% TSG_gene_list & VariantClass %in% missense_mutation & pass_homopolymer_filter == "false" ~ "Homopolymer Region",
-  Review != "No Review" & Gene %in% TSG_gene_list & VariantClass %in% missense_mutation & pass_homopolymer_filter == "false" ~ paste(Review, "Homopolymer Region", sep = ";"),
+  Review == "No Review" & Gene %in% gene_list & VariantClass %in% missense_mutation & pass_homopolymer_filter == "false" ~ "Homopolymer Region",
+  Review != "No Review" & Gene %in% gene_list & VariantClass %in% missense_mutation & pass_homopolymer_filter == "false" ~ paste(Review, "Homopolymer Region", sep = ";"),
   TRUE ~ Review
 ))
 final <- final %>% mutate(Review = case_when(
-  Review == "No Review" & Gene %in% TSG_gene_list & VariantClass %in% missense_mutation & grepl("deleterious", SIFT_VEP) & grepl("damaging", PolyPhen_VEP) & putative_driver == 0 ~ "S/P Missense Review",
-  Review != "No Review" & Gene %in% TSG_gene_list & VariantClass %in% missense_mutation & grepl("deleterious", SIFT_VEP) & grepl("damaging", PolyPhen_VEP) & putative_driver == 0 ~ paste(Review, "S/P Missense Review", sep = ";"),
+  Review == "No Review" & Gene %in% gene_list & VariantClass %in% missense_mutation & grepl("deleterious", SIFT_VEP) & grepl("damaging", PolyPhen_VEP) & putative_driver == 0 & n.HGVSc >= 1 ~ "B/B Missense Review",
+  Review != "No Review" & Gene %in% gene_list & VariantClass %in% missense_mutation & grepl("deleterious", SIFT_VEP) & grepl("damaging", PolyPhen_VEP) & putative_driver == 0 & n.HGVSc >= 1 ~ paste(Review, "B/B Missense Review", sep = ";"),
   TRUE ~ Review
 ))
 final <- final %>% mutate(Review = case_when(
-  Review == "No Review" & Gene %in% TSG_gene_list & VariantClass %in% missense_mutation & (near.BB.loci.HS.logic == TRUE | near.heme.cosmic.loci.HS.logic == TRUE) & (grepl("deleterious", SIFT_VEP) | grepl("damaging", PolyPhen_VEP)) & putative_driver == 0 ~ "NHS Missense Review",
-  Review != "No Review" & Gene %in% TSG_gene_list & VariantClass %in% missense_mutation & (near.BB.loci.HS.logic == TRUE | near.heme.cosmic.loci.HS.logic == TRUE) & (grepl("deleterious", SIFT_VEP) | grepl("damaging", PolyPhen_VEP)) & putative_driver == 0 ~ paste(Review, "NHS Missense Review", sep = ";"),
+  Review == "No Review" & Gene %in% gene_list & VariantClass %in% missense_mutation & grepl("deleterious", SIFT_VEP) & grepl("damaging", PolyPhen_VEP) & putative_driver == 0 ~ "S/P Missense Review",
+  Review != "No Review" & Gene %in% gene_list & VariantClass %in% missense_mutation & grepl("deleterious", SIFT_VEP) & grepl("damaging", PolyPhen_VEP) & putative_driver == 0 ~ paste(Review, "S/P Missense Review", sep = ";"),
   TRUE ~ Review
 ))
 final <- final %>% mutate(Review = case_when(
-  Review == "No Review" & Gene %in% TSG_gene_list & VariantClass %in% missense_mutation & (n.loci.vep - n.loci.truncating.vep) >= 5 & (grepl("deleterious", SIFT_VEP) | grepl("damaging", PolyPhen_VEP)) & putative_driver == 0 ~ "HS Missense Review",
-  Review != "No Review" & Gene %in% TSG_gene_list & VariantClass %in% missense_mutation & (n.loci.vep - n.loci.truncating.vep) >= 5 & (grepl("deleterious", SIFT_VEP) | grepl("damaging", PolyPhen_VEP)) & putative_driver == 0 ~ paste(Review, "HS Missense Review", sep = ";"),
+  Review == "No Review" & Gene %in% gene_list & VariantClass %in% missense_mutation & (near.BB.loci.HS.logic == TRUE | near.heme.cosmic.loci.HS.logic == TRUE) & (grepl("deleterious", SIFT_VEP) | grepl("damaging", PolyPhen_VEP)) & putative_driver == 0 ~ "NHS Missense Review",
+  Review != "No Review" & Gene %in% gene_list & VariantClass %in% missense_mutation & (near.BB.loci.HS.logic == TRUE | near.heme.cosmic.loci.HS.logic == TRUE) & (grepl("deleterious", SIFT_VEP) | grepl("damaging", PolyPhen_VEP)) & putative_driver == 0 ~ paste(Review, "NHS Missense Review", sep = ";"),
+  TRUE ~ Review
+))
+final <- final %>% mutate(Review = case_when(
+  Review == "No Review" & Gene %in% gene_list & VariantClass %in% missense_mutation & (n.loci.vep - n.loci.truncating.vep) >= 5 & (grepl("deleterious", SIFT_VEP) | grepl("damaging", PolyPhen_VEP)) & putative_driver == 0 ~ "HS Missense Review",
+  Review != "No Review" & Gene %in% gene_list & VariantClass %in% missense_mutation & (n.loci.vep - n.loci.truncating.vep) >= 5 & (grepl("deleterious", SIFT_VEP) | grepl("damaging", PolyPhen_VEP)) & putative_driver == 0 ~ paste(Review, "HS Missense Review", sep = ";"),
   TRUE ~ Review
 ))
 final <- final %>% mutate(Review = case_when(
