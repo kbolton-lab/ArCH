@@ -31,6 +31,7 @@ This Pipeline has been tested and configured to run using Cromwell-70 as well as
 |library|String|LB Tag for BAM Metadata|
 |read_structure|Array[String]|https://github.com/fulcrumgenomics/fgbio/wiki/Read-Structures|
 |min_reads|Array[Int]|Minimum number of reads that constitutes a "read family"|
+|where_is_umi|String|Three options: "N = Name", "R = Read", or "T = Tag"|
 |umi_paired|Boolean|Set TRUE if using UMI pairs, FALSE for single read UMIs|
 |umi_length|Integer|ArcherDX specifies that all UMIs are a specific length, anything shorter or longer is thrown out|
 |min_base_quality|Integer|During consensus building, any base with a QUAL less than this value is masked with an N|
