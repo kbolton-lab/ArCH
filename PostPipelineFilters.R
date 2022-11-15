@@ -438,7 +438,7 @@ final$near.heme.cosmic.loci.HS <- apply(final[,c("CHROM","POS","SYMBOL_VEP","aa.
   } else if (any(any.in.n)) {
     res <- unique(ct[ct$CHROM.POS %in% vector.n, c("CHROM.POS", "cDNAchange", "gene_loci_vep", "cosmic_count.totals.c", "heme_count.totals.c", "myeloid_count.totals.c")])
     if(grepl("del|ins|dup", x["cDNAchange"])) {
-      res <- res %>% filter(ifelse(grepl("del|ins|dup",DNAchange), TRUE, FALSE))
+      res <- res %>% filter(ifelse(grepl("del|ins|dup",cDNAchange), TRUE, FALSE))
       res <- res %>% group_by(cosmic_count.totals.c, heme_count.totals.c, myeloid_count.totals.c, gene_loci_vep) %>% 
         summarise(cosmic_count.totals.c = sum(cosmic_count.totals.c),
                   heme_count.totals.c = sum(heme_count.totals.c),
@@ -449,7 +449,7 @@ final$near.heme.cosmic.loci.HS <- apply(final[,c("CHROM","POS","SYMBOL_VEP","aa.
         return("")
       }
     } else {
-      res <- res %>% filter(ifelse(grepl("del|ins|dup",DNAchange), FALSE, TRUE))
+      res <- res %>% filter(ifelse(grepl("del|ins|dup",cDNAchange), FALSE, TRUE))
       res <- res %>% group_by(cosmic_count.totals.c, heme_count.totals.c, myeloid_count.totals.c, gene_loci_vep) %>% 
         summarise(cosmic_count.totals.c = sum(cosmic_count.totals.c),
                   heme_count.totals.c = sum(heme_count.totals.c),
