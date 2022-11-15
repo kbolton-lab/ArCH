@@ -318,29 +318,35 @@ final$near.heme.cosmic.HS <- apply(final[,c("CHROM","POS","SYMBOL_VEP","aa.pos",
   any.in.n <- vector.n %in% ct$CHROM.POS
   
   if (any(any.in.p)) {
-    return(
-      c(x[["gene_aachange"]],
-        paste(ct$Gene_HGVSp_VEP[ct$GENE.AA.POS %in% vector.p],
-              paste0(ct$GENOMIC_MUTATION_ID[ct$GENE.AA.POS %in% vector.p],
-                     "(",ct$cosmic_count_chr[ct$GENE.AA.POS %in% vector.p],",",
-                     ct$haematopoietic_and_lymphoid_tissue_count_chr[ct$GENE.AA.POS %in% vector.p],",",
-                     ct$myeloid_count_chr[ct$GENE.AA.POS %in% vector.p],")"),
-              sep="|"))
-    )
+    my_pre_return <- c(x[["gene_aachange"]],
+                       paste(ct$Gene_HGVSp_VEP[ct$GENE.AA.POS %in% vector.p],
+                             paste0(ct$GENOMIC_MUTATION_ID[ct$GENE.AA.POS %in% vector.p],
+                                    "(",ct$cosmic_count_chr[ct$GENE.AA.POS %in% vector.p],",",
+                                    ct$haematopoietic_and_lymphoid_tissue_count_chr[ct$GENE.AA.POS %in% vector.p],",",
+                                    ct$myeloid_count_chr[ct$GENE.AA.POS %in% vector.p],")"), 
+                             sep="|"))
+    if(grepl("Ter", x["gene_aachange"])) {
+      return(my_pre_return[grepl("Ter", my_pre_return) | grepl("del|ins|dup", my_pre_return)])
+    } else {
+      return(my_pre_return[!grepl("Ter", my_pre_return)])
+    }
   } else if (any(any.in.n)) {
-    return(
-      c(x[["gene_cDNAchange"]],
-        paste(ct$Gene_HGVSc_VEP[ct$CHROM.POS %in% vector.n],
-              paste0(ct$GENOMIC_MUTATION_ID[ct$CHROM.POS %in% vector.n],
-                     "(",ct$cosmic_count_chr[ct$CHROM.POS %in% vector.n],",",
-                     ct$haematopoietic_and_lymphoid_tissue_count_chr[ct$CHROM.POS %in% vector.n],",",
-                     ct$myeloid_count_chr[ct$CHROM.POS %in% vector.n],")"),
-              sep="|"))
-    )
+    my_pre_return <- c(x[["gene_cDNAchange"]],
+                       paste(ct$Gene_HGVSc_VEP[ct$CHROM.POS %in% vector.n],
+                             paste0(ct$GENOMIC_MUTATION_ID[ct$CHROM.POS %in% vector.n],
+                                    "(",ct$cosmic_count_chr[ct$CHROM.POS %in% vector.n],",",
+                                    ct$haematopoietic_and_lymphoid_tissue_count_chr[ct$CHROM.POS %in% vector.n],",",
+                                    ct$myeloid_count_chr[ct$CHROM.POS %in% vector.n],")"), 
+                             sep="|"))
+    if(grepl("del|ins|dup", x["gene_cDNAchange"])) {
+      return(my_pre_return[grepl("del|ins|dup", my_pre_return)])
+    } else {
+      return(my_pre_return[!grepl("del|ins|dup", my_pre_return)])
+    }
   } else {
     return("")
   }
-})
+}) 
 
 # toJSON
 final$near.heme.cosmic.HS <- sapply(final$near.heme.cosmic.HS, function(x) {

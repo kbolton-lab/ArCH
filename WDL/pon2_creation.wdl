@@ -73,7 +73,8 @@ workflow ArCCH_PoN2 {
                 reference_fai = reference_fai,
                 tumor_bam = bam.right.left,
                 tumor_bam_bai = bam.right.right,
-                interval_bed = chr_bed
+                interval_bed = chr_bed,
+                tumor_sample_name = bam.left
             }
 
             # Cleans the VCF output that don't match the expected VCF Format
@@ -260,7 +261,7 @@ task mutectTumorOnly {
         set -o pipefail
         set -o errexit
 
-        THREADS=~{cores}*4
+        THREADS=$((~{cores}*4))
 
         /gatk/gatk Mutect2 --java-options "-Xmx20g" \
             --native-pair-hmm-threads ${THREADS} \
@@ -509,7 +510,7 @@ task lofreq_indelqual {
     Int cores = 1
     Float reference_size = size([reference, reference_fai], "GB")
     Float bam_size = size([tumor_bam, tumor_bam_bai], "GB")
-    Int space_needed_gb = 10 + round(reference_size + 2*bam_size)
+    Int space_needed_gb = 10 + round(reference_size + 4*bam_size)
     Int preemptible = 1
     Int maxRetries = 0
 
@@ -667,19 +668,21 @@ task bcftoolsPoN2 {
     command <<<
         if [[ "~{caller}" =~ "mutect" ]];then
             /usr/local/bin/bcftools +fill-tags -- ~{vcf} -t NS > NS.vcf
-            /usr/local/bin/bcftools filter -i 'INFO/NS >= 2' -Oz -o 2N.vcf
-            /usr/local/bin/bcftools +fill-tags -- 2N.vcf.gz -t 'max_VAF=max(AF)' > 2N.maxVAF.vcf
-            bgzip 2N.maxVAF.vcf & tabix 2N.maxVAF.vcf.gz
+            /usr/local/bin/bcftools filter -i 'INFO/NS >= 2' NS.vcf > 2N.vcf
+            /usr/local/bin/bcftools +fill-tags -- 2N.vcf -t 'max_VAF=max(AF)' > ~{caller}.2N.maxVAF.vcf
+            bgzip ~{caller}.2N.maxVAF.vcf
+            tabix ~{caller}.2N.maxVAF.vcf.gz
         else
             /usr/local/bin/bcftools +fill-tags -- ~{vcf} -t NS > NS.vcf
-            /usr/local/bin/bcftools filter -i 'INFO/NS >= 2' -Oz -o 2N.vcf
-            /usr/local/bin/bcftools +fill-tags -- 2N.vcf.gz -t 'max_VAF=max(FORMAT/AF)' > 2N.maxVAF.vcf
-            bgzip 2N.maxVAF.vcf & tabix 2N.maxVAF.vcf.gz
+            /usr/local/bin/bcftools filter -i 'INFO/NS >= 2' NS.vcf > 2N.vcf
+            /usr/local/bin/bcftools +fill-tags -- 2N.vcf -t 'max_VAF=max(FORMAT/AF)' > ~{caller}.2N.maxVAF.vcf
+            bgzip 2N.maxVAF.vcf
+            tabix 2N.maxVAF.vcf.gz
         fi
     >>>
 
     output {
-        File pon2_vcf = "2N.maxVAF.vcf.gz"
-        File pon2_vcf_tbi = "2N.maxVAF.vcf.gz.tbi"
+        File pon2_vcf = "~{caller}.2N.maxVAF.vcf.gz"
+        File pon2_vcf_tbi = "~{caller}.2N.maxVAF.vcf.gz.tbi"
     }
 }

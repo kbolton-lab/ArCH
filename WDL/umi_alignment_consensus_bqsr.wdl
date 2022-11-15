@@ -36,6 +36,7 @@ workflow ArCCH_Alignment {
         # FASTQ Preprocessing
         Boolean has_umi = true
         Boolean? umi_paired = true          # If the UMI is paired (R1 and R2) then set this flag
+        String where_is_umi = "T"           # Three options "N = Name", "R = Read", or "T = Tag"
         Int umi_length = 8
         Array[Int] min_reads = [1]          # The minimum number of reads that constitutes a "read family"
         Float? max_read_error_rate = 0.05   # If 5% of the reads within a "read family" does not match, removes the family
@@ -98,31 +99,30 @@ workflow ArCCH_Alignment {
 
         if (has_umi) {
             # Removes UMIs from Reads and adds them as RX Tag
-            if (platform != 'MGI') {
+            if (where_is_umi == 'R') {
                 call extractUmis {
                     input:
                     bam = select_first([archer_fastq_to_bam.bam, fastq_to_bam.bam, unaligned_bam]),
                     read_structure = read_structure,
                     umi_paired = umi_paired
                 }
-                # Mark Adapters
-                call markIlluminaAdapters as markAdapters{
-                    input:
-                    bam = extractUmis.umi_extracted_bam
-                }
             }
-
-            if (platform == 'MGI') {
-                call markIlluminaAdapters as markAdapters_MGI{
+            if (where_is_umi == 'N') {
+                call copyUMIFromReadName {
                     input:
                     bam = select_first([fastq_to_bam.bam, unaligned_bam])
                 }
             }
 
+            call markIlluminaAdapters as markAdapters {
+                input:
+                bam = select_first([extractUmis.umi_extracted_bam, copyUMIFromReadName.umi_extracted_bam, fastq_to_bam.bam, unaligned_bam])
+            }
+
             # First Alignment
             call umiAlign as align {
                 input:
-                bam = select_first([markAdapters.marked_bam, markAdapters_MGI.marked_bam]),
+                bam = markAdapters.marked_bam,
                 reference = reference,
                 reference_fai = reference_fai,
                 reference_dict = reference_dict,
@@ -342,7 +342,7 @@ task fastqToBam {
     Int preemptible = 1
     Int maxRetries = 0
     Float data_size = size([fastq1, fastq2], "GB")
-    Int space_needed_gb = ceil(10 + 2 * data_size)
+    Int space_needed_gb = ceil(10 + 4 * data_size)
     Float memory = select_first([mem_limit_override, if 2.0 * data_size > 6.0 then ceil(2.0 * data_size) else 6.0])
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 32) else 1])
 
@@ -402,6 +402,39 @@ task extractUmis {
     }
 }
 
+task copyUMIFromReadName {
+    input {
+        File bam
+        Float? mem_limit_override
+        Int? cpu_override
+    }
+
+    Float data_size = size(bam, "GB")
+    Int space_needed_gb = ceil(10 + 2 * data_size)
+    Int preemptible = 1
+    Int maxRetries = 0
+    Float memory = select_first([mem_limit_override, if 2.0 * data_size > 6.0 then ceil(2.0 * data_size) else 6.0])
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 32) else 1])
+
+    runtime {
+        docker: "quay.io/biocontainers/fgbio:2.0.2--hdfd78af_0"
+        memory: cores*memory + "GB"
+        cpu: cores
+        disks: "local-disk ~{space_needed_gb} SSD"
+        preemptible: preemptible
+        maxRetries: maxRetries
+    }
+
+    command <<<
+        /usr/local/bin/fgbio CopyUmiFromReadName -i ~{bam} -o umi_extracted.bam
+        fi
+    >>>
+
+    output {
+        File umi_extracted_bam = "umi_extracted.bam"
+    }
+}
+
 task markIlluminaAdapters {
     input {
         File bam
@@ -427,7 +460,7 @@ task markIlluminaAdapters {
     }
 
     command <<<
-        /usr/bin/java -Xmx4g -jar /opt/picard/picard.jar MarkIlluminaAdapters INPUT=~{bam} OUTPUT=marked.bam METRICS=adapter_metrics.txt
+        /usr/bin/java -Xmx4g -Djava.io.tmpdir=`pwd`/tmp -jar /opt/picard/picard.jar MarkIlluminaAdapters INPUT=~{bam} OUTPUT=marked.bam METRICS=adapter_metrics.txt
     >>>
 
     output {
