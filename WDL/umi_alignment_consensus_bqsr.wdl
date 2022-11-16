@@ -427,7 +427,6 @@ task copyUMIFromReadName {
 
     command <<<
         /usr/local/bin/fgbio CopyUmiFromReadName -i ~{bam} -o umi_extracted.bam
-        fi
     >>>
 
     output {
