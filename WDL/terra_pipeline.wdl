@@ -315,6 +315,13 @@ workflow boltonlab_CH {
         }
     }
 
+    if (!defined(aligned_bam_file_bai)) {
+        call indexBam {
+            input:
+            bam = select_first([filterClipAndCollectMetrics.clipped_bam, aligned_bam_file, clipAndCollectMetrics.clipped_bam])
+        }
+    }
+
     # Applies BQSR on specific intervals defined by the User, if aligned BAM is provided, starts here
     call bqsrApply as bqsr {
         input:
@@ -322,7 +329,7 @@ workflow boltonlab_CH {
         reference_fai = reference_fai,
         reference_dict = reference_dict,
         bam = select_first([filterClipAndCollectMetrics.clipped_bam, aligned_bam_file, clipAndCollectMetrics.clipped_bam]),
-        bam_bai = select_first([filterClipAndCollectMetrics.clipped_bam_bai, aligned_bam_file_bai, clipAndCollectMetrics.clipped_bam_bai]),
+        bam_bai = select_first([indexBam.bai, filterClipAndCollectMetrics.clipped_bam_bai, aligned_bam_file_bai, clipAndCollectMetrics.clipped_bam_bai]),
         interval_list = target_intervals,
         known_sites = bqsr_known_sites,
         known_sites_tbi = bqsr_known_sites_tbi,
@@ -1644,6 +1651,38 @@ task clipAndCollectMetrics {
         File clipped_bam = "clipped.bam"
         File clipped_bam_bai = "clipped.bai"
         Array[File] duplex_seq_metrics = glob("duplex_seq.metrics.*")
+    }
+}
+
+task indexBam {
+    input {
+        File bam
+    }
+
+    Float data_size = size(bam, "GB")
+    Int preemptible = 1
+    Int maxRetries = 0
+    Int space_needed_gb = ceil(2 * data_size)
+    Float memory = 6.0
+    Int cores = 1
+
+    runtime {
+        cpu: cores
+        docker: "quay.io/biocontainers/samtools:1.11--h6270b1f_0"
+        memory: cores * memory + "GB"
+        disk: "local-disk ~{space_needed_gb} SSD"
+        preemptible: preemptible
+        maxRetries: maxRetries
+    }
+
+    String outfile = basename(bam) + ".bai"
+
+    command <<<
+        /usr/local/bin/samtools index ~{bam} > ~{outfile}
+    >>>
+
+    output {
+        File bai = outfile
     }
 }
 
