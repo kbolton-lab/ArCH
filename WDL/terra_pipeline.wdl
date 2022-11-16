@@ -1661,7 +1661,7 @@ task indexBam {
     Float data_size = size(bam, "GB")
     Int preemptible = 1
     Int maxRetries = 0
-    Int space_needed_gb = ceil(20 + 4*data_size)
+    Int space_needed_gb = ceil(10 + 2*data_size)
     Float memory = 6.0
     Int cores = 1
 
@@ -1669,7 +1669,7 @@ task indexBam {
         cpu: cores
         docker: "quay.io/biocontainers/samtools:1.11--h6270b1f_0"
         memory: cores * memory + "GB"
-        disk: "local-disk ~{space_needed_gb} SSD"
+        disks: "local-disk ~{space_needed_gb} SSD"
         preemptible: preemptible
         maxRetries: maxRetries
     }

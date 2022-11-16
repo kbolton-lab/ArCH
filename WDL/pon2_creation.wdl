@@ -383,7 +383,7 @@ task bcftoolsFilter {
     runtime {
         memory: "6GB"
         docker: "kboltonlab/bst"
-        disk: "local-disk ~{space_needed_gb} SSD"
+        disks: "local-disk ~{space_needed_gb} SSD"
         cpu: cores
         preemptible: preemptible
         maxRetries: maxRetries
