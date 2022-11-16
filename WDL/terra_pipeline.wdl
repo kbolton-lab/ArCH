@@ -1661,7 +1661,7 @@ task indexBam {
     Float data_size = size(bam, "GB")
     Int preemptible = 1
     Int maxRetries = 0
-    Int space_needed_gb = ceil(10 + 4 * data_size)
+    Int space_needed_gb = ceil(20 + 4*data_size)
     Float memory = 6.0
     Int cores = 1
 
@@ -1677,6 +1677,7 @@ task indexBam {
     String outfile = basename(bam) + ".bai"
 
     command <<<
+        echo ~{space_needed_gb}
         /usr/local/bin/samtools index ~{bam} > ~{outfile}
     >>>
 
