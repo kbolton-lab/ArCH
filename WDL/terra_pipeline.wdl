@@ -318,7 +318,7 @@ workflow boltonlab_CH {
     if (!defined(aligned_bam_file_bai)) {
         call indexBam {
             input:
-            bam = select_first([filterClipAndCollectMetrics.clipped_bam, aligned_bam_file, clipAndCollectMetrics.clipped_bam]),
+            input_bam = select_first([filterClipAndCollectMetrics.clipped_bam, aligned_bam_file, clipAndCollectMetrics.clipped_bam]),
             sample_name = tumor_sample_name
         }
     }
@@ -329,7 +329,7 @@ workflow boltonlab_CH {
         reference = reference,
         reference_fai = reference_fai,
         reference_dict = reference_dict,
-        bam = select_first([filterClipAndCollectMetrics.clipped_bam, aligned_bam_file, clipAndCollectMetrics.clipped_bam]),
+        bam = select_first([indexBam.bam, filterClipAndCollectMetrics.clipped_bam, aligned_bam_file, clipAndCollectMetrics.clipped_bam]),
         bam_bai = select_first([indexBam.bai, filterClipAndCollectMetrics.clipped_bam_bai, aligned_bam_file_bai, clipAndCollectMetrics.clipped_bam_bai]),
         interval_list = target_intervals,
         known_sites = bqsr_known_sites,
@@ -1667,14 +1667,14 @@ task clipAndCollectMetrics {
 
 task indexBam {
     input {
-        File bam
+        File input_bam
         String sample_name
         Int? disk_size_override
         Int? mem_limit_override
         Int? cpu_override
     }
 
-    Float data_size = size(bam, "GB")
+    Float data_size = size(input_bam, "GB")
     Int preemptible = 1
     Int maxRetries = 0
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
@@ -1690,14 +1690,15 @@ task indexBam {
         maxRetries: maxRetries
     }
 
-    String bam_link = sub(basename(bam), basename(basename(bam, ".bam"), ".cram"), sample_name)
+    String bam_link = sub(basename(input_bam), basename(basename(input_bam, ".bam"), ".cram"), sample_name)
 
     command <<<
-        ln -s ~{bam} ~{bam_link}
+        ln -s ~{input_bam} ~{bam_link}
         /usr/local/bin/samtools index ~{bam_link}
     >>>
 
     output {
+        File bam = bam_link
         File bai = sub(sub(bam_link, "bam$", "bam.bai"), "cram$", "cram.crai")
     }
 }
