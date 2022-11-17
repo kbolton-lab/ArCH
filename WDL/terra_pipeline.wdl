@@ -1690,7 +1690,7 @@ task indexBam {
 
     command <<<
         ln -s ~{bam} ~{bam_link}
-        /usr/local/bin/samtools index ~{bam}
+        /usr/local/bin/samtools index ~{bam_link}
     >>>
 
     output {
