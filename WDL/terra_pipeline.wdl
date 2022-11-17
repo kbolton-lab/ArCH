@@ -1825,8 +1825,9 @@ task collectHsMetrics {
     Int preemptible = 1
     Int maxRetries = 0
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + data_size + reference_size)])
-    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/3 + 10)]) # 12
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
+    Int memory_total = floor(memory)-2
 
     runtime {
         memory: cores * memory + "GB"
@@ -1843,7 +1844,7 @@ task collectHsMetrics {
     String per_base_txt = "~{bamroot}.~{output_prefix}-PerBaseCoverage.txt"
 
     command <<<
-        /usr/bin/java -Xmx64g -Djava.io.tmpdir=`pwd`/tmp -jar /usr/picard/picard.jar CollectHsMetrics \
+        /usr/bin/java -Xmx~{memory_total}g -Djava.io.tmpdir=`pwd`/tmp -jar /usr/picard/picard.jar CollectHsMetrics \
         O=~{hs_txt} \
         I=~{bam} \
         R=~{reference} \

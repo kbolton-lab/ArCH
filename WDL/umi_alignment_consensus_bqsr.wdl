@@ -270,6 +270,7 @@ task bamToFastq {
     Int space_needed_gb = ceil(10 + 2 * data_size)
     Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
+    Int memory_total = floor(memory)-2
 
     runtime {
         docker: "mgibio/rnaseq:1.0.0"
@@ -282,7 +283,7 @@ task bamToFastq {
     }
 
     command <<<
-        /usr/bin/java -Xmx4g -jar /opt/picard/picard.jar SamToFastq VALIDATION_STRINGENCY=SILENT I=~{unaligned_bam} F=read1.fastq F2=read2.fastq
+        /usr/bin/java -Xmx~{memory_total}g -jar /opt/picard/picard.jar SamToFastq VALIDATION_STRINGENCY=SILENT I=~{unaligned_bam} F=read1.fastq F2=read2.fastq
     >>>
 
     output {
@@ -305,6 +306,7 @@ task bbmapRepair {
     Int space_needed_gb = ceil(10 + 2 * data_size)
     Float memory = select_first([mem_limit_override, ceil(data_size/3 + 10)]) # 12
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
+    Int memory_total = floor(memory)-2
 
     runtime {
         docker: "quay.io/biocontainers/bbmap:38.92--he522d1c_0"
@@ -317,7 +319,7 @@ task bbmapRepair {
     }
 
     command <<<
-        repair.sh -Xmx10g repair=t overwrite=true interleaved=false outs=singletons.fq out1=R1.fixed.fastq.gz out2=R2.fixed.fastq.gz in1=~{fastq1} in2=~{fastq2}
+        repair.sh -Xmx~{memory_total}g repair=t overwrite=true interleaved=false outs=singletons.fq out1=R1.fixed.fastq.gz out2=R2.fixed.fastq.gz in1=~{fastq1} in2=~{fastq2}
     >>>
 
     output {
@@ -345,6 +347,7 @@ task fastqToBam {
     Int space_needed_gb = ceil(10 + 4 * data_size)
     Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
+    Int memory_total = floor(memory)-2
 
     runtime {
         docker: "mgibio/dna-alignment:1.0.0"
@@ -356,7 +359,7 @@ task fastqToBam {
     }
 
     command <<<
-        /usr/bin/java -Xmx4g -jar /opt/picard/picard.jar FastqToSam FASTQ=~{fastq1} FASTQ2=~{fastq2} SAMPLE_NAME=~{sample_name} LIBRARY_NAME=~{library_name} PLATFORM_UNIT=~{platform_unit} PLATFORM=~{platform} OUTPUT=unaligned.bam
+        /usr/bin/java -Xmx~{memory_total}g -jar /opt/picard/picard.jar FastqToSam FASTQ=~{fastq1} FASTQ2=~{fastq2} SAMPLE_NAME=~{sample_name} LIBRARY_NAME=~{library_name} PLATFORM_UNIT=~{platform_unit} PLATFORM=~{platform} OUTPUT=unaligned.bam
     >>>
 
     output {
@@ -447,6 +450,7 @@ task markIlluminaAdapters {
     Int maxRetries = 0
     Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
+    Int memory_total = floor(memory)-2
 
     runtime {
         docker: "mgibio/dna-alignment:1.0.0"
@@ -459,7 +463,7 @@ task markIlluminaAdapters {
     }
 
     command <<<
-        /usr/bin/java -Xmx4g -Djava.io.tmpdir=`pwd`/tmp -jar /opt/picard/picard.jar MarkIlluminaAdapters INPUT=~{bam} OUTPUT=marked.bam METRICS=adapter_metrics.txt
+        /usr/bin/java -Xmx~{memory_total}g -Djava.io.tmpdir=`pwd`/tmp -jar /opt/picard/picard.jar MarkIlluminaAdapters INPUT=~{bam} OUTPUT=marked.bam METRICS=adapter_metrics.txt
     >>>
 
     output {
@@ -763,6 +767,7 @@ task bqsrApply {
     Int space_needed_gb = ceil(10 + 4 * data_size + reference_size)
     Float memory = select_first([mem_limit_override, ceil(data_size/3 + 10)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
+    Int memory_total = floor(memory)-2
 
     runtime {
         cpu: cores
@@ -774,8 +779,8 @@ task bqsrApply {
     }
 
     command <<<
-        /gatk/gatk --java-options -Xmx16g BaseRecalibrator -O bqsr.table -L ~{interval_list} -R ~{reference} -I ~{bam} ~{sep=" " prefix("--known-sites ", known_sites)}
-        /gatk/gatk --java-options -Xmx16g ApplyBQSR -O ~{output_name}.bam ~{sep=" " prefix("--static-quantized-quals ", [10, 20, 30])} -R ~{reference} -I ~{bam} -bqsr bqsr.table
+        /gatk/gatk --java-options -Xmx~{memory_total}g BaseRecalibrator -O bqsr.table -L ~{interval_list} -R ~{reference} -I ~{bam} ~{sep=" " prefix("--known-sites ", known_sites)}
+        /gatk/gatk --java-options -Xmx~{memory_total}g ApplyBQSR -O ~{output_name}.bam ~{sep=" " prefix("--static-quantized-quals ", [10, 20, 30])} -R ~{reference} -I ~{bam} -bqsr bqsr.table
     >>>
 
     output {
