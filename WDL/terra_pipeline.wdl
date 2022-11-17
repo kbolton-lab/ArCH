@@ -1138,20 +1138,20 @@ task filterArcherUmiLength {
         Int umi_length
         Float? mem_limit_override
         Int? cpu_override
+        Int? disk_size_override
     }
 
     Int preemptible = 1
     Int maxRetries = 0
     Float data_size = size([fastq1, fastq2], "GB")
-    Int space_needed_gb = ceil(10 + 2 * data_size)
-    Float memory = select_first([mem_limit_override, if 2.0 * data_size > 6.0 then ceil(2.0 * data_size) else 6.0]) #2 GB or 1 GB
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 32) else 1])
-
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
         docker: "ubuntu:bionic"
-        memory: cores*memory + "GB"
-        cpu: cores
+        memory: cores * memory + "GB"
+        cpu: cores          # Increasing cores will not increase the speed of this task
         disks: "local-disk ~{space_needed_gb} SSD"
         bootDiskSizeGb: space_needed_gb
         preemptible: preemptible
@@ -1175,27 +1175,28 @@ task bamToFastq {
         File unaligned_bam
         Float? mem_limit_override
         Int? cpu_override
+        Int? disk_size_override
+        Int? disk_size_override
     }
 
     Int preemptible = 1
     Int maxRetries = 0
     Float data_size = size(unaligned_bam, "GB")
-    Int space_needed_gb = ceil(10 + 2 * data_size)
-    Float memory = select_first([mem_limit_override, if 2.0 * data_size > 6.0 then ceil(2.0 * data_size) else 6.0]) #2 GB or 1 GB
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 32) else 1])
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
         docker: "mgibio/rnaseq:1.0.0"
-        memory: cores*memory + "GB"
+        memory: cores * memory + "GB"
         cpu: cores
         disks: "local-disk ~{space_needed_gb} SSD"
-        bootDiskSizeGb: space_needed_gb
         preemptible: preemptible
         maxRetries: maxRetries
     }
 
     command <<<
-        /usr/bin/java -Xmx4g -jar /opt/picard/picard.jar SamToFastq VALIDATION_STRINGENCY=SILENT I=~{unaligned_bam} F=read1.fastq F2=read2.fastq
+        /usr/bin/java -Xmx~{memory}g -Djava.io.tmpdir=`pwd`/tmp -jar /opt/picard/picard.jar SamToFastq VALIDATION_STRINGENCY=SILENT I=~{unaligned_bam} F=read1.fastq F2=read2.fastq
     >>>
 
     output {
@@ -1210,27 +1211,27 @@ task bbmapRepair {
         File fastq2
         Float? mem_limit_override
         Int? cpu_override
+        Int? disk_size_override
     }
 
     Float data_size = size([fastq1, fastq2], "GB")
     Int preemptible = 1
     Int maxRetries = 0
-    Int space_needed_gb = ceil(10 + 2 * data_size)
-    Float memory = select_first([mem_limit_override, if 4.0 * data_size > 12.0 then ceil(4.0 * data_size) else 12.0])
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 32) else 1])
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/3 + 10)]) # 12
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
         docker: "quay.io/biocontainers/bbmap:38.92--he522d1c_0"
-        memory: cores*memory + "GB"
+        memory: cores * memory + "GB"
         cpu: cores
-        bootDiskSizeGb: space_needed_gb
         disks: "local-disk ~{space_needed_gb} SSD"
         preemptible: preemptible
         maxRetries: maxRetries
     }
 
     command <<<
-        repair.sh -Xmx10g repair=t overwrite=true interleaved=false outs=singletons.fq out1=R1.fixed.fastq.gz out2=R2.fixed.fastq.gz in1=~{fastq1} in2=~{fastq2}
+        repair.sh -Xmx~{memory}g repair=t overwrite=true interleaved=false outs=singletons.fq out1=R1.fixed.fastq.gz out2=R2.fixed.fastq.gz in1=~{fastq1} in2=~{fastq2}
     >>>
 
     output {
@@ -1250,26 +1251,28 @@ task fastqToBam {
         String platform
         Float? mem_limit_override
         Int? cpu_override
+        Int? disk_size_override
     }
 
     Int preemptible = 1
     Int maxRetries = 0
     Float data_size = size([fastq1, fastq2], "GB")
-    Int space_needed_gb = ceil(10 + 2 * data_size)
-    Float memory = select_first([mem_limit_override, if 2.0 * data_size > 6.0 then ceil(2.0 * data_size) else 6.0])
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 32) else 1])
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
         docker: "mgibio/dna-alignment:1.0.0"
-        memory:  cores*memory + "GB"
+        memory: cores * memory + "GB"
         cpu: cores
         disks: "local-disk ~{space_needed_gb} SSD"
+        bootDiskSizeGb: space_needed_gb
         preemptible: preemptible
         maxRetries: maxRetries
     }
 
     command <<<
-        /usr/bin/java -Xmx4g -Djava.io.tmpdir=`pwd`/tmp -jar /opt/picard/picard.jar FastqToSam FASTQ=~{fastq1} FASTQ2=~{fastq2} SAMPLE_NAME=~{sample_name} LIBRARY_NAME=~{library_name} PLATFORM_UNIT=~{platform_unit} PLATFORM=~{platform} OUTPUT=unaligned.bam
+        /usr/bin/java -Xmx~{memory}g -Djava.io.tmpdir=`pwd`/tmp -jar /opt/picard/picard.jar FastqToSam FASTQ=~{fastq1} FASTQ2=~{fastq2} SAMPLE_NAME=~{sample_name} LIBRARY_NAME=~{library_name} PLATFORM_UNIT=~{platform_unit} PLATFORM=~{platform} OUTPUT=unaligned.bam
     >>>
 
     output {
@@ -1284,18 +1287,19 @@ task extractUmis {
         Boolean? umi_paired = true
         Float? mem_limit_override
         Int? cpu_override
+        Int? disk_size_override
     }
 
     Float data_size = size(bam, "GB")
-    Int space_needed_gb = ceil(10 + 2 * data_size)
     Int preemptible = 1
     Int maxRetries = 0
-    Float memory = select_first([mem_limit_override, if 2.0 * data_size > 6.0 then ceil(2.0 * data_size) else 6.0])
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 32) else 1])
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
         docker: "quay.io/biocontainers/fgbio:1.3.0--0"
-        memory: cores*memory + "GB"
+        memory: cores * memory + "GB"
         cpu: cores
         disks: "local-disk ~{space_needed_gb} SSD"
         preemptible: preemptible
@@ -1320,18 +1324,19 @@ task copyUMIFromReadName {
         File bam
         Float? mem_limit_override
         Int? cpu_override
+        Int? disk_size_override
     }
 
     Float data_size = size(bam, "GB")
-    Int space_needed_gb = ceil(10 + 2 * data_size)
     Int preemptible = 1
     Int maxRetries = 0
-    Float memory = select_first([mem_limit_override, if 2.0 * data_size > 6.0 then ceil(2.0 * data_size) else 6.0])
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 32) else 1])
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
         docker: "quay.io/biocontainers/fgbio:2.0.2--hdfd78af_0"
-        memory: cores*memory + "GB"
+        memory: cores * memory + "GB"
         cpu: cores
         disks: "local-disk ~{space_needed_gb} SSD"
         preemptible: preemptible
@@ -1352,27 +1357,27 @@ task markIlluminaAdapters {
         File bam
         Float? mem_limit_override
         Int? cpu_override
+        Int? disk_size_override
     }
 
     Float data_size = size(bam, "GB")
-    Int space_needed_gb = ceil(10 + 2 * data_size)
     Int preemptible = 1
     Int maxRetries = 0
-    Float memory = select_first([mem_limit_override, if 2.0 * data_size > 6.0 then ceil(2.0 * data_size) else 6.0])
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 32) else 1])
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
         docker: "mgibio/dna-alignment:1.0.0"
         memory: cores * memory + "GB"
         cpu: cores
         disks: "local-disk ~{space_needed_gb} SSD"
-        bootDiskSizeGb: space_needed_gb
         preemptible: preemptible
         maxRetries: maxRetries
     }
 
     command <<<
-        /usr/bin/java -Xmx4g -jar /opt/picard/picard.jar MarkIlluminaAdapters INPUT=~{bam} OUTPUT=marked.bam METRICS=adapter_metrics.txt
+        /usr/bin/java -Xmx~{memory}g -Djava.io.tmpdir=`pwd`/tmp -jar /opt/picard/picard.jar MarkIlluminaAdapters INPUT=~{bam} OUTPUT=marked.bam METRICS=adapter_metrics.txt
     >>>
 
     output {
@@ -1394,15 +1399,16 @@ task umiAlign {
         File reference_sa
         Float? mem_limit_override
         Int? cpu_override
+        Int? disk_size_override
     }
 
     Int preemptible = 1
     Int maxRetries = 0
     Float data_size = size(bam, "GB")
     Float reference_size = size([reference, reference_amb, reference_ann, reference_bwt, reference_pac, reference_sa], "GB")
-    Int space_needed_gb = ceil(10 + 10 * data_size + reference_size)
-    Float memory = select_first([mem_limit_override, if 2.0 * data_size > 6.0 then ceil(2.0 * data_size) else 6.0])
-    Int cores = select_first([cpu_override, if memory > 48.0 then floor(memory / 24)*8 else 8])
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 4 * data_size + reference_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory/18)*8 else 8])
 
     runtime {
       docker: "mgibio/dna-alignment:1.0.0"
@@ -1433,21 +1439,21 @@ task groupReadsAndConsensus {
         Float? mem_limit_override
         Int? cpu_override
         Int? reads_per_umi_group = 1
+        Int? disk_size_override
     }
 
     Int preemptible = 1
     Int maxRetries = 0
     Float data_size = size(bam, "GB")
-    Int space_needed_gb = ceil(10 + 2 * data_size)
-    Float memory = select_first([mem_limit_override, if 2.0 * data_size > 6.0 then ceil(4.0 * data_size) else 6.0])
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 32) else 1])
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
         docker: "quay.io/biocontainers/fgbio:1.3.0--0"
         memory: cores * memory + "GB"
         cpu: cores
         disks: "local-disk ~{space_needed_gb} SSD"
-        bootDiskSizeGb: space_needed_gb
         preemptible: preemptible
         maxRetries: maxRetries
     }
@@ -1485,15 +1491,16 @@ task realign {
         File reference_sa
         Float? mem_limit_override
         Int? cpu_override
+        Int? disk_size_override
     }
 
     Int preemptible = 1
     Int maxRetries = 0
     Float data_size = size(bam, "GB")
     Float reference_size = size([reference, reference_amb, reference_ann, reference_bwt, reference_pac, reference_sa], "GB")
-    Int space_needed_gb = ceil(10 + 10*data_size + reference_size)
-    Float memory = select_first([mem_limit_override, if 2.0 * data_size > 6.0 then ceil(2.0 * data_size) else 6.0])
-    Int cores = select_first([cpu_override, if memory > 48.0 then floor(memory / 24)*8 else 8])
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 4 * data_size + reference_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18)*8 else 8])
 
     runtime {
         docker: "mgibio/dna-alignment:1.0.0"
@@ -1531,21 +1538,21 @@ task filterClipAndCollectMetrics {
         Boolean umi_paired = true
         Float? mem_limit_override
         Int? cpu_override
+        Int? disk_size_override
     }
 
     Float data_size = size(bam, "GB")
     Float reference_size = size([reference, reference_fai, reference_dict], "GB")
     Int preemptible = 1
     Int maxRetries = 0
-    Int space_needed_gb = ceil(10 + 2 * data_size + reference_size)
-    Float memory = select_first([mem_limit_override, if 2.0 * data_size > 6.0 then ceil(2.0 * data_size) else 6.0])
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 32) else 1])
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size + reference_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
         docker: "quay.io/biocontainers/fgbio:1.3.0--0"
         memory: cores * memory + "GB"
         cpu: cores
-        bootDiskSizeGb: space_needed_gb
         disks: "local-disk ~{space_needed_gb} SSD"
         preemptible: preemptible
         maxRetries: maxRetries
@@ -1598,21 +1605,21 @@ task clipAndCollectMetrics {
         Boolean umi_paired = true
         Float? mem_limit_override
         Int? cpu_override
+        Int? disk_size_override
     }
 
     Float data_size = size(bam, "GB")
     Float reference_size = size([reference, reference_fai, reference_dict], "GB")
     Int preemptible = 1
     Int maxRetries = 0
-    Int space_needed_gb = ceil(10 + 2 * data_size + reference_size)
-    Float memory = select_first([mem_limit_override, if 2.0 * data_size > 6.0 then ceil(2.0 * data_size) else 6.0])
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 32) else 1])
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size + reference_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
         docker: "quay.io/biocontainers/fgbio:1.3.0--0"
         memory: cores * memory + "GB"
         cpu: cores
-        bootDiskSizeGb: space_needed_gb
         disks: "local-disk ~{space_needed_gb} SSD"
         preemptible: preemptible
         maxRetries: maxRetries
@@ -1656,14 +1663,17 @@ task clipAndCollectMetrics {
 task indexBam {
     input {
         File bam
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
     Float data_size = size(bam, "GB")
     Int preemptible = 1
     Int maxRetries = 0
-    Int space_needed_gb = ceil(10 + 2*data_size)
-    Float memory = 6.0
-    Int cores = 1
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
         cpu: cores
@@ -1674,15 +1684,12 @@ task indexBam {
         maxRetries: maxRetries
     }
 
-    String outfile = basename(bam) + ".bai"
-
     command <<<
-        echo ~{space_needed_gb}
-        /usr/local/bin/samtools index ~{bam} > ~{outfile}
+        /usr/local/bin/samtools index ~{bam}
     >>>
 
     output {
-        File bai = outfile
+        File bai = sub(sub(basename(bam), "bam$", "bam.bai"), "cram$", "cram.crai")
     }
 }
 
@@ -1700,15 +1707,16 @@ task bqsrApply {
         File interval_list
         Float? mem_limit_override
         Int? cpu_override
+        Int? disk_size_override
     }
 
     Float data_size = size([bam, bam_bai], "GB")
     Float reference_size = size(known_sites, "GB") + size(known_sites_tbi, "GB") + size([reference, reference_fai, reference_dict], "GB")
     Int preemptible = 1
     Int maxRetries = 0
-    Int space_needed_gb = ceil(10 + 4 * data_size + reference_size)
-    Float memory = select_first([mem_limit_override, if 2.0 * data_size > 6.0 then ceil(2.0 * data_size) else 18.0])
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 32) else 1])
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 4 * data_size + reference_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/3 + 10)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
         cpu: cores
@@ -1720,8 +1728,8 @@ task bqsrApply {
     }
 
     command <<<
-        /gatk/gatk --java-options -Xmx16g BaseRecalibrator -O bqsr.table -L ~{interval_list} -R ~{reference} -I ~{bam} ~{sep=" " prefix("--known-sites ", known_sites)}
-        /gatk/gatk --java-options -Xmx16g ApplyBQSR -O ~{output_name}.bam ~{sep=" " prefix("--static-quantized-quals ", [10, 20, 30])} -R ~{reference} -I ~{bam} -bqsr bqsr.table
+        /gatk/gatk --java-options -Xmx~{memory}g BaseRecalibrator -O bqsr.table -L ~{interval_list} -R ~{reference} -I ~{bam} ~{sep=" " prefix("--known-sites ", known_sites)}
+        /gatk/gatk --java-options -Xmx~{memory}g ApplyBQSR -O ~{output_name}.bam ~{sep=" " prefix("--static-quantized-quals ", [10, 20, 30])} -R ~{reference} -I ~{bam} -bqsr bqsr.table
     >>>
 
     output {
@@ -1740,15 +1748,16 @@ task Metrics {
         String metric_accumulation_level
         Float? mem_limit_override
         Int? cpu_override
+        Int? disk_size_override
     }
 
     Float data_size = size([bam, bam_bai], "GB")
     Float reference_size = size([reference, reference_fai, reference_dict], "GB")
     Int preemptible = 1
     Int maxRetries = 0
-    Int space_needed_gb = ceil(10 + data_size + reference_size)
-    Float memory = select_first([mem_limit_override, if 2.0 * data_size > 6.0 then ceil(2.0 * data_size) else 6.0])
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 32) else 1])
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + data_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
         memory: cores * memory + "GB"
@@ -1765,14 +1774,14 @@ task Metrics {
     String size_histogram = "~{bamroot}.InsertSizeHistogram.pdf"
 
     command <<<
-        /usr/bin/java -Xmx6g -jar /usr/picard/picard.jar CollectAlignmentSummaryMetrics INPUT=~{bam} OUTPUT=~{summary_metrics} REFERENCE_SEQUENCE=~{reference} METRIC_ACCUMULATION_LEVEL=~{metric_accumulation_level}
-        /usr/bin/java -Xmx6g -jar /usr/picard/picard.jar CollectInsertSizeMetrics O=~{size_metrics} H=~{size_histogram} I=~{bam} REFERENCE_SEQUENCE=~{reference} METRIC_ACCUMULATION_LEVEL=~{metric_accumulation_level}
+        /usr/bin/java -Xmx~{memory}g -Djava.io.tmpdir=`pwd`/tmp -jar /usr/picard/picard.jar CollectAlignmentSummaryMetrics INPUT=~{bam} OUTPUT=~{summary_metrics} REFERENCE_SEQUENCE=~{reference} METRIC_ACCUMULATION_LEVEL=~{metric_accumulation_level}
+        /usr/bin/java -Xmx~{memory}g -Djava.io.tmpdir=`pwd`/tmp -jar /usr/picard/picard.jar CollectInsertSizeMetrics O=~{size_metrics} H=~{size_histogram} I=~{bam} REFERENCE_SEQUENCE=~{reference} METRIC_ACCUMULATION_LEVEL=~{metric_accumulation_level}
     >>>
 
     output {
-    File alignment_summary_metrics = summary_metrics
-    File insert_size_histogram = size_histogram
-    File insert_size_metrics = size_metrics
+        File alignment_summary_metrics = summary_metrics
+        File insert_size_histogram = size_histogram
+        File insert_size_metrics = size_metrics
     }
 }
 
@@ -1796,15 +1805,16 @@ task collectHsMetrics {
 
         Float? mem_limit_override
         Int? cpu_override
+        Int? disk_size_override
     }
 
     Float data_size = size([bam, bam_bai], "GB")
     Float reference_size = size([reference, reference_fai, reference_dict, bait_intervals, target_intervals], "GB")
     Int preemptible = 1
     Int maxRetries = 0
-    Int space_needed_gb = ceil(10 + data_size + reference_size)
-    Float memory = select_first([mem_limit_override, if 2.0 * data_size > 6.0 then ceil(2.0 * data_size) else 6.0])
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 32) else 1])
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + data_size + reference_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
         memory: cores * memory + "GB"
@@ -1821,7 +1831,7 @@ task collectHsMetrics {
     String per_base_txt = "~{bamroot}.~{output_prefix}-PerBaseCoverage.txt"
 
     command <<<
-        /usr/bin/java -Xmx64g -jar /usr/picard/picard.jar CollectHsMetrics \
+        /usr/bin/java -Xmx64g -Djava.io.tmpdir=`pwd`/tmp -jar /usr/picard/picard.jar CollectHsMetrics \
         O=~{hs_txt} \
         I=~{bam} \
         R=~{reference} \
@@ -1847,14 +1857,15 @@ task samtoolsFlagstat {
         File bam_bai
         Float? mem_limit_override
         Int? cpu_override
+        Int? disk_size_override
     }
 
     Float data_size = size([bam, bam_bai], "GB")
     Int preemptible = 1
     Int maxRetries = 0
-    Int space_needed_gb = ceil(5 + data_size)
-    Float memory = select_first([mem_limit_override, if 2.0 * data_size > 6.0 then ceil(2.0 * data_size) else 6.0])
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 32) else 1])
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + data_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
         docker: "quay.io/biocontainers/samtools:1.11--h6270b1f_0"
@@ -1892,16 +1903,23 @@ task selectVariants {
 
         # ENUM: one of ["INDEL", "SNP", "MIXED", "MNP", "SYMBOLIC", "NO_VARIATION"]
         String? select_type
+
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
-    Int space_needed_gb = 5 + round(size([vcf, vcf_tbi], "GB")*3 + size([reference, reference_fai, reference_dict, interval_list], "GB"))
+    Int data_size = size([vcf, vcf_tbi], "GB")
+    Int reference_size = size([reference, reference_fai, reference_dict, interval_list], "GB")
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size + reference_size)])
     Int preemptible = 1
     Int maxRetries = 0
-    Int cores = 1
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
         docker: "broadinstitute/gatk:4.2.0.0"
-        memory: "6GB"
+        memory: cores * memory + "GB"
         disks: "local-disk ~{space_needed_gb} SSD"
         cpu: cores
         preemptible: preemptible
@@ -1932,16 +1950,21 @@ task verifyBamId {
         File vcf
         File bam
         File bam_bai
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
-    Int space_needed_gb = 5 + round(size([bam, bam_bai, vcf], "GB"))
+    Int data_size = size([bam, bam_bai, vcf], "GB")
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
     Int preemptible = 1
     Int maxRetries = 0
-    Int cores = 1
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
         docker: "mgibio/verify_bam_id-cwl:1.1.3"
-        memory: "4GB"
+        memory: cores * memory + "GB"
         disks: "local-disk ~{space_needed_gb} SSD"
         cpu: cores
         preemptible: preemptible
@@ -1965,17 +1988,21 @@ task fastQC {
     input {
         File bam
         File bam_bai
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
-    Int cores = 1
     Int preemptible = 1
     Int maxRetries = 0
     Float data_size = size([bam, bam_bai], "GB")
-    Int space_needed_gb = 10 + round(data_size)
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + data_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
         docker: "biocontainers/fastqc:v0.11.9_cv8"
-        memory: "6GB"
+        memory: cores * memory + "GB"
         cpu: cores
         disks: "local-disk ~{space_needed_gb} SSD"
         bootDiskSizeGb: space_needed_gb
@@ -1998,17 +2025,21 @@ task fastQC {
 task intervalsToBed {
     input {
         File interval_list
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
-    Int cores = 1
     Int preemptible = 1
     Int maxRetries = 0
     Float data_size = size(interval_list, "GB")
-    Int space_needed_gb = 10 + round(data_size)
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + data_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
         docker: "ubuntu:bionic"
-        memory: "6GB"
+        memory: cores * memory + "GB"
         cpu: cores
         disks: "local-disk ~{space_needed_gb} SSD"
         bootDiskSizeGb: space_needed_gb
@@ -2039,17 +2070,21 @@ task createSomalierVcf {
         File chrom_sizes
         File af_only_snp_only_vcf
         File reference
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
-    Int cores = 1
     Int preemptible = 1
     Int maxRetries = 0
     Float data_size = size([interval_bed, chrom_sizes, af_only_snp_only_vcf, reference], "GB")
-    Int space_needed_gb = 10 + 2*round(data_size)
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
         docker: "kboltonlab/bst:1.0"
-        memory: "6GB"
+        memory: cores * memory + "GB"
         cpu: cores
         disks: "local-disk ~{space_needed_gb} SSD"
         bootDiskSizeGb: space_needed_gb
@@ -2080,20 +2115,23 @@ task somalier {
         File bam
         File bam_bai
         String sample_name = "tumor"
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
-    Int cores = 1
     Int preemptible = 1
     Int maxRetries = 0
     Float data_size = size([somalier_vcf, reference, bam, bam_bai], "GB")
-    Int space_needed_gb = 10 + round(data_size)
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + data_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
         docker: "brentp/somalier:latest"
-        memory: "6GB"
+        memory: cores * memory + "GB"
         cpu: cores
         disks: "local-disk ~{space_needed_gb} SSD"
-        bootDiskSizeGb: space_needed_gb
         preemptible: preemptible
         maxRetries: maxRetries
     }
@@ -2110,17 +2148,23 @@ task somalier {
 task splitBedToChr {
     input {
         File interval_bed
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
-    Int cores = 1
-    Int space_needed_gb = 10 + round(size(interval_bed, "GB")*2)
+    Float data_size = size(interval_bed, "GB")
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
     Int preemptible = 1
     Int maxRetries = 0
 
     runtime {
         cpu: cores
-        memory: "6GB"
+        memory: cores * memory + "GB"
         docker: "kboltonlab/bst:latest"
+        bootDiskSizeGb: space_needed_gb
         disks: "local-disk ~{space_needed_gb} SSD"
         preemptible: preemptible
         maxRetries: maxRetries
@@ -2147,27 +2191,28 @@ task mutectNormal {
         File? pon_tbi
         File? gnomad
         File? gnomad_tbi
-
         File tumor_bam
         File tumor_bam_bai
-
         File? normal_bam
         File? normal_bam_bai
-
         File interval_list
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
-    Float reference_size = size([reference, reference_fai, reference_dict], "GB")
-    Float bam_size = size([tumor_bam, tumor_bam_bai, normal_bam, normal_bam_bai], "GB")
-    Int space_needed_gb = 10 + round(reference_size + 2*bam_size + size(interval_list, "GB"))
-    Int cores = 1
+    Float reference_size = size([reference, reference_fai, reference_dict, interval_list], "GB")
+    Float data_size = size([tumor_bam, tumor_bam_bai, normal_bam, normal_bam_bai], "GB")
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size + reference_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/2 + 20)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
     Int preemptible = 1
     Int maxRetries = 0
 
     runtime {
         cpu: cores
         docker: "broadinstitute/gatk:4.2.0.0"
-        memory: "32GB"
+        memory: cores * memory + "GB"
         bootDiskSizeGb: space_needed_gb
         disks: "local-disk ~{space_needed_gb} SSD"
         preemptible: preemptible
@@ -2212,21 +2257,24 @@ task mutectTumorOnly {
         File? gnomad_tbi
         File tumor_bam
         File tumor_bam_bai
-
         File interval_list
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
-    Float reference_size = size([reference, reference_fai, reference_dict], "GB")
-    Float bam_size = size([tumor_bam, tumor_bam_bai], "GB")
-    Int space_needed_gb = 10 + round(reference_size + 2*bam_size + size(interval_list, "GB"))
-    Int cores = 1
+    Float reference_size = size([reference, reference_fai, reference_dict, interval_list], "GB")
+    Float data_size = size([tumor_bam, tumor_bam_bai], "GB")
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size + reference_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/2 + 20)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
     Int preemptible = 1
     Int maxRetries = 0
 
     runtime {
         cpu: cores
         docker: "broadinstitute/gatk:4.2.0.0"
-        memory: "32GB"
+        memory: cores * memory + "GB"
         bootDiskSizeGb: space_needed_gb
         disks: "local-disk ~{space_needed_gb} SSD"
         preemptible: preemptible
@@ -2239,7 +2287,10 @@ task mutectTumorOnly {
         set -o pipefail
         set -o errexit
 
+        THREADS=$((~{cores}*4))
+
         /gatk/gatk Mutect2 --java-options "-Xmx20g" \
+        --native-pair-hmm-threads ${THREADS} \
             -O mutect.vcf.gz \
             -R ~{reference} \
             -L ~{interval_list} \
@@ -2270,15 +2321,23 @@ task mutectTumorOnly {
 task vcfSanitize {
     input {
         File vcf
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
-    Int cores = 1
     Int preemptible = 1
     Int maxRetries = 0
+    Float data_size = size(vcf, "GB")
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + data_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
-        memory: "6GB"
+        memory: cores * memory + "GB"
         cpu: cores
+        bootDiskSizeGb: space_needed_gb
+        disks: "local-disk ~{space_needed_gb} SSD"
         docker: "mgibio/samtools-cwl:1.0.0"
         preemptible: preemptible
         maxRetries: maxRetries
@@ -2316,18 +2375,23 @@ task bcftoolsNorm {
     input {
         File reference
         File reference_fai
-
         File vcf
         File vcf_tbi
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
-    Int space_needed_gb = 10 + round(size([vcf, vcf_tbi], "GB") * 2 + size([reference, reference_fai], "GB"))
-    Int cores = 1
+    Float data_size = size([vcf, vcf_tbi], "GB")
+    Float reference_size = size([reference, reference_fai], "GB")
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size + reference_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
     Int preemptible = 1
     Int maxRetries = 0
 
     runtime {
-        memory: "6GB"
+        memory: cores * memory + "GB"
         docker: "kboltonlab/bst"
         disks: "local-disk ~{space_needed_gb} SSD"
         cpu: cores
@@ -2354,18 +2418,22 @@ task bcftoolsIsecComplement {
         File exclude_vcf_tbi
         String output_type = "z"
         String? output_vcf_name = "bcftools_isec.vcf"
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
-    Int space_needed_gb = 10 + 2*round(size([vcf, vcf_tbi, exclude_vcf, exclude_vcf_tbi], "GB"))
-    Int cores = 1
+    Int data_size = size([vcf, vcf_tbi, exclude_vcf, exclude_vcf_tbi], "GB")
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
     Int preemptible = 1
     Int maxRetries = 0
 
     runtime {
         cpu: cores
         docker: "kboltonlab/bst:latest"
-        memory: "6GB"
-        bootDiskSizeGb: space_needed_gb
+        memory: cores * memory + "GB"
         disks: "local-disk ~{space_needed_gb} SSD"
         preemptible: preemptible
         maxRetries: maxRetries
@@ -2388,18 +2456,24 @@ task pon2Percent {
         File vcf2PON_tbi
         String caller = "caller"
         String sample_name = "tumor"
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
-    Int space_needed_gb = 10 + round(size([vcf, vcf2PON, vcf2PON_tbi],"GB"))
-    Int cores = 1
+    Int data_size = size([vcf, vcf2PON, vcf2PON_tbi],"GB")
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + data_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
     Int preemptible = 1
     Int maxRetries = 0
 
     runtime {
       cpu: cores
       docker: "kboltonlab/bst:latest"
-      memory: "6GB"
+      memory: cores * memory + "GB"
       disks: "local-disk ~{space_needed_gb} SSD"
+      bootDiskSizeGb: space_needed_gb
       preemptible: preemptible
       maxRetries: maxRetries
     }
@@ -2435,20 +2509,22 @@ task vardictTumorOnly {
         Int? mem_limit_override
         Int? cpu_override
         Int? JavaXmx = 96
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
-    Int cores = 16
-    Float reference_size = size([reference, reference_fai], "GB")
-    Float bam_size = size([tumor_bam, tumor_bam_bai], "GB")
-    Int space_needed_gb = 10 + round(reference_size + 4*bam_size + size(interval_bed, "GB"))
+    Float reference_size = size([reference, reference_fai, interval_bed], "GB")
+    Float data_size = size([tumor_bam, tumor_bam_bai], "GB")
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 4 * data_size + reference_size)])
     Int preemptible = 1
     Int maxRetries = 0
-    Int memory = select_first([mem_limit_override, if 2.0*bam_size > 96.0 then 12 else 8])
-    Int memory_total = cores * memory
+    Int memory = select_first([mem_limit_override, ceil(data_size/2 + 6)]) # We want the base to be around 8
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18)*16 else 16])
 
     runtime {
         docker: "kboltonlab/vardictjava:1.0"
-        memory: memory_total + "GB"
+        memory: cores * memory + "GB"
         cpu: cores
         bootDiskSizeGb: space_needed_gb
         disks: "local-disk ~{space_needed_gb} SSD"
@@ -2504,20 +2580,22 @@ task vardictNormal {
         Int? mem_limit_override
         Int? cpu_override
         Int? JavaXmx = 96
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
-    Int cores = 16
-    Float reference_size = size([reference, reference_fai], "GB")
-    Float bam_size = size([tumor_bam, tumor_bam_bai], "GB")
-    Int space_needed_gb = 10 + round(reference_size + 4*bam_size + size(interval_bed, "GB"))
+    Float reference_size = size([reference, reference_fai, interval_bed], "GB")
+    Float data_size = size([tumor_bam, tumor_bam_bai], "GB")
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 4 * data_size + reference_size)])
     Int preemptible = 1
     Int maxRetries = 0
-    Int memory = select_first([mem_limit_override, if 2.0*bam_size > 96.0 then 12 else 8])
-    Int memory_total = cores * memory
+    Int memory = select_first([mem_limit_override, ceil(data_size/2 + 6)]) # We want the base to be around 8
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18)*16 else 16])
 
     runtime {
         docker: "kboltonlab/vardictjava:1.0"
-        memory: memory_total + "GB"
+        memory: cores * memory + "GB"
         cpu: cores
         bootDiskSizeGb: space_needed_gb
         disks: "local-disk ~{space_needed_gb} SSD"
@@ -2581,18 +2659,22 @@ task bcftoolsFilterBcbio {
         String filter_string
         String? output_vcf_prefix = "bcftools_filter"
         String output_type = "z"
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
-    Int space_needed_gb = 10 + 2*round(size(vcf, "GB"))
-    Int cores = 1
+    Int data_size = size([vcf, vcf_tbi], "GB")
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
     Int preemptible = 1
     Int maxRetries = 0
 
     runtime {
       cpu: cores
       docker: "kboltonlab/bst:latest"
-      memory: "6GB"
-      bootDiskSizeGb: space_needed_gb
+      memory: cores * memory + "GB"
       disks: "local-disk ~{space_needed_gb} SSD"
       preemptible: preemptible
       maxRetries: maxRetries
@@ -2601,9 +2683,7 @@ task bcftoolsFilterBcbio {
     String ff = if filter_flag == "include" then "-i" else "-e"
     command <<<
         /usr/local/bin/bcftools filter ~{ff} "~{filter_string}" ~{vcf} --output-type ~{output_type} --output ~{output_vcf_prefix}.vcf.gz -s "BCBIO" -m+
-
         /usr/local/bin/tabix ~{output_vcf_prefix}.vcf.gz
-
     >>>
 
     output {
@@ -2618,18 +2698,22 @@ task lofreq_indelqual {
         File reference_fai
         File tumor_bam
         File tumor_bam_bai
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
-    Int cores = 1
     Float reference_size = size([reference, reference_fai], "GB")
-    Float bam_size = size([tumor_bam, tumor_bam_bai], "GB")
-    Int space_needed_gb = 10 + round(reference_size + 2*bam_size)
+    Float data_size = size([tumor_bam, tumor_bam_bai], "GB")
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size + reference_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
     Int preemptible = 1
     Int maxRetries = 0
 
     runtime {
         docker: "kboltonlab/lofreq:latest"
-        memory: "6GB"
+        memory: cores * memory + "GB"
         cpu: cores
         bootDiskSizeGb: space_needed_gb
         disks: "local-disk ~{space_needed_gb} SSD"
@@ -2656,18 +2740,22 @@ task lofreqTumorOnly {
         File tumor_bam_bai
         File interval_bed
         String? output_name = "lofreq.vcf"
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
-    Int cores = 4
-    Float reference_size = size([reference, reference_fai], "GB")
-    Float bam_size = size([tumor_bam, tumor_bam_bai], "GB")
-    Int space_needed_gb = 10 + round(reference_size + 2*bam_size + size(interval_bed, "GB"))
+    Float reference_size = size([reference, reference_fai, interval_bed], "GB")
+    Float data_size = size([tumor_bam, tumor_bam_bai], "GB")
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size + reference_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18)*4 else 4])
     Int preemptible = 1
     Int maxRetries = 0
 
     runtime {
         docker: "kboltonlab/lofreq:latest"
-        memory: "24GB"
+        memory: cores * memory + "GB"
         cpu: cores
         bootDiskSizeGb: space_needed_gb
         disks: "local-disk ~{space_needed_gb} SSD"
@@ -2697,18 +2785,22 @@ task lofreqNormal {
         File? normal_bam_bai
         File interval_bed
         String? output_name = "lofreq"
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
-    Int cores = 4
-    Float reference_size = size([reference, reference_fai], "GB")
-    Float bam_size = size([tumor_bam, tumor_bam_bai, normal_bam, normal_bam_bai], "GB")
-    Int space_needed_gb = 10 + round(reference_size + 2*bam_size + size(interval_bed, "GB"))
+    Float reference_size = size([reference, reference_fai, interval_bed], "GB")
+    Float data_size = size([tumor_bam, tumor_bam_bai, normal_bam, normal_bam_bai], "GB")
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size + reference_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18)*4 else 4])
     Int preemptible = 1
     Int maxRetries = 0
 
     runtime {
         docker: "kboltonlab/lofreq:latest"
-        memory: "24GB"
+        memory: cores * memory + "GB"
         cpu: cores
         bootDiskSizeGb: space_needed_gb
         disks: "local-disk ~{space_needed_gb} SSD"
@@ -2734,17 +2826,22 @@ task lofreqReformat {
     input {
         File vcf
         String tumor_sample_name
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
-    Int space_needed_gb = 10 + 2*round(size(vcf, "GB"))
-    Int cores = 1
+    Int data_size = size(vcf, "GB")
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
     Int preemptible = 1
     Int maxRetries = 0
 
     runtime {
       cpu: cores
       docker: "quay.io/biocontainers/samtools:1.11--h6270b1f_0"
-      memory: "6GB"
+      memory: cores * memory + "GB"
       bootDiskSizeGb: space_needed_gb
       disks: "local-disk ~{space_needed_gb} SSD"
       preemptible: preemptible
@@ -2782,19 +2879,25 @@ task pindelNormal {
         String? normal_sample_name
         String? chromosome
         Int insert_size = 400
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
-    Int cores = 4
-    Int space_needed_gb = 10 + round(size([reference, reference_fai, reference_dict, normal_bam, normal_bam_bai, tumor_bam, tumor_bam_bai, region_file], "GB"))
+    Int data_size = size([normal_bam, normal_bam_bai, tumor_bam, tumor_bam_bai], "GB")
+    Int reference_size = size([reference, reference_fai, reference_dict, region_file], "GB")
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size + reference_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18)*4 else 4])
     Int preemptible = 1
     Int maxRetries = 5
 
     runtime {
-        bootDiskSizeGb: 100
+        bootDiskSizeGb: space_needed_gb
         cpu: cores
         disks: "local-disk ~{space_needed_gb} SSD"
         docker: "mgibio/cle:v1.4.2"
-        memory: "24GB"
+        memory: cores * memory + "GB"
         preemptible: preemptible
         maxRetries: maxRetries
     }
@@ -2828,19 +2931,25 @@ task pindelTumorOnly {
         String tumor_sample_name
         String? chromosome
         Int insert_size = 400
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
-    Int cores = 4
     Int preemptible = 1
     Int maxRetries = 5
-    Int space_needed_gb = 10 + round(size([reference, reference_fai, reference_dict, tumor_bam, tumor_bam_bai, region_file], "GB"))
+    Int data_size = size([tumor_bam, tumor_bam_bai], "GB")
+    Int reference_size = size([reference, reference_fai, reference_dict, region_file], "GB")
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size + reference_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18)*4 else 4])
 
     runtime {
-        bootDiskSizeGb: 100
+        bootDiskSizeGb: space_needed_gb
         cpu: cores
         disks: "local-disk ~{space_needed_gb} SSD"
         docker: "mgibio/cle:v1.4.2"
-        memory: "24GB"
+        memory: cores * memory + "GB"
         preemptible: preemptible
         maxRetries: maxRetries
     }
@@ -2865,16 +2974,22 @@ task pindelTumorOnly {
 task catOut {
   input {
     Array[File] pindel_outs
+    Int? disk_size_override
+    Int? mem_limit_override
+    Int? cpu_override
   }
 
-  Int cores = 1
   Int preemptible = 1
   Int maxRetries = 0
   Int space_needed_gb = 10 + round(size(pindel_outs, "GB")*2)
+  Int memory = select_first([mem_limit_override, ceil(size(pindel_outs, "GB")/6 + 5)]) # We want the base to be around 6
+  Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
+
   runtime {
-    memory: "6GB"
+    memory: cores * memory + "GB"
     docker: "ubuntu:bionic"
     disks: "local-disk ~{space_needed_gb} SSD"
+    bootDiskSizeGb: space_needed_gb
     cpu: cores
     preemptible: preemptible
     maxRetries: maxRetries
@@ -2901,15 +3016,23 @@ task pindelToVcf {
         Int? min_supporting_reads = 3
         String? output_name = "pindel.vcf"
         String tumor_sample_name
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
-    Int cores = 1
+
     Int preemptible = 1
     Int maxRetries = 0
-    Int space_needed_gb = 10 + round(size([reference, reference_fai, reference_dict, pindel_output_summary], "GB"))
+    Int data_size = size([reference, reference_fai, reference_dict, pindel_output_summary], "GB")
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + data_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
+
     runtime {
-      memory: "6GB"
+      memory: cores * memory + "GB"
       docker: "mgibio/cle:v1.3.1"
       disks: "local-disk ~{space_needed_gb} SSD"
+      bootDiskSizeGb: space_needed_gb
       cpu: cores
       preemptible: preemptible
       maxRetries: maxRetries
@@ -2937,17 +3060,23 @@ task pindelSomaticFilter {
         File reference_fai
         File reference_dict
         File pindel_output_summary
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
-    Int cores = 1
     Int preemptible = 1
     Int maxRetries = 0
-    Int space_needed_gb = 10 + round(size([reference, reference_fai, reference_dict, pindel_output_summary], "GB"))
+    Int data_size = size([reference, reference_fai, reference_dict, pindel_output_summary], "GB")
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + data_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
-        memory: "6GB"
+        memory: cores * memory + "GB"
         docker: "mgibio/cle:v1.3.1"
         disks: "local-disk ~{space_needed_gb} SSD"
+        bootDiskSizeGb: space_needed_gb
         cpu: cores
         preemptible: preemptible
         maxRetries: maxRetries
@@ -2966,15 +3095,20 @@ task pindelSomaticFilter {
 task removeEndTags {
     input {
         File vcf
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
-    Int cores = 1
     Int preemptible = 1
     Int maxRetries = 0
-    Int space_needed_gb = 10 + round(size(vcf, "GB")*2)
+    Int data_size = size(vcf, "GB")
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
-        memory: "6GB"
+        memory: cores * memory + "GB"
         docker: "kboltonlab/bst:latest"
         disks: "local-disk ~{space_needed_gb} SSD"
         cpu: cores
@@ -3003,18 +3137,24 @@ task createFakeVcf {
     input {
         File vcf
         String tumor_sample_name
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
-    Int cores = 1
-    Int space_needed_gb = 10 + round(2*size(vcf, "GB"))
+    Int data_size = size(vcf, "GB")
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
     Int preemptible = 1
     Int maxRetries = 0
 
     runtime {
         docker: "quay.io/biocontainers/samtools:1.11--h6270b1f_0"
-        memory: "6GB"
+        memory: cores * memory + "GB"
         cpu: cores
         disks: "local-disk ~{space_needed_gb} SSD"
+        bootDiskSizeGb: space_needed_gb
         preemptible: preemptible
         maxRetries: maxRetries
     }
@@ -3041,16 +3181,21 @@ task mergeVcf {
         Array[File] vcfs
         Array[File] vcf_tbis
         String merged_vcf_basename = "merged"
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
-    Int space_needed_gb = 10 + round(2*(size(vcfs, "GB") + size(vcf_tbis, "GB")))
-    Int cores = 1
+    Int data_size = size(vcfs, "GB")
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
     Int preemptible = 1
     Int maxRetries = 0
 
     runtime {
         docker: "kboltonlab/bst:latest"
-        memory: "6GB"
+        memory: cores * memory + "GB"
         disks: "local-disk ~{space_needed_gb} SSD"
         cpu: cores
         preemptible: preemptible
@@ -3080,18 +3225,24 @@ task fpFilter {
         String output_vcf_basename = "fpfilter"
         String sample_name = "TUMOR"
         Float? min_var_freq = 0.05
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
-    Int space_needed_gb = 10 + round(size(vcf, "GB")*2 + size([reference, reference_fai, reference_dict, bam], "GB"))
-    Int cores = 1
+    Int data_size = size(vcf, "GB")
+    Int reference_size = size([reference, reference_fai, reference_dict, bam], "GB")
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size + reference_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
     Int preemptible = 1
     Int maxRetries = 0
 
     runtime {
-        memory: "6GB"
-        bootDiskSizeGb: 25
+        memory: cores * memory + "GB"
         docker: "kboltonlab/fp_filter-wdl"
         disks: "local-disk ~{space_needed_gb} SSD"
+        bootDiskSizeGb: space_needed_gb
         cpu: cores
         preemptible: preemptible
         maxRetries: maxRetries
@@ -3122,29 +3273,32 @@ task mskGetBaseCounts {
         File vcf
         Int? mapq = 5
         Int? baseq = 5
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
-    Int cores = 4
     Float reference_size = size([reference, reference_fai, reference_dict], "GB")
-    Float bam_size = size([normal_bam.left, normal_bam.right], "GB")
-    Float vcf_size = size(vcf, "GB")
-    Int space_needed_gb = 10 + round(reference_size + 2*bam_size + vcf_size)
+    Float data_size = size([normal_bam.left, normal_bam.right, vcf], "GB")
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size + reference_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18)*4 else 4])
     Int preemptible = 1
     Int maxRetries = 0
 
     runtime {
       docker: "kboltonlab/msk_getbasecounts:3.0"
       cpu: cores
-      memory: "24GB"
+      memory: cores * memory + "GB"
       disks: "local-disk ~{space_needed_gb} SSD"
+      bootDiskSizeGb: space_needed_gb
       preemptible: preemptible
       maxRetries: maxRetries
     }
 
     command <<<
         echo "REFERENCE: ~{reference_size}"
-        echo "BAM: ~{bam_size}"
-        echo "VCF: ~{vcf_size}"
+        echo "BAM: ~{data_size}"
         echo "SPACE_NEEDED: ~{space_needed_gb}"
 
         sample_name=$(samtools view -H ~{normal_bam.left} | grep '^@RG' | sed "s/.*SM:\([^\t]*\).*/\1/g" | uniq)
@@ -3189,16 +3343,21 @@ task bcftoolsMerge {
         Array[File] vcfs
         Array[File] vcf_tbis
         String merged_vcf_basename = "merged"
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
-    Int space_needed_gb = 10 + round(2*(size(vcfs, "GB") + size(vcf_tbis, "GB")))
-    Int cores = 1
+    Int data_size = size(vcfs, "GB")
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
     Int preemptible = 1
     Int maxRetries = 0
 
     runtime {
         docker: "kboltonlab/bst:latest"
-        memory: "6GB"
+        memory: cores * memory + "GB"
         disks: "local-disk ~{space_needed_gb} SSD"
         cpu: cores
         preemptible: preemptible
@@ -3237,22 +3396,27 @@ task vep {
         String pick = "flag_pick"
         String additional_args = "--pick_order canonical,rank,mane,ccds,appris,tsl,biotype,length --merged --buffer_size 1000 --af_gnomad"
         File? synonyms_file
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
     Float cache_size = 3*size(cache_dir_zip, "GB")  # doubled to unzip
     Float vcf_size = 2*size(vcf, "GB")  # doubled for output vcf
     Float reference_size = size([reference, reference_fai, reference_dict], "GB")
     Float splice_AI_size = size([spliceAI_files.spliceAI_indel, spliceAI_files.spliceAI_snv], "GB")
-    Int space_needed_gb = 50 + round(reference_size + vcf_size + cache_size + splice_AI_size +size(synonyms_file, "GB"))
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + cache_size + vcf_size + reference_size + splice_AI_size + size(synonyms_file, "GB"))])
+    Int memory = select_first([mem_limit_override, ceil(vcf_size/2 + 8)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18)*4 else 4])
     Int preemptible = 1
     Int maxRetries = 0
 
     runtime {
-        memory: "64GB"
-        bootDiskSizeGb: 30
-        cpu: 4
+        memory: cores * memory + "GB"
+        cpu: cores
         docker: "kboltonlab/ic_vep"
         disks: "local-disk ~{space_needed_gb} SSD"
+        bootDiskSizeGb: space_needed_gb
         preemptible: preemptible
         maxRetries: maxRetries
     }
@@ -3321,19 +3485,25 @@ task normalFisher {
         File pon_tbi
         String caller = "caller"
         String? p_value = "0.05"
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
 
-    Int space_needed_gb = 10 + round(size([vcf, pon, pon_tbi], "GB"))
-    Int cores = 1
+    Int data_size = size([vcf, pon, pon_tbi], "GB")
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + data_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
     Int preemptible = 1
     Int maxRetries = 0
 
     runtime {
       cpu: cores
       docker: "kboltonlab/sam_bcftools_tabix_bgzip:1.0"
-      memory: "6GB"
+      memory: cores * memory + "GB"
       disks: "local-disk ~{space_needed_gb} SSD"
+      bootDiskSizeGb: space_needed_gb
       preemptible: preemptible
       maxRetries: maxRetries
     }
@@ -3522,15 +3692,20 @@ task annotateVcf {
         File vep_tbi
         String caller_prefix
         String sample_name
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
-    Int space_needed_gb = 10 + 2*round(size([vcf, vcf_tbi, fp_filter, fp_filter_tbi, vep], "GB"))
-    Int cores = 1
+    Int data_size = size([vcf, vcf_tbi, fp_filter, fp_filter_tbi, vep], "GB")
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
     Int preemptible = 1
     Int maxRetries = 0
 
     runtime {
-      memory: "6GB"
+      memory: cores * memory + "GB"
       docker: "kboltonlab/bst"
       disks: "local-disk ~{space_needed_gb} SSD"
       bootDiskSizeGb: space_needed_gb
@@ -3580,21 +3755,26 @@ task annotatePD {
         File truncating
         File cosmic_dir_zip
         String? pon_pvalue = "2.114164905e-6"
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
     Float caller_size = size([mutect_vcf, lofreq_vcf, vardict_vcf], "GB")
     Float file_size = size([bolton_bick_vars, mut2_bick, mut2_kelly, matches2, TSG_file, oncoKB_curated, pd_annotation_file, truncating], "GB")
     Float cosmic_size = 3*size(cosmic_dir_zip, "GB")
-    Int space_needed_gb = 20 + round(caller_size + file_size + cosmic_size)
-    Int cores = 2
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + caller_size + file_size + cosmic_size)])
+    Int memory = select_first([mem_limit_override, ceil(file_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18)*2 else 2])
     Int preemptible = 1
     Int maxRetries = 0
 
     runtime {
       cpu: cores
       docker: "kboltonlab/r_docker_ichan:latest"
-      memory: "12GB"
+      memory: cores * memory + "GB"
       disks: "local-disk ~{space_needed_gb} SSD"
+      bootDiskSizeGb: space_needed_gb
       preemptible: preemptible
       maxRetries: maxRetries
     }
@@ -3677,18 +3857,22 @@ task xgb_model {
         String? pon_pvalue = "2.114164905e-6"
         Boolean model = true
         String tumor_sample_name
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
-    Float caller_size = size([mutect_tsv, lofreq_tsv, vardict_tsv, pindel_full_vcf, pon], "GB")
-    Int space_needed_gb = 10 + round(caller_size)
-    Int cores = 1
+    Float data_size = size([mutect_tsv, lofreq_tsv, vardict_tsv, pindel_full_vcf, pon], "GB")
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + data_size)])
+    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
     Int preemptible = 1
     Int maxRetries = 0
 
     runtime {
       cpu: cores
       docker: "kboltonlab/xgb:ic_patch"
-      memory: "6GB"
+      memory: cores * memory + "GB"
       disks: "local-disk ~{space_needed_gb} SSD"
       preemptible: preemptible
       maxRetries: maxRetries
