@@ -1146,7 +1146,7 @@ task filterArcherUmiLength {
     Int maxRetries = 0
     Float data_size = size([fastq1, fastq2], "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
@@ -1184,8 +1184,9 @@ task bamToFastq {
     Int maxRetries = 0
     Float data_size = size(unaligned_bam, "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
+    Int memory_total = floor(memory)-2
 
     runtime {
         docker: "mgibio/rnaseq:1.0.0"
@@ -1197,7 +1198,7 @@ task bamToFastq {
     }
 
     command <<<
-        /usr/bin/java -Xmx~{memory}g -Djava.io.tmpdir=`pwd`/tmp -jar /opt/picard/picard.jar SamToFastq VALIDATION_STRINGENCY=SILENT I=~{unaligned_bam} F=read1.fastq F2=read2.fastq
+        /usr/bin/java -Xmx~{memory_total}g -Djava.io.tmpdir=`pwd`/tmp -jar /opt/picard/picard.jar SamToFastq VALIDATION_STRINGENCY=SILENT I=~{unaligned_bam} F=read1.fastq F2=read2.fastq
     >>>
 
     output {
@@ -1219,8 +1220,9 @@ task bbmapRepair {
     Int preemptible = 1
     Int maxRetries = 0
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/3 + 10)]) # 12
+    Float memory = select_first([mem_limit_override, ceil(data_size/3 + 10)]) # 12
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
+    Int memory_total = floor(memory)-2
 
     runtime {
         docker: "quay.io/biocontainers/bbmap:38.92--he522d1c_0"
@@ -1232,7 +1234,7 @@ task bbmapRepair {
     }
 
     command <<<
-        repair.sh -Xmx~{memory}g repair=t overwrite=true interleaved=false outs=singletons.fq out1=R1.fixed.fastq.gz out2=R2.fixed.fastq.gz in1=~{fastq1} in2=~{fastq2}
+        repair.sh -Xmx~{memory_total}g repair=t overwrite=true interleaved=false outs=singletons.fq out1=R1.fixed.fastq.gz out2=R2.fixed.fastq.gz in1=~{fastq1} in2=~{fastq2}
     >>>
 
     output {
@@ -1259,8 +1261,9 @@ task fastqToBam {
     Int maxRetries = 0
     Float data_size = size([fastq1, fastq2], "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
+    Int memory_total = floor(memory)-2
 
     runtime {
         docker: "mgibio/dna-alignment:1.0.0"
@@ -1273,7 +1276,7 @@ task fastqToBam {
     }
 
     command <<<
-        /usr/bin/java -Xmx~{memory}g -Djava.io.tmpdir=`pwd`/tmp -jar /opt/picard/picard.jar FastqToSam FASTQ=~{fastq1} FASTQ2=~{fastq2} SAMPLE_NAME=~{sample_name} LIBRARY_NAME=~{library_name} PLATFORM_UNIT=~{platform_unit} PLATFORM=~{platform} OUTPUT=unaligned.bam
+        /usr/bin/java -Xmx~{memory_total}g -Djava.io.tmpdir=`pwd`/tmp -jar /opt/picard/picard.jar FastqToSam FASTQ=~{fastq1} FASTQ2=~{fastq2} SAMPLE_NAME=~{sample_name} LIBRARY_NAME=~{library_name} PLATFORM_UNIT=~{platform_unit} PLATFORM=~{platform} OUTPUT=unaligned.bam
     >>>
 
     output {
@@ -1295,7 +1298,7 @@ task extractUmis {
     Int preemptible = 1
     Int maxRetries = 0
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
@@ -1332,7 +1335,7 @@ task copyUMIFromReadName {
     Int preemptible = 1
     Int maxRetries = 0
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
@@ -1365,8 +1368,9 @@ task markIlluminaAdapters {
     Int preemptible = 1
     Int maxRetries = 0
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
+    Int memory_total = floor(memory)-2
 
     runtime {
         docker: "mgibio/dna-alignment:1.0.0"
@@ -1378,7 +1382,7 @@ task markIlluminaAdapters {
     }
 
     command <<<
-        /usr/bin/java -Xmx~{memory}g -Djava.io.tmpdir=`pwd`/tmp -jar /opt/picard/picard.jar MarkIlluminaAdapters INPUT=~{bam} OUTPUT=marked.bam METRICS=adapter_metrics.txt
+        /usr/bin/java -Xmx~{memory_total}g -Djava.io.tmpdir=`pwd`/tmp -jar /opt/picard/picard.jar MarkIlluminaAdapters INPUT=~{bam} OUTPUT=marked.bam METRICS=adapter_metrics.txt
     >>>
 
     output {
@@ -1408,7 +1412,7 @@ task umiAlign {
     Float data_size = size(bam, "GB")
     Float reference_size = size([reference, reference_amb, reference_ann, reference_bwt, reference_pac, reference_sa], "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 4 * data_size + reference_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory/18)*8 else 8])
 
     runtime {
@@ -1447,7 +1451,7 @@ task groupReadsAndConsensus {
     Int maxRetries = 0
     Float data_size = size(bam, "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
@@ -1500,7 +1504,7 @@ task realign {
     Float data_size = size(bam, "GB")
     Float reference_size = size([reference, reference_amb, reference_ann, reference_bwt, reference_pac, reference_sa], "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 4 * data_size + reference_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18)*8 else 8])
 
     runtime {
@@ -1547,7 +1551,7 @@ task filterClipAndCollectMetrics {
     Int preemptible = 1
     Int maxRetries = 0
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size + reference_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
@@ -1614,7 +1618,7 @@ task clipAndCollectMetrics {
     Int preemptible = 1
     Int maxRetries = 0
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size + reference_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
@@ -1674,7 +1678,7 @@ task indexBam {
     Int preemptible = 1
     Int maxRetries = 0
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
@@ -1720,8 +1724,9 @@ task bqsrApply {
     Int preemptible = 1
     Int maxRetries = 0
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 4 * data_size + reference_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/3 + 10)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/3 + 10)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
+    Int memory_total = floor(memory)-2
 
     runtime {
         cpu: cores
@@ -1733,8 +1738,8 @@ task bqsrApply {
     }
 
     command <<<
-        /gatk/gatk --java-options -Xmx~{memory}g BaseRecalibrator -O bqsr.table -L ~{interval_list} -R ~{reference} -I ~{bam} ~{sep=" " prefix("--known-sites ", known_sites)}
-        /gatk/gatk --java-options -Xmx~{memory}g ApplyBQSR -O ~{output_name}.bam ~{sep=" " prefix("--static-quantized-quals ", [10, 20, 30])} -R ~{reference} -I ~{bam} -bqsr bqsr.table
+        /gatk/gatk --java-options -Xmx~{memory_total}g BaseRecalibrator -O bqsr.table -L ~{interval_list} -R ~{reference} -I ~{bam} ~{sep=" " prefix("--known-sites ", known_sites)}
+        /gatk/gatk --java-options -Xmx~{memory_total}g ApplyBQSR -O ~{output_name}.bam ~{sep=" " prefix("--static-quantized-quals ", [10, 20, 30])} -R ~{reference} -I ~{bam} -bqsr bqsr.table
     >>>
 
     output {
@@ -1761,8 +1766,9 @@ task Metrics {
     Int preemptible = 1
     Int maxRetries = 0
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + data_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
+    Int memory_total = floor(memory)-2
 
     runtime {
         memory: cores * memory + "GB"
@@ -1779,8 +1785,8 @@ task Metrics {
     String size_histogram = "~{bamroot}.InsertSizeHistogram.pdf"
 
     command <<<
-        /usr/bin/java -Xmx~{memory}g -Djava.io.tmpdir=`pwd`/tmp -jar /usr/picard/picard.jar CollectAlignmentSummaryMetrics INPUT=~{bam} OUTPUT=~{summary_metrics} REFERENCE_SEQUENCE=~{reference} METRIC_ACCUMULATION_LEVEL=~{metric_accumulation_level}
-        /usr/bin/java -Xmx~{memory}g -Djava.io.tmpdir=`pwd`/tmp -jar /usr/picard/picard.jar CollectInsertSizeMetrics O=~{size_metrics} H=~{size_histogram} I=~{bam} REFERENCE_SEQUENCE=~{reference} METRIC_ACCUMULATION_LEVEL=~{metric_accumulation_level}
+        /usr/bin/java -Xmx~{memory_total}g -Djava.io.tmpdir=`pwd`/tmp -jar /usr/picard/picard.jar CollectAlignmentSummaryMetrics INPUT=~{bam} OUTPUT=~{summary_metrics} REFERENCE_SEQUENCE=~{reference} METRIC_ACCUMULATION_LEVEL=~{metric_accumulation_level}
+        /usr/bin/java -Xmx~{memory_total}g -Djava.io.tmpdir=`pwd`/tmp -jar /usr/picard/picard.jar CollectInsertSizeMetrics O=~{size_metrics} H=~{size_histogram} I=~{bam} REFERENCE_SEQUENCE=~{reference} METRIC_ACCUMULATION_LEVEL=~{metric_accumulation_level}
     >>>
 
     output {
@@ -1818,7 +1824,7 @@ task collectHsMetrics {
     Int preemptible = 1
     Int maxRetries = 0
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + data_size + reference_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
@@ -1869,7 +1875,7 @@ task samtoolsFlagstat {
     Int preemptible = 1
     Int maxRetries = 0
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + data_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
@@ -1919,7 +1925,7 @@ task selectVariants {
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size + reference_size)])
     Int preemptible = 1
     Int maxRetries = 0
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
@@ -1964,7 +1970,7 @@ task verifyBamId {
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
     Int preemptible = 1
     Int maxRetries = 0
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
@@ -2002,7 +2008,7 @@ task fastQC {
     Int maxRetries = 0
     Float data_size = size([bam, bam_bai], "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + data_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
@@ -2039,7 +2045,7 @@ task intervalsToBed {
     Int maxRetries = 0
     Float data_size = size(interval_list, "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + data_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
@@ -2084,7 +2090,7 @@ task createSomalierVcf {
     Int maxRetries = 0
     Float data_size = size([interval_bed, chrom_sizes, af_only_snp_only_vcf, reference], "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
@@ -2129,7 +2135,7 @@ task somalier {
     Int maxRetries = 0
     Float data_size = size([somalier_vcf, reference, bam, bam_bai], "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + data_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
@@ -2160,7 +2166,7 @@ task splitBedToChr {
 
     Float data_size = size(interval_bed, "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
     Int preemptible = 1
     Int maxRetries = 0
@@ -2209,7 +2215,7 @@ task mutectNormal {
     Float reference_size = size([reference, reference_fai, reference_dict, interval_list], "GB")
     Float data_size = size([tumor_bam, tumor_bam_bai, normal_bam, normal_bam_bai], "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size + reference_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/2 + 20)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/2 + 20)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
     Int preemptible = 1
     Int maxRetries = 0
@@ -2271,7 +2277,7 @@ task mutectTumorOnly {
     Float reference_size = size([reference, reference_fai, reference_dict, interval_list], "GB")
     Float data_size = size([tumor_bam, tumor_bam_bai], "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size + reference_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/2 + 20)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/2 + 20)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
     Int preemptible = 1
     Int maxRetries = 0
@@ -2335,7 +2341,7 @@ task vcfSanitize {
     Int maxRetries = 0
     Float data_size = size(vcf, "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + data_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
@@ -2390,7 +2396,7 @@ task bcftoolsNorm {
     Float data_size = size([vcf, vcf_tbi], "GB")
     Float reference_size = size([reference, reference_fai], "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size + reference_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
     Int preemptible = 1
     Int maxRetries = 0
@@ -2430,7 +2436,7 @@ task bcftoolsIsecComplement {
 
     Float data_size = size([vcf, vcf_tbi, exclude_vcf, exclude_vcf_tbi], "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
     Int preemptible = 1
     Int maxRetries = 0
@@ -2468,7 +2474,7 @@ task pon2Percent {
 
     Float data_size = size([vcf, vcf2PON, vcf2PON_tbi],"GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + data_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
     Int preemptible = 1
     Int maxRetries = 0
@@ -2524,7 +2530,7 @@ task vardictTumorOnly {
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 4 * data_size + reference_size)])
     Int preemptible = 1
     Int maxRetries = 0
-    Int memory = select_first([mem_limit_override, ceil(data_size/2 + 6)]) # We want the base to be around 8
+    Float memory = select_first([mem_limit_override, ceil(data_size/2 + 6)]) # We want the base to be around 8
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18)*16 else 16])
 
     runtime {
@@ -2595,7 +2601,7 @@ task vardictNormal {
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 4 * data_size + reference_size)])
     Int preemptible = 1
     Int maxRetries = 0
-    Int memory = select_first([mem_limit_override, ceil(data_size/2 + 6)]) # We want the base to be around 8
+    Float memory = select_first([mem_limit_override, ceil(data_size/2 + 6)]) # We want the base to be around 8
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18)*16 else 16])
 
     runtime {
@@ -2671,7 +2677,7 @@ task bcftoolsFilterBcbio {
 
     Float data_size = size([vcf, vcf_tbi], "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
     Int preemptible = 1
     Int maxRetries = 0
@@ -2711,7 +2717,7 @@ task lofreq_indelqual {
     Float reference_size = size([reference, reference_fai], "GB")
     Float data_size = size([tumor_bam, tumor_bam_bai], "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size + reference_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
     Int preemptible = 1
     Int maxRetries = 0
@@ -2753,7 +2759,7 @@ task lofreqTumorOnly {
     Float reference_size = size([reference, reference_fai, interval_bed], "GB")
     Float data_size = size([tumor_bam, tumor_bam_bai], "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size + reference_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18)*4 else 4])
     Int preemptible = 1
     Int maxRetries = 0
@@ -2798,7 +2804,7 @@ task lofreqNormal {
     Float reference_size = size([reference, reference_fai, interval_bed], "GB")
     Float data_size = size([tumor_bam, tumor_bam_bai, normal_bam, normal_bam_bai], "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size + reference_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18)*4 else 4])
     Int preemptible = 1
     Int maxRetries = 0
@@ -2838,7 +2844,7 @@ task lofreqReformat {
 
     Float data_size = size(vcf, "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
     Int preemptible = 1
     Int maxRetries = 0
@@ -2892,7 +2898,7 @@ task pindelNormal {
     Float data_size = size([normal_bam, normal_bam_bai, tumor_bam, tumor_bam_bai], "GB")
     Float reference_size = size([reference, reference_fai, reference_dict, region_file], "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size + reference_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18)*4 else 4])
     Int preemptible = 1
     Int maxRetries = 5
@@ -2946,7 +2952,7 @@ task pindelTumorOnly {
     Float data_size = size([tumor_bam, tumor_bam_bai], "GB")
     Float reference_size = size([reference, reference_fai, reference_dict, region_file], "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size + reference_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18)*4 else 4])
 
     runtime {
@@ -2987,7 +2993,7 @@ task catOut {
   Int preemptible = 1
   Int maxRetries = 0
   Int space_needed_gb = 10 + round(size(pindel_outs, "GB")*2)
-  Int memory = select_first([mem_limit_override, ceil(size(pindel_outs, "GB")/6 + 5)]) # We want the base to be around 6
+  Float memory = select_first([mem_limit_override, ceil(size(pindel_outs, "GB")/6 + 5)]) # We want the base to be around 6
   Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
   runtime {
@@ -3030,7 +3036,7 @@ task pindelToVcf {
     Int maxRetries = 0
     Float data_size = size([reference, reference_fai, reference_dict, pindel_output_summary], "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + data_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
@@ -3074,7 +3080,7 @@ task pindelSomaticFilter {
     Int maxRetries = 0
     Float data_size = size([reference, reference_fai, reference_dict, pindel_output_summary], "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + data_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
@@ -3109,7 +3115,7 @@ task removeEndTags {
     Int maxRetries = 0
     Float data_size = size(vcf, "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
@@ -3149,7 +3155,7 @@ task createFakeVcf {
 
     Float data_size = size(vcf, "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
     Int preemptible = 1
     Int maxRetries = 0
@@ -3193,7 +3199,7 @@ task mergeVcf {
 
     Float data_size = size(vcfs, "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
     Int preemptible = 1
     Int maxRetries = 0
@@ -3238,7 +3244,7 @@ task fpFilter {
     Float data_size = size(vcf, "GB")
     Float reference_size = size([reference, reference_fai, reference_dict, bam], "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size + reference_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
     Int preemptible = 1
     Int maxRetries = 0
@@ -3286,7 +3292,7 @@ task mskGetBaseCounts {
     Float reference_size = size([reference, reference_fai, reference_dict], "GB")
     Float data_size = size([normal_bam.left, normal_bam.right, vcf], "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size + reference_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18)*4 else 4])
     Int preemptible = 1
     Int maxRetries = 0
@@ -3355,7 +3361,7 @@ task bcftoolsMerge {
 
     Float data_size = size(vcfs, "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
     Int preemptible = 1
     Int maxRetries = 0
@@ -3411,7 +3417,7 @@ task vep {
     Float reference_size = size([reference, reference_fai, reference_dict], "GB")
     Float splice_AI_size = size([spliceAI_files.spliceAI_indel, spliceAI_files.spliceAI_snv], "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + cache_size + vcf_size + reference_size + splice_AI_size + size(synonyms_file, "GB"))])
-    Int memory = select_first([mem_limit_override, ceil(vcf_size/2 + 8)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(vcf_size/2 + 8)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18)*4 else 4])
     Int preemptible = 1
     Int maxRetries = 0
@@ -3498,7 +3504,7 @@ task normalFisher {
 
     Float data_size = size([vcf, pon, pon_tbi], "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + data_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
     Int preemptible = 1
     Int maxRetries = 0
@@ -3704,7 +3710,7 @@ task annotateVcf {
 
     Float data_size = size([vcf, vcf_tbi, fp_filter, fp_filter_tbi, vep], "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
     Int preemptible = 1
     Int maxRetries = 0
@@ -3769,7 +3775,7 @@ task annotatePD {
     Float file_size = size([bolton_bick_vars, mut2_bick, mut2_kelly, matches2, TSG_file, oncoKB_curated, pd_annotation_file, truncating], "GB")
     Float cosmic_size = 3*size(cosmic_dir_zip, "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + caller_size + file_size + cosmic_size)])
-    Int memory = select_first([mem_limit_override, ceil(file_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(file_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18)*2 else 2])
     Int preemptible = 1
     Int maxRetries = 0
@@ -3869,7 +3875,7 @@ task xgb_model {
 
     Float data_size = size([mutect_tsv, lofreq_tsv, vardict_tsv, pindel_full_vcf, pon], "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + data_size)])
-    Int memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
     Int preemptible = 1
     Int maxRetries = 0

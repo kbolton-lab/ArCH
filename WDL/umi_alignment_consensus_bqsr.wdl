@@ -231,8 +231,8 @@ task filterArcherUmiLength {
     Int maxRetries = 0
     Float data_size = size([fastq1, fastq2], "GB")
     Int space_needed_gb = ceil(10 + 2 * data_size)
-    Float memory = select_first([mem_limit_override, if 2.0 * data_size > 6.0 then ceil(2.0 * data_size) else 6.0]) #2 GB or 1 GB
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 32) else 1])
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
 
     runtime {
@@ -268,8 +268,8 @@ task bamToFastq {
     Int maxRetries = 0
     Float data_size = size(unaligned_bam, "GB")
     Int space_needed_gb = ceil(10 + 2 * data_size)
-    Float memory = select_first([mem_limit_override, if 2.0 * data_size > 6.0 then ceil(2.0 * data_size) else 6.0]) #2 GB or 1 GB
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 32) else 1])
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
         docker: "mgibio/rnaseq:1.0.0"
@@ -303,8 +303,8 @@ task bbmapRepair {
     Int preemptible = 1
     Int maxRetries = 0
     Int space_needed_gb = ceil(10 + 2 * data_size)
-    Float memory = select_first([mem_limit_override, if 4.0 * data_size > 12.0 then ceil(4.0 * data_size) else 12.0])
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 32) else 1])
+    Float memory = select_first([mem_limit_override, ceil(data_size/3 + 10)]) # 12
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
         docker: "quay.io/biocontainers/bbmap:38.92--he522d1c_0"
@@ -343,8 +343,8 @@ task fastqToBam {
     Int maxRetries = 0
     Float data_size = size([fastq1, fastq2], "GB")
     Int space_needed_gb = ceil(10 + 4 * data_size)
-    Float memory = select_first([mem_limit_override, if 2.0 * data_size > 6.0 then ceil(2.0 * data_size) else 6.0])
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 32) else 1])
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
         docker: "mgibio/dna-alignment:1.0.0"
@@ -377,8 +377,8 @@ task extractUmis {
     Int space_needed_gb = ceil(10 + 2 * data_size)
     Int preemptible = 1
     Int maxRetries = 0
-    Float memory = select_first([mem_limit_override, if 2.0 * data_size > 6.0 then ceil(2.0 * data_size) else 6.0])
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 32) else 1])
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
         docker: "quay.io/biocontainers/fgbio:1.3.0--0"
@@ -413,8 +413,8 @@ task copyUMIFromReadName {
     Int space_needed_gb = ceil(10 + 2 * data_size)
     Int preemptible = 1
     Int maxRetries = 0
-    Float memory = select_first([mem_limit_override, if 2.0 * data_size > 6.0 then ceil(2.0 * data_size) else 6.0])
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 32) else 1])
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
         docker: "quay.io/biocontainers/fgbio:2.0.2--hdfd78af_0"
@@ -445,8 +445,8 @@ task markIlluminaAdapters {
     Int space_needed_gb = ceil(10 + 2 * data_size)
     Int preemptible = 1
     Int maxRetries = 0
-    Float memory = select_first([mem_limit_override, if 2.0 * data_size > 6.0 then ceil(2.0 * data_size) else 6.0])
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 32) else 1])
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
         docker: "mgibio/dna-alignment:1.0.0"
@@ -488,8 +488,8 @@ task umiAlign {
     Float data_size = size(bam, "GB")
     Float reference_size = size([reference, reference_amb, reference_ann, reference_bwt, reference_pac, reference_sa], "GB")
     Int space_needed_gb = ceil(10 + 10 * data_size + reference_size)
-    Float memory = select_first([mem_limit_override, if 2.0 * data_size > 6.0 then ceil(2.0 * data_size) else 6.0])
-    Int cores = select_first([cpu_override, if memory > 48.0 then floor(memory / 24)*8 else 8])
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory/18)*8 else 8])
 
     runtime {
       docker: "mgibio/dna-alignment:1.0.0"
@@ -526,8 +526,8 @@ task groupReadsAndConsensus {
     Int maxRetries = 0
     Float data_size = size(bam, "GB")
     Int space_needed_gb = ceil(10 + 2 * data_size)
-    Float memory = select_first([mem_limit_override, if 2.0 * data_size > 6.0 then ceil(4.0 * data_size) else 6.0])
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 32) else 1])
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
         docker: "quay.io/biocontainers/fgbio:1.3.0--0"
@@ -579,8 +579,8 @@ task realign {
     Float data_size = size(bam, "GB")
     Float reference_size = size([reference, reference_amb, reference_ann, reference_bwt, reference_pac, reference_sa], "GB")
     Int space_needed_gb = ceil(10 + 10*data_size + reference_size)
-    Float memory = select_first([mem_limit_override, if 2.0 * data_size > 6.0 then ceil(2.0 * data_size) else 6.0])
-    Int cores = select_first([cpu_override, if memory > 48.0 then floor(memory / 24)*8 else 8])
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18)*8 else 8])
 
     runtime {
         docker: "mgibio/dna-alignment:1.0.0"
@@ -625,8 +625,8 @@ task filterClipAndCollectMetrics {
     Int preemptible = 1
     Int maxRetries = 0
     Int space_needed_gb = ceil(10 + 2 * data_size + reference_size)
-    Float memory = select_first([mem_limit_override, if 2.0 * data_size > 6.0 then ceil(2.0 * data_size) else 6.0])
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 32) else 1])
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
         docker: "quay.io/biocontainers/fgbio:1.3.0--0"
@@ -692,8 +692,8 @@ task clipAndCollectMetrics {
     Int preemptible = 1
     Int maxRetries = 0
     Int space_needed_gb = ceil(10 + 2 * data_size + reference_size)
-    Float memory = select_first([mem_limit_override, if 2.0 * data_size > 6.0 then ceil(2.0 * data_size) else 6.0])
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 32) else 1])
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
         docker: "quay.io/biocontainers/fgbio:1.3.0--0"
@@ -761,8 +761,8 @@ task bqsrApply {
     Int preemptible = 1
     Int maxRetries = 0
     Int space_needed_gb = ceil(10 + 4 * data_size + reference_size)
-    Float memory = select_first([mem_limit_override, if 2.0 * data_size > 6.0 then ceil(2.0 * data_size) else 18.0])
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 32) else 1])
+    Float memory = select_first([mem_limit_override, ceil(data_size/3 + 10)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
         cpu: cores
