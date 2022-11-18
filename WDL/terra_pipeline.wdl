@@ -1313,9 +1313,9 @@ task extractUmis {
 
     command <<<
         if [ "~{umi_paired}" == true ]; then
-            /usr/local/bin/fgbio -Xmx{memory_total}g --tmp-dir=`pwd`/large_tmp ExtractUmisFromBam --molecular-index-tags ZA ZB --single-tag RX --input ~{bam} --read-structure ~{sep=" " read_structure} --output umi_extracted.bam
+            /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp ExtractUmisFromBam --molecular-index-tags ZA ZB --single-tag RX --input ~{bam} --read-structure ~{sep=" " read_structure} --output umi_extracted.bam
         else
-            /usr/local/bin/fgbio -Xmx{memory_total}g --tmp-dir=`pwd`/large_tmp ExtractUmisFromBam --molecular-index-tags ZA --single-tag RX --input ~{bam} --read-structure ~{sep=" " read_structure} --output umi_extracted.bam
+            /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp ExtractUmisFromBam --molecular-index-tags ZA --single-tag RX --input ~{bam} --read-structure ~{sep=" " read_structure} --output umi_extracted.bam
         fi
     >>>
 
@@ -1350,7 +1350,7 @@ task copyUMIFromReadName {
     }
 
     command <<<
-        /usr/local/bin/fgbio -Xmx{memory_total}g --tmp-dir=`pwd`/large_tmp CopyUmiFromReadName -i ~{bam} -o umi_extracted.bam
+        /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp CopyUmiFromReadName -i ~{bam} -o umi_extracted.bam
     >>>
 
     output {
@@ -1473,11 +1473,11 @@ task groupReadsAndConsensus {
         BAM=~{bam}
 
         if [ "$PAIRED" == true ]; then
-            /usr/local/bin/fgbio -Xmx{memory_total}g --tmp-dir=`pwd`/large_tmp GroupReadsByUmi --strategy paired --assign-tag MI --raw-tag RX --min-map-q 1 --edits 1 --input $BAM --output umi_grouped.bam
+            /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp GroupReadsByUmi --strategy paired --assign-tag MI --raw-tag RX --min-map-q 1 --edits 1 --input $BAM --output umi_grouped.bam
         else
-            /usr/local/bin/fgbio -Xmx{memory_total}g --tmp-dir=`pwd`/large_tmp GroupReadsByUmi --strategy adjacency --assign-tag MI --raw-tag RX --min-map-q 1 --edits 1 --input $BAM --output umi_grouped.bam
+            /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp GroupReadsByUmi --strategy adjacency --assign-tag MI --raw-tag RX --min-map-q 1 --edits 1 --input $BAM --output umi_grouped.bam
         fi
-        /usr/local/bin/fgbio -Xmx{memory_total}g --tmp-dir=`pwd`/large_tmp CallMolecularConsensusReads --input umi_grouped.bam --error-rate-pre-umi 45 --error-rate-post-umi 30 --min-input-base-quality 30 --min-reads ~{reads_per_umi_group} --output consensus_unaligned.bam
+        /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp CallMolecularConsensusReads --input umi_grouped.bam --error-rate-pre-umi 45 --error-rate-post-umi 30 --min-input-base-quality 30 --min-reads ~{reads_per_umi_group} --output consensus_unaligned.bam
     >>>
 
     output {
@@ -1570,8 +1570,8 @@ task filterClipAndCollectMetrics {
     command <<<
         set -eo pipefail
 
-        /usr/local/bin/fgbio -Xmx{memory_total}g --tmp-dir=`pwd`/large_tmp FilterConsensusReads --input ~{bam} --output consensus_filtered.bam --ref ~{reference} --min-reads ~{sep=" " min_reads} --max-read-error-rate ~{max_read_error_rate} --max-base-error-rate ~{max_base_error_rate} --min-base-quality ~{min_base_quality} --max-no-call-fraction ~{max_no_call_fraction}
-        /usr/local/bin/fgbio -Xmx{memory_total}g --tmp-dir=`pwd`/large_tmp ClipBam --input consensus_filtered.bam --ref ~{reference} --clipping-mode Hard --clip-overlapping-reads true --output clipped.bam
+        /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp FilterConsensusReads --input ~{bam} --output consensus_filtered.bam --ref ~{reference} --min-reads ~{sep=" " min_reads} --max-read-error-rate ~{max_read_error_rate} --max-base-error-rate ~{max_base_error_rate} --min-base-quality ~{min_base_quality} --max-no-call-fraction ~{max_no_call_fraction}
+        /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp ClipBam --input consensus_filtered.bam --ref ~{reference} --clipping-mode Hard --clip-overlapping-reads true --output clipped.bam
 
         PAIRED=~{umi_paired}
         DESCRIPTION=~{description}
@@ -1580,15 +1580,15 @@ task filterClipAndCollectMetrics {
         if [ "$PAIRED" == true ]; then
             if [[ -z "$DESCRIPTION" ]]; then
                 if [[ -z "$INTERVALS" ]]; then
-                    /usr/local/bin/fgbio -Xmx{memory_total}g --tmp-dir=`pwd`/large_tmp CollectDuplexSeqMetrics --input clipped.bam --output duplex_seq.metrics
+                    /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp CollectDuplexSeqMetrics --input clipped.bam --output duplex_seq.metrics
                 else
-                    /usr/local/bin/fgbio -Xmx{memory_total}g --tmp-dir=`pwd`/large_tmp CollectDuplexSeqMetrics --input clipped.bam --output duplex_seq.metrics --intervals ${INTERVALS}
+                    /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp CollectDuplexSeqMetrics --input clipped.bam --output duplex_seq.metrics --intervals ${INTERVALS}
                 fi
             else
                 if [[ -z "$INTERVALS" ]]; then
-                    /usr/local/bin/fgbio -Xmx{memory_total}g --tmp-dir=`pwd`/large_tmp CollectDuplexSeqMetrics --input clipped.bam --description ${DESCRIPTION} --output duplex_seq.metrics
+                    /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp CollectDuplexSeqMetrics --input clipped.bam --description ${DESCRIPTION} --output duplex_seq.metrics
                 else
-                    /usr/local/bin/fgbio -Xmx{memory_total}g --tmp-dir=`pwd`/large_tmp CollectDuplexSeqMetrics --input clipped.bam --description ${DESCRIPTION} --output duplex_seq.metrics --intervals ${INTERVALS}
+                    /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp CollectDuplexSeqMetrics --input clipped.bam --description ${DESCRIPTION} --output duplex_seq.metrics --intervals ${INTERVALS}
                 fi
             fi
         else
@@ -1638,7 +1638,7 @@ task clipAndCollectMetrics {
     command <<<
         set -eo pipefail
 
-        /usr/local/bin/fgbio -Xmx{memory_total}g --tmp-dir=`pwd`/large_tmp ClipBam --input ~{bam} --ref ~{reference} --clipping-mode Hard --clip-overlapping-reads true --output clipped.bam
+        /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp ClipBam --input ~{bam} --ref ~{reference} --clipping-mode Hard --clip-overlapping-reads true --output clipped.bam
 
         PAIRED=~{umi_paired}
         DESCRIPTION=~{description}
@@ -1647,15 +1647,15 @@ task clipAndCollectMetrics {
         if [ "$PAIRED" == true ]; then
             if [[ -z "$DESCRIPTION" ]]; then
                 if [[ -z "$INTERVALS" ]]; then
-                    /usr/local/bin/fgbio -Xmx{memory_total}g --tmp-dir=`pwd`/large_tmp CollectDuplexSeqMetrics --input clipped.bam --output duplex_seq.metrics
+                    /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp CollectDuplexSeqMetrics --input clipped.bam --output duplex_seq.metrics
                 else
-                    /usr/local/bin/fgbio -Xmx{memory_total}g --tmp-dir=`pwd`/large_tmp CollectDuplexSeqMetrics --input clipped.bam --output duplex_seq.metrics --intervals ${INTERVALS}
+                    /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp CollectDuplexSeqMetrics --input clipped.bam --output duplex_seq.metrics --intervals ${INTERVALS}
                 fi
             else
                 if [[ -z "$INTERVALS" ]]; then
-                    /usr/local/bin/fgbio -Xmx{memory_total}g --tmp-dir=`pwd`/large_tmp CollectDuplexSeqMetrics --input clipped.bam --description ${DESCRIPTION} --output duplex_seq.metrics
+                    /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp CollectDuplexSeqMetrics --input clipped.bam --description ${DESCRIPTION} --output duplex_seq.metrics
                 else
-                    /usr/local/bin/fgbio -Xmx{memory_total}g --tmp-dir=`pwd`/large_tmp CollectDuplexSeqMetrics --input clipped.bam --description ${DESCRIPTION} --output duplex_seq.metrics --intervals ${INTERVALS}
+                    /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp CollectDuplexSeqMetrics --input clipped.bam --description ${DESCRIPTION} --output duplex_seq.metrics --intervals ${INTERVALS}
                 fi
             fi
         else
