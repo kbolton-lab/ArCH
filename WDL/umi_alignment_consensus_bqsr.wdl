@@ -45,6 +45,7 @@ workflow ArCCH_Alignment {
         Float max_no_call_fraction = 0.5    # Maximum fraction of no-calls (N) in the read after filtering
 
         # BQSR
+        Boolean apply_bqsr = false
         Array[File] bqsr_known_sites
         Array[File] bqsr_known_sites_tbi
         Array[String] bqsr_intervals
@@ -197,24 +198,36 @@ workflow ArCCH_Alignment {
         }
     }
 
-    # Applies BQSR on specific intervals defined by the User, if aligned BAM is provided, starts here
-    call bqsrApply as bqsr {
+    call indexBam {
         input:
-        reference = reference,
-        reference_fai = reference_fai,
-        reference_dict = reference_dict,
-        bam = select_first([filterClipAndCollectMetrics.clipped_bam, aligned_bam_file, clipAndCollectMetrics.clipped_bam]),
-        bam_bai = select_first([filterClipAndCollectMetrics.clipped_bam_bai, aligned_bam_file_bai, clipAndCollectMetrics.clipped_bam_bai]),
-        interval_list = target_intervals,
-        known_sites = bqsr_known_sites,
-        known_sites_tbi = bqsr_known_sites_tbi,
-        output_name = sample_name
+        input_bam = select_first([filterClipAndCollectMetrics.clipped_bam, aligned_bam_file, clipAndCollectMetrics.clipped_bam]),
+        sample_name = sample_name
+    }
+
+    if (apply_bqsr) {
+        # Due to: https://gatk.broadinstitute.org/hc/en-us/community/posts/360075246531-Is-BQSR-accurate-on-Novaseq-6000-
+        # Sometimes it is worth skipping this step
+        # Applies BQSR on specific intervals defined by the User, if aligned BAM is provided, starts here
+        call bqsrApply as bqsr {
+            input:
+            reference = reference,
+            reference_fai = reference_fai,
+            reference_dict = reference_dict,
+            bam = indexBam.bam,
+            bam_bai = indexBam.bai,
+            interval_list = target_intervals,
+            known_sites = bqsr_known_sites,
+            known_sites_tbi = bqsr_known_sites_tbi,
+            output_name = sample_name
+        }
     }
 
     output {
         # Alignments
-        File bqsr_bam = bqsr.bqsr_bam
-        File bqsr_bam_bai = bqsr.bqsr_bam_bai
+        File aligned_bam = indexBam.bam
+        File aligned_bam_bai = indexBam.bai
+        File? bqsr_bam = bqsr.bqsr_bam
+        File? bqsr_bam_bai = bqsr.bqsr_bam_bai
     }
 }
 
@@ -749,6 +762,44 @@ task clipAndCollectMetrics {
     }
 }
 
+task indexBam {
+    input {
+        File input_bam
+        String sample_name
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
+    }
+
+    Float data_size = size(input_bam, "GB")
+    Int preemptible = 1
+    Int maxRetries = 0
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
+
+    runtime {
+        cpu: cores
+        docker: "quay.io/biocontainers/samtools:1.11--h6270b1f_0"
+        memory: cores * memory + "GB"
+        disks: "local-disk ~{space_needed_gb} SSD"
+        preemptible: preemptible
+        maxRetries: maxRetries
+    }
+
+    String bam_link = sub(basename(input_bam), basename(basename(input_bam, ".bam"), ".cram"), sample_name)
+
+    command <<<
+        ln -s ~{input_bam} ~{bam_link}
+        /usr/local/bin/samtools index ~{bam_link}
+    >>>
+
+    output {
+        File bam = bam_link
+        File bai = sub(sub(bam_link, "bam$", "bam.bai"), "cram$", "cram.crai")
+    }
+}
+
 task bqsrApply {
     input {
         File reference
@@ -763,13 +814,14 @@ task bqsrApply {
         File interval_list
         Float? mem_limit_override
         Int? cpu_override
+        Int? disk_size_override
     }
 
     Float data_size = size([bam, bam_bai], "GB")
     Float reference_size = size(known_sites, "GB") + size(known_sites_tbi, "GB") + size([reference, reference_fai, reference_dict], "GB")
     Int preemptible = 1
     Int maxRetries = 1
-    Int space_needed_gb = ceil(10 + 4 * data_size + reference_size)
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 4 * data_size + reference_size)])
     Float memory = select_first([mem_limit_override, ceil(data_size/3 + 10)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
     Int memory_total = floor(memory)-2

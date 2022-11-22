@@ -82,7 +82,7 @@ workflow boltonlab_CH {
         Float max_no_call_fraction = 0.5    # Maximum fraction of no-calls (N) in the read after filtering
 
         # BQSR
-        Boolean apply_bqsr = true
+        Boolean apply_bqsr = false
         Array[File] bqsr_known_sites
         Array[File] bqsr_known_sites_tbi
         Array[String] bqsr_intervals
