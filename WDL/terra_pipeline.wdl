@@ -82,6 +82,7 @@ workflow boltonlab_CH {
         Float max_no_call_fraction = 0.5    # Maximum fraction of no-calls (N) in the read after filtering
 
         # BQSR
+        Boolean apply_bqsr = true
         Array[File] bqsr_known_sites
         Array[File] bqsr_known_sites_tbi
         Array[String] bqsr_intervals
@@ -315,33 +316,35 @@ workflow boltonlab_CH {
         }
     }
 
-    if (!defined(aligned_bam_file_bai)) {
-        call indexBam {
-            input:
-            input_bam = select_first([filterClipAndCollectMetrics.clipped_bam, aligned_bam_file, clipAndCollectMetrics.clipped_bam]),
-            sample_name = tumor_sample_name
-        }
+    call indexBam {
+        input:
+        input_bam = select_first([filterClipAndCollectMetrics.clipped_bam, aligned_bam_file, clipAndCollectMetrics.clipped_bam]),
+        sample_name = tumor_sample_name
     }
 
-    # Applies BQSR on specific intervals defined by the User, if aligned BAM is provided, starts here
-    call bqsrApply as bqsr {
-        input:
-        reference = reference,
-        reference_fai = reference_fai,
-        reference_dict = reference_dict,
-        bam = select_first([indexBam.bam, filterClipAndCollectMetrics.clipped_bam, aligned_bam_file, clipAndCollectMetrics.clipped_bam]),
-        bam_bai = select_first([indexBam.bai, filterClipAndCollectMetrics.clipped_bam_bai, aligned_bam_file_bai, clipAndCollectMetrics.clipped_bam_bai]),
-        interval_list = target_intervals,
-        known_sites = bqsr_known_sites,
-        known_sites_tbi = bqsr_known_sites_tbi,
-        output_name = tumor_sample_name
+    if (apply_bqsr) {
+        # Due to: https://gatk.broadinstitute.org/hc/en-us/community/posts/360075246531-Is-BQSR-accurate-on-Novaseq-6000-
+        # Sometimes it is worth skipping this step
+        # Applies BQSR on specific intervals defined by the User, if aligned BAM is provided, starts here
+        call bqsrApply as bqsr {
+            input:
+            reference = reference,
+            reference_fai = reference_fai,
+            reference_dict = reference_dict,
+            bam = indexBam.bam,
+            bam_bai = indexBam.bai,
+            interval_list = target_intervals,
+            known_sites = bqsr_known_sites,
+            known_sites_tbi = bqsr_known_sites_tbi,
+            output_name = tumor_sample_name
+        }
     }
 
     # Obtains Alignment Metrics and Insert Size Metrics
     call Metrics as collectAllMetrics {
         input:
-        bam = bqsr.bqsr_bam,
-        bam_bai = bqsr.bqsr_bam_bai,
+        bam = select_first([bqsr.bqsr_bam, indexBam.bam]),
+        bam_bai = select_first([bqsr.bqsr_bam_bai, indexBam.bai]),
         reference = reference,
         reference_fai = reference_fai,
         reference_dict = reference_dict,
@@ -351,8 +354,8 @@ workflow boltonlab_CH {
     # Collects QC for various levels defined by the User
     call collectHsMetrics as collectRoiHsMetrics {
         input:
-        bam = bqsr.bqsr_bam,
-        bam_bai = bqsr.bqsr_bam_bai,
+        bam = select_first([bqsr.bqsr_bam, indexBam.bam]),
+        bam_bai = select_first([bqsr.bqsr_bam_bai, indexBam.bai]),
         reference = reference,
         reference_fai = reference_fai,
         reference_dict = reference_dict,
@@ -369,8 +372,8 @@ workflow boltonlab_CH {
     scatter(interval in summary_intervals) {
         call collectHsMetrics as collectSummaryHsMetrics{
             input:
-            bam = bqsr.bqsr_bam,
-            bam_bai = bqsr.bqsr_bam_bai,
+            bam = select_first([bqsr.bqsr_bam, indexBam.bam]),
+            bam_bai = select_first([bqsr.bqsr_bam_bai, indexBam.bai]),
             reference = reference,
             reference_fai = reference_fai,
             reference_dict = reference_dict,
@@ -388,8 +391,8 @@ workflow boltonlab_CH {
     scatter(interval in per_base_intervals) {
         call collectHsMetrics as collectPerBaseHsMetrics {
             input:
-            bam = bqsr.bqsr_bam,
-            bam_bai = bqsr.bqsr_bam_bai,
+            bam = select_first([bqsr.bqsr_bam, indexBam.bam]),
+            bam_bai = select_first([bqsr.bqsr_bam_bai, indexBam.bai]),
             reference = reference,
             reference_fai = reference_fai,
             reference_dict = reference_dict,
@@ -407,8 +410,8 @@ workflow boltonlab_CH {
     scatter(interval in per_target_intervals) {
         call collectHsMetrics as collectPerTargetHsMetrics{
             input:
-            bam = bqsr.bqsr_bam,
-            bam_bai = bqsr.bqsr_bam_bai,
+            bam = select_first([bqsr.bqsr_bam, indexBam.bam]),
+            bam_bai = select_first([bqsr.bqsr_bam_bai, indexBam.bai]),
             reference = reference,
             reference_fai = reference_fai,
             reference_dict = reference_dict,
@@ -425,8 +428,8 @@ workflow boltonlab_CH {
 
     call samtoolsFlagstat {
         input:
-        bam = bqsr.bqsr_bam,
-        bam_bai = bqsr.bqsr_bam_bai,
+        bam = select_first([bqsr.bqsr_bam, indexBam.bam]),
+        bam_bai = select_first([bqsr.bqsr_bam_bai, indexBam.bai])
     }
 
     # Uses the OMNI vcf to calculate possible contamination within the Sample
@@ -442,15 +445,15 @@ workflow boltonlab_CH {
 
     call verifyBamId {
         input:
-        bam = bqsr.bqsr_bam,
-        bam_bai = bqsr.bqsr_bam_bai,
+        bam = select_first([bqsr.bqsr_bam, indexBam.bam]),
+        bam_bai = select_first([bqsr.bqsr_bam_bai, indexBam.bai]),
         vcf=selectVariants.filtered_vcf
     }
 
     call fastQC {
         input:
-        bam = bqsr.bqsr_bam,
-        bam_bai = bqsr.bqsr_bam_bai
+        bam = select_first([bqsr.bqsr_bam, indexBam.bam]),
+        bam_bai = select_first([bqsr.bqsr_bam_bai, indexBam.bai])
     }
 
     # Some of our callers use BED file instead of interval list
@@ -471,8 +474,8 @@ workflow boltonlab_CH {
         input:
         somalier_vcf = createSomalierVcf.somalier_vcf,
         reference = reference,
-        bam = bqsr.bqsr_bam,
-        bam_bai = bqsr.bqsr_bam_bai,
+        bam = select_first([bqsr.bqsr_bam, indexBam.bam]),
+        bam_bai = select_first([bqsr.bqsr_bam_bai, indexBam.bai]),
         sample_name = tumor_sample_name
     }
 
@@ -486,8 +489,8 @@ workflow boltonlab_CH {
         input:
         reference = reference,
         reference_fai = reference_fai,
-        tumor_bam = bqsr.bqsr_bam,
-        tumor_bam_bai = bqsr.bqsr_bam_bai
+        tumor_bam = select_first([bqsr.bqsr_bam, indexBam.bam]),
+        tumor_bam_bai = select_first([bqsr.bqsr_bam_bai, indexBam.bai])
     }
 
     scatter (chr_bed in split_bed_to_chr.split_chr) {
@@ -500,8 +503,8 @@ workflow boltonlab_CH {
               reference_dict = reference_dict,
               gnomad = normalized_gnomad_exclude,
               gnomad_tbi = normalized_gnomad_exclude_tbi,
-              tumor_bam = bqsr.bqsr_bam,
-              tumor_bam_bai = bqsr.bqsr_bam_bai,
+              tumor_bam = select_first([bqsr.bqsr_bam, indexBam.bam]),
+              tumor_bam_bai = select_first([bqsr.bqsr_bam_bai, indexBam.bai]),
               interval_list = chr_bed
             }
         }
@@ -514,8 +517,8 @@ workflow boltonlab_CH {
               reference_dict = reference_dict,
               gnomad = normalized_gnomad_exclude,
               gnomad_tbi = normalized_gnomad_exclude_tbi,
-              tumor_bam = bqsr.bqsr_bam,
-              tumor_bam_bai = bqsr.bqsr_bam_bai,
+              tumor_bam = select_first([bqsr.bqsr_bam, indexBam.bam]),
+              tumor_bam_bai = select_first([bqsr.bqsr_bam_bai, indexBam.bai]),
               normal_bam = normal_bam,
               normal_bam_bai = normal_bam_bai,
               interval_list = chr_bed
@@ -564,8 +567,8 @@ workflow boltonlab_CH {
                 input:
                 reference = reference,
                 reference_fai = reference_fai,
-                tumor_bam = bqsr.bqsr_bam,
-                tumor_bam_bai = bqsr.bqsr_bam_bai,
+                tumor_bam = select_first([bqsr.bqsr_bam, indexBam.bam]),
+                tumor_bam_bai = select_first([bqsr.bqsr_bam_bai, indexBam.bai]),
                 interval_bed = chr_bed,
                 min_var_freq = af_threshold,
                 tumor_sample_name = tumor_sample_name
@@ -577,8 +580,8 @@ workflow boltonlab_CH {
                 input:
                 reference = reference,
                 reference_fai = reference_fai,
-                tumor_bam = bqsr.bqsr_bam,
-                tumor_bam_bai = bqsr.bqsr_bam_bai,
+                tumor_bam = select_first([bqsr.bqsr_bam, indexBam.bam]),
+                tumor_bam_bai = select_first([bqsr.bqsr_bam_bai, indexBam.bai]),
                 tumor_sample_name = tumor_sample_name,
                 normal_bam = normal_bam,
                 normal_bam = normal_bam_bai,
@@ -711,8 +714,8 @@ workflow boltonlab_CH {
                 reference = reference,
                 reference_fai = reference_fai,
                 reference_dict = reference_dict,
-                tumor_bam = bqsr.bqsr_bam,
-                tumor_bam_bai = bqsr.bqsr_bam_bai,
+                tumor_bam = select_first([bqsr.bqsr_bam, indexBam.bam]),
+                tumor_bam_bai = select_first([bqsr.bqsr_bam_bai, indexBam.bai]),
                 region_file = chr_bed,
                 insert_size = pindel_insert_size,
                 tumor_sample_name = tumor_sample_name
@@ -739,8 +742,8 @@ workflow boltonlab_CH {
                 reference = reference,
                 reference_fai = reference_fai,
                 reference_dict = reference_dict,
-                tumor_bam = bqsr.bqsr_bam,
-                tumor_bam_bai = bqsr.bqsr_bam_bai,
+                tumor_bam = select_first([bqsr.bqsr_bam, indexBam.bam]),
+                tumor_bam_bai = select_first([bqsr.bqsr_bam_bai, indexBam.bai]),
                 normal_bam = normal_bam,
                 normal_bam_bai = normal_bam_bai,
                 region_file = chr_bed,
@@ -800,7 +803,7 @@ workflow boltonlab_CH {
             input:
             reference=reference,
             reference_fai=reference_fai,
-            bam = bqsr.bqsr_bam,
+            bam = select_first([bqsr.bqsr_bam, indexBam.bam]),
             vcf=mergeCallers.merged_vcf,
             sample_name=tumor_sample_name,
             min_var_freq=af_threshold,
@@ -1039,8 +1042,8 @@ workflow boltonlab_CH {
 
     output {
         # Alignments
-        File? aligned_bam = select_first([filterClipAndCollectMetrics.clipped_bam, clipAndCollectMetrics.clipped_bam, aligned_bam_file])
-        File bqsr_bam = bqsr.bqsr_bam
+        File aligned_bam = indexBam.bam
+        File? bqsr_bam = bqsr.bqsr_bam
 
         # Tumor QC
         File tumor_insert_size_metrics = collectAllMetrics.insert_size_metrics
