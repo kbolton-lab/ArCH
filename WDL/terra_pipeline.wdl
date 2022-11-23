@@ -1232,7 +1232,7 @@ task fastqToBam {
     Int preemptible = 1
     Int maxRetries = 0
     Float data_size = size([fastq1, fastq2], "GB")
-    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 4 * data_size)])
     Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
     Int memory_total = floor(memory)-2
