@@ -1658,7 +1658,7 @@ task indexBam {
     Float reference_size = size([reference, reference_fai, reference_dict], "GB")
     Int preemptible = 1
     Int maxRetries = 0
-    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size + reference_size)])
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 4 * data_size + reference_size)])
     Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
