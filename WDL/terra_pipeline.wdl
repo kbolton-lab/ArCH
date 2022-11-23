@@ -319,7 +319,10 @@ workflow boltonlab_CH {
     call indexBam {
         input:
         input_bam = select_first([filterClipAndCollectMetrics.clipped_bam, aligned_bam_file, clipAndCollectMetrics.clipped_bam]),
-        sample_name = tumor_sample_name
+        sample_name = tumor_sample_name,
+        reference = reference,
+        reference_fai = reference_fai,
+        reference_dict = reference_dict
     }
 
     if (apply_bqsr) {
@@ -1101,40 +1104,6 @@ workflow boltonlab_CH {
     }
 }
 
-task CRAMtoBAM {
-    input {
-        File cram
-        File cram_bai
-        File reference
-        File reference_fai
-        File reference_dict
-    }
-
-    Int space_needed_gb = 10 + 4*round(size([cram, cram_bai, reference, reference_fai, reference_dict], "GB"))
-    Int preemptible = 1
-    Int maxRetries = 0
-    Int cores = 1
-
-    runtime {
-        memory: "6GB"
-        docker: "kboltonlab/bst:latest"
-        disks: "local-disk ~{space_needed_gb} SSD"
-        cpu: cores
-        preemptible: preemptible
-        maxRetries: maxRetries
-    }
-
-    command <<<
-        /usr/local/bin/samtools view -b -T ~{reference} -o $(basename ~{cram} .cram).bam ~{cram}
-        /usr/local/bin/samtools index $(basename ~{cram} .cram).bam
-    >>>
-
-    output {
-        File bam = basename(cram, ".cram") + ".bam"
-        File bam_bai = basename(cram, ".cram") + ".bam.bai"
-    }
-}
-
 task filterArcherUmiLength {
     input {
         File fastq1
@@ -1677,15 +1646,19 @@ task indexBam {
     input {
         File input_bam
         String sample_name
+        File reference
+        File reference_fai
+        File reference_dict
         Int? disk_size_override
         Int? mem_limit_override
         Int? cpu_override
     }
 
     Float data_size = size(input_bam, "GB")
+    Float reference_size = size([reference, reference_fai, reference_dict], "GB")
     Int preemptible = 1
     Int maxRetries = 0
-    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size + reference_size)])
     Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
@@ -1702,12 +1675,16 @@ task indexBam {
 
     command <<<
         ln -s ~{input_bam} ~{bam_link}
-        /usr/local/bin/samtools index ~{bam_link}
+        if [[ ~{bam_link} == *.cram ]]; then
+            /usr/local/bin/samtools view -b -T ~{reference} -o ~{sample_name}.bam ~{bam_link}
+        fi
+        /usr/local/bin/samtools index ~{sample_name}.bam
     >>>
 
     output {
-        File bam = bam_link
-        File bai = sub(sub(bam_link, "bam$", "bam.bai"), "cram$", "cram.crai")
+        File bam = "~{sample_name}.bam"
+        File bai = "~{sample_name}.bam.bai"
+        #File bai = sub(sub(bam_link, "bam$", "bam.bai"), "cram$", "cram.crai")
     }
 }
 
