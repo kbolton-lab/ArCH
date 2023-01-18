@@ -15,4 +15,4 @@ workflows:
     authors:
       - name: "Irenaeus Chan"
         email: chani@wustl.edu
-    name: ArCCH - PoN2 Generation
+    name: PON
