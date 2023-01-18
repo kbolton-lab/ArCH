@@ -1,18 +1,26 @@
 version: 1.2
 workflows:
   - subclass: WDL
+    primaryDescriptorPath: /WDL/umi_alignment_consensus_bqsr.wdl
+    testParameterFiles:
+    - /WDL/pipeline.json
+    authors:
+      - name: "Irenaeus Chan"
+        email: chani@wustl.edu
+    name: ArCCH-Alignment
+  - subclass: WDL
     primaryDescriptorPath: /WDL/terra_pipeline.wdl
     testParameterFiles: 
     - /WDL/pipeline.json
     authors:
       - name: "Irenaeus Chan"
         email: chani@wustl.edu
-    name: ArCCH  
+    name: ArCCH
   - subclass: WDL
     primaryDescriptorPath: /WDL/pon2_creation.wdl
-    testParameterFiles: 
+    testParameterFiles:
     - /WDL/pipeline.json
     authors:
       - name: "Irenaeus Chan"
         email: chani@wustl.edu
-    name: PON
+    name: ArCCH-PON2
