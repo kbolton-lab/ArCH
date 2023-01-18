@@ -19,7 +19,7 @@ workflow ArCCH_PoN2 {
         File reference_dict
     }
 
-     Array[Pair[String, Pair[String, String]]] aligned_bam_bai = zip(sample_name, zip(aligned_bam, aligned_bai))
+    Array[Pair[String, Pair[String, String]]] aligned_bam_bai = zip(sample_name, zip(aligned_bam, aligned_bai))
     # In order to parallelize as much as the workflow as possible, we analyze by chromosome
     call splitBedToChr as split_bed_to_chr {
         input:
@@ -27,6 +27,61 @@ workflow ArCCH_PoN2 {
     }
 
     scatter (bam in aligned_bam_bai) {
+        # Mutect
+        call mutectTumorOnly as mutectTask {
+          input:
+          reference = reference,
+          reference_fai = reference_fai,
+          reference_dict = reference_dict,
+          tumor_bam = bam.right.left,
+          tumor_bam_bai = bam.right.right,
+          interval_list = interval_bed
+        }
+
+        # Cleans the VCF output that don't match the expected VCF Format
+        call vcfSanitize as mutectSanitizeVcf {
+            input: vcf = mutectTask.vcf
+        }
+
+        # Normalize the VCF by left aligning and trimming indels. Also splits multiallelics into multiple rows
+        call bcftoolsNorm as mutectNormalize {
+            input:
+            reference = reference,
+            reference_fai = reference_fai,
+            vcf = mutectSanitizeVcf.sanitized_vcf,
+            vcf_tbi = mutectSanitizeVcf.sanitized_vcf_tbi
+        }
+
+        call bcftoolsFilter as mutectFilter {
+            input:
+            vcf = mutectNormalize.normalized_vcf,
+            vcf_tbi = mutectNormalize.normalized_vcf_tbi
+        }
+
+        call vardictTumorOnly as vardictTask {
+            input:
+            reference = reference,
+            reference_fai = reference_fai,
+            tumor_bam = bam.right.left,
+            tumor_bam_bai = bam.right.right,
+            interval_bed = interval_bed,
+            tumor_sample_name = bam.left
+        }
+
+        # Cleans the VCF output that don't match the expected VCF Format
+        call vcfSanitize as vardictSanitizeVcf {
+            input: vcf = vardictTask.vcf
+        }
+
+        # Normalize the VCF by left aligning and trimming indels. Also splits multiallelics into multiple rows
+        call bcftoolsNorm as vardictNormalize {
+            input:
+            reference = reference,
+            reference_fai = reference_fai,
+            vcf = vardictSanitizeVcf.sanitized_vcf,
+            vcf_tbi = vardictSanitizeVcf.sanitized_vcf_tbi
+        }
+
         call lofreq_indelqual {
             input:
             reference = reference,
@@ -35,136 +90,58 @@ workflow ArCCH_PoN2 {
             tumor_bam_bai = bam.right.right
         }
 
-        scatter (chr_bed in split_bed_to_chr.split_chr) {
-        # Mutect
-            call mutectTumorOnly as mutectTask {
-              input:
-              reference = reference,
-              reference_fai = reference_fai,
-              reference_dict = reference_dict,
-              tumor_bam = bam.right.left,
-              tumor_bam_bai = bam.right.right,
-              interval_list = chr_bed
-            }
-
-            # Cleans the VCF output that don't match the expected VCF Format
-            call vcfSanitize as mutectSanitizeVcf {
-                input: vcf = mutectTask.vcf
-            }
-
-            # Normalize the VCF by left aligning and trimming indels. Also splits multiallelics into multiple rows
-            call bcftoolsNorm as mutectNormalize {
-                input:
-                reference = reference,
-                reference_fai = reference_fai,
-                vcf = mutectSanitizeVcf.sanitized_vcf,
-                vcf_tbi = mutectSanitizeVcf.sanitized_vcf_tbi
-            }
-
-            call bcftoolsFilter as mutectFilter {
-                input:
-                vcf = mutectNormalize.normalized_vcf,
-                vcf_tbi = mutectNormalize.normalized_vcf_tbi
-            }
-
-            call vardictTumorOnly as vardictTask {
-                input:
-                reference = reference,
-                reference_fai = reference_fai,
-                tumor_bam = bam.right.left,
-                tumor_bam_bai = bam.right.right,
-                interval_bed = chr_bed,
-                tumor_sample_name = bam.left
-            }
-
-            # Cleans the VCF output that don't match the expected VCF Format
-            call vcfSanitize as vardictSanitizeVcf {
-                input: vcf = vardictTask.vcf
-            }
-
-            # Normalize the VCF by left aligning and trimming indels. Also splits multiallelics into multiple rows
-            call bcftoolsNorm as vardictNormalize {
-                input:
-                reference = reference,
-                reference_fai = reference_fai,
-                vcf = vardictSanitizeVcf.sanitized_vcf,
-                vcf_tbi = vardictSanitizeVcf.sanitized_vcf_tbi
-            }
-
-            call lofreqTumorOnly as lofreqTask {
-                input:
-                reference = reference,
-                reference_fai = reference_fai,
-                tumor_bam = bam.right.left,
-                tumor_bam_bai = bam.right.right,
-                interval_bed = chr_bed
-            }
-
-            call lofreqReformat as reformat {
-                input:
-                vcf = lofreqTask.vcf,
-                tumor_sample_name = bam.left
-            }
-
-            call vcfSanitize as lofreqSanitizeVcf {
-                input: vcf = reformat.reformat_vcf
-            }
-
-            call bcftoolsNorm as lofreqNormalize {
-                input:
-                reference = reference,
-                reference_fai = reference_fai,
-                vcf = lofreqSanitizeVcf.sanitized_vcf,
-                vcf_tbi = lofreqSanitizeVcf.sanitized_vcf_tbi
-            }
-
-            call bcftoolsFilter as lofreqFilter {
-                input:
-                vcf = lofreqNormalize.normalized_vcf,
-                vcf_tbi = lofreqNormalize.normalized_vcf_tbi
-            }
+        call lofreqTumorOnly as lofreqTask {
+            input:
+            reference = reference,
+            reference_fai = reference_fai,
+            tumor_bam = lofreq_indelqual.output_indel_qual_bam,
+            tumor_bam_bai = lofreq_indelqual.output_indel_qual_bai,
+            interval_bed = interval_bed
         }
 
-        call mergeVcf as merge_mutect_sample_pon2 {
+        call lofreqReformat as reformat {
             input:
-                vcfs = mutectFilter.filtered_vcf,
-                vcf_tbis = mutectFilter.filtered_vcf_tbi,
-                merged_vcf_basename = "mutect_pon2." + bam.left
+            vcf = lofreqTask.vcf,
+            tumor_sample_name = bam.left
         }
 
-        call mergeVcf as merge_vardict_sample_pon2 {
-            input:
-                vcfs = vardictNormalize.normalized_vcf,
-                vcf_tbis = vardictNormalize.normalized_vcf_tbi,
-                merged_vcf_basename = "vardict_pon2." + bam.left
+        call vcfSanitize as lofreqSanitizeVcf {
+            input: vcf = reformat.reformat_vcf
         }
 
-        call mergeVcf as merge_lofreq_sample_pon2 {
+        call bcftoolsNorm as lofreqNormalize {
             input:
-                vcfs = lofreqFilter.filtered_vcf,
-                vcf_tbis = lofreqFilter.filtered_vcf_tbi,
-                merged_vcf_basename = "lofreq_pon2." + bam.left
+            reference = reference,
+            reference_fai = reference_fai,
+            vcf = lofreqSanitizeVcf.sanitized_vcf,
+            vcf_tbi = lofreqSanitizeVcf.sanitized_vcf_tbi
+        }
+
+        call bcftoolsFilter as lofreqFilter {
+            input:
+            vcf = lofreqNormalize.normalized_vcf,
+            vcf_tbi = lofreqNormalize.normalized_vcf_tbi
         }
     }
 
     call bcftoolsMerge as merge_mutect_pon2 {
         input:
-            vcfs = merge_mutect_sample_pon2.merged_vcf,
-            vcf_tbis = merge_mutect_sample_pon2.merged_vcf_tbi,
+            vcfs = mutectFilter.filtered_vcf,
+            vcf_tbis = mutectFilter.filtered_vcf_tbi,
             merged_vcf_basename = "mutect_pon2"
     }
 
     call bcftoolsMerge as merge_vardict_pon2 {
         input:
-            vcfs = merge_vardict_sample_pon2.merged_vcf,
-            vcf_tbis = merge_vardict_sample_pon2.merged_vcf_tbi,
+            vcfs = vardictNormalize.normalized_vcf,
+            vcf_tbis = vardictNormalize.normalized_vcf_tbi,
             merged_vcf_basename = "vardict_pon2"
     }
 
     call bcftoolsMerge as merge_lofreq_pon2 {
         input:
-            vcfs = merge_lofreq_sample_pon2.merged_vcf,
-            vcf_tbis = merge_lofreq_sample_pon2.merged_vcf_tbi,
+            vcfs = lofreqFilter.filtered_vcf,
+            vcf_tbis = lofreqFilter.filtered_vcf_tbi,
             merged_vcf_basename = "lofreq_pon2"
     }
 
@@ -397,40 +374,6 @@ task bcftoolsFilter {
     output {
         File filtered_vcf = "bcftools_filtered.vcf.gz"
         File filtered_vcf_tbi = "bcftools_filtered.vcf.gz.tbi"
-    }
-}
-
-task mergeVcf {
-    input {
-        Array[File] vcfs
-        Array[File] vcf_tbis
-        String merged_vcf_basename = "merged"
-    }
-
-    Int space_needed_gb = 10 + round(2*(size(vcfs, "GB") + size(vcf_tbis, "GB")))
-    Int cores = 1
-    Int preemptible = 1
-    Int maxRetries = 0
-
-    runtime {
-        docker: "kboltonlab/bst:latest"
-        memory: "6GB"
-        disks: "local-disk ~{space_needed_gb} SSD"
-        cpu: cores
-        preemptible: preemptible
-        maxRetries: maxRetries
-    }
-
-    String output_file = merged_vcf_basename + ".vcf.gz"
-
-    command <<<
-        /usr/local/bin/bcftools concat --allow-overlaps --remove-duplicates --output-type z -o ~{output_file} ~{sep=" " vcfs}
-        /usr/local/bin/tabix ~{output_file}
-    >>>
-
-    output {
-        File merged_vcf = output_file
-        File merged_vcf_tbi = "~{output_file}.tbi"
     }
 }
 
