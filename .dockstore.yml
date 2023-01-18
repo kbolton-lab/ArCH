@@ -7,4 +7,12 @@ workflows:
     authors:
       - name: "Irenaeus Chan"
         email: chani@wustl.edu
-    name: ArCCH
+    name: ArCCH  
+  - subclass: WDL
+    primaryDescriptorPath: /WDL/pon2_creation.wdl
+    testParameterFiles: 
+    - /WDL/pipeline.json
+    authors:
+      - name: "Irenaeus Chan"
+        email: chani@wustl.edu
+    name: ArCCH - PoN2 Generation
