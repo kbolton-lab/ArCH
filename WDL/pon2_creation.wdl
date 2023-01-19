@@ -11,7 +11,6 @@ workflow ArCCH_PoN2 {
         Array[File] aligned_bam
         Array[File] aligned_bai
         Array[String] sample_name
-        File interval_bed
         File interval_list
 
         File reference
@@ -20,10 +19,10 @@ workflow ArCCH_PoN2 {
     }
 
     Array[Pair[String, Pair[String, String]]] aligned_bam_bai = zip(sample_name, zip(aligned_bam, aligned_bai))
-    # In order to parallelize as much as the workflow as possible, we analyze by chromosome
-    call splitBedToChr as split_bed_to_chr {
-        input:
-        interval_bed = interval_bed
+
+    # Some of our callers use BED file instead of interval list
+    call intervalsToBed as interval_to_bed {
+        input: interval_list = interval_list
     }
 
     scatter (bam in aligned_bam_bai) {
@@ -35,7 +34,7 @@ workflow ArCCH_PoN2 {
           reference_dict = reference_dict,
           tumor_bam = bam.right.left,
           tumor_bam_bai = bam.right.right,
-          interval_list = interval_bed
+          interval_list = interval_list
         }
 
         # Cleans the VCF output that don't match the expected VCF Format
@@ -64,7 +63,7 @@ workflow ArCCH_PoN2 {
             reference_fai = reference_fai,
             tumor_bam = bam.right.left,
             tumor_bam_bai = bam.right.right,
-            interval_bed = interval_bed,
+            interval_bed = interval_to_bed.interval_bed,
             tumor_sample_name = bam.left
         }
 
@@ -96,7 +95,7 @@ workflow ArCCH_PoN2 {
             reference_fai = reference_fai,
             tumor_bam = lofreq_indelqual.output_indel_qual_bam,
             tumor_bam_bai = lofreq_indelqual.output_indel_qual_bai,
-            interval_bed = interval_bed
+            interval_bed = interval_to_bed.interval_bed
         }
 
         call lofreqReformat as reformat {
@@ -174,34 +173,45 @@ workflow ArCCH_PoN2 {
     }
 }
 
-task splitBedToChr {
+task intervalsToBed {
     input {
-        File interval_bed
+        File interval_list
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
-    Int cores = 1
-    Int space_needed_gb = 10 + round(size(interval_bed, "GB")*2)
     Int preemptible = 1
     Int maxRetries = 0
+    Float data_size = size(interval_list, "GB")
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + data_size)])
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
 
     runtime {
+        docker: "ubuntu:bionic"
+        memory: cores * memory + "GB"
         cpu: cores
-        memory: "6GB"
-        docker: "kboltonlab/bst:latest"
         disks: "local-disk ~{space_needed_gb} SSD"
+        bootDiskSizeGb: space_needed_gb
         preemptible: preemptible
         maxRetries: maxRetries
     }
 
     command <<<
-        intervals=$(awk '{print $1}' ~{interval_bed} | uniq)
-        for chr in ${intervals}; do
-            grep -w $chr ~{interval_bed} > ~{basename(interval_bed, ".bed")}_${chr}.bed
-        done
+        /usr/bin/perl -e '
+        use feature qw(say);
+
+        for my $line (<>) {
+            chomp $line;
+            next if substr($line,0,1) eq q(@); #skip header lines
+            my ($chrom, $start, $stop) = split(/\t/, $line);
+            say(join("\t", $chrom, $start-1, $stop));
+        }' ~{interval_list} > interval_list.bed
     >>>
 
     output {
-        Array[File] split_chr = glob(basename(interval_bed, ".bed")+"_*.bed")
+        File interval_bed = "interval_list.bed"
     }
 }
 
