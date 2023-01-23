@@ -3,6 +3,7 @@ version 1.0
 task splitBAMToChr {
     input {
         File bam_file
+        File bai_file
         File interval_bed
         Int? disk_size_override
         Int? mem_limit_override
@@ -120,6 +121,7 @@ workflow wf {
     input {
         File interval_bed
         File bam_file
+        File bai_file
     }
 
     call splitBedToChr {
@@ -130,6 +132,7 @@ workflow wf {
     call splitBAMToChr {
         input:
             bam_file = bam_file,
+            bai_file = bai_file,
             interval_bed = interval_bed
     }
 
