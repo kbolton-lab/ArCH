@@ -129,7 +129,8 @@ workflow wf {
 
     call splitBAMToChr {
         input:
-            bam_file = bam_file
+            bam_file = bam_file,
+            interval_bed = interval_bed
     }
 
     Array[Pair[File, Pair[File, File]]] splitBedandBAM = zip(splitBedToChr.split_chr, splitBAMToChr.split_bam_chr)
