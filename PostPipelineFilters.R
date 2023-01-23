@@ -9,7 +9,7 @@ library(sqldf)
 bolton_bick_vars <- "/Users/irenaeuschan/Documents/Irenaeus/data/bick.bolton.vars3.txt"
 cosmic_hotspots <- "/Users/irenaeuschan/Documents/Irenaeus/data/COSMIC.heme.myeloid.hotspot.tsv"
 gene_list <- "/Users/irenaeuschan/Documents/Irenaeus/UKBB/oncoKB_CGC_pd_table_disparity_KB.csv"
-pd_table <- "/Volumes/bolton/Active/projects/annotation_files/pd_table_kbreview_bick_trunc4.tsv"
+pd_table <- "/Volumes/bolton/Active/Protected/Annotation_Files/pd_table_kbreview_bick_trunc4.tsv"
 
 #Pilot <- "/Users/irenaeuschan/Documents/Irenaeus/archer_pilot_data/pilot.archer.combined.FPpass.tsv"
 #Pilot <- "/Users/irenaeuschan/Documents/Irenaeus/archer_pilot_data/pilot.mgi.combined.FPpass.tsv"

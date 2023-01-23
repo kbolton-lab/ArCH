@@ -182,3 +182,54 @@ task vep {
         File vep_summary = annotated_path + "_summary.html"
     }
 }
+
+task dump_VCF {
+    input {
+        File sql_db
+        String options
+    }
+
+    runtime {
+        memory: cores * memory + "GB"
+        cpu: cores
+        docker: "kboltonlab/chip-toolkit"
+        disks: "local-disk ~{space_needed_gb} SSD"
+        bootDiskSizeGb: space_needed_gb
+        preemptible: preemptible
+        maxRetries: maxRetries
+    }
+
+    command <<<
+        chip-variant-db dump-vcf --output-vcf=dump.vcf.gz /path/to/sample.db
+    >>>
+
+    output {
+        File vcf =
+    }
+}
+
+task annotate_DB {
+    input {
+        File vcf
+        File sql_db
+
+    }
+
+    runtime {
+        memory: cores * memory + "GB"
+        cpu: cores
+        docker: "kboltonlab/chip-toolkit"
+        disks: "local-disk ~{space_needed_gb} SSD"
+        bootDiskSizeGb: space_needed_gb
+        preemptible: preemptible
+        maxRetries: maxRetries
+    }
+
+    command <<<
+        chip-variant-db update-db --input-vcf=dump.vcf.gz /path/to/sample.db
+    >>>
+
+    output {
+        File sql_db =
+    }
+}
