@@ -3,6 +3,7 @@ version 1.0
 workflow variant_calling {
     input {
         File aligned_bam_file
+        File aligned_bai_file
         String tumor_sample_name
         File target_intervals               # Interval List
         Int? mem_limit_override = 6         # Some applications will require more memory depending on BAM size and BED size... (in GB)
@@ -36,15 +37,6 @@ workflow variant_calling {
 
     }
 
-    call indexBam {
-        input:
-        input_bam = aligned_bam_file,
-        sample_name = tumor_sample_name,
-        reference = reference,
-        reference_fai = reference_fai,
-        reference_dict = reference_dict
-    }
-
     # Some of our callers use BED file instead of interval list
     call intervalsToBed as interval_to_bed {
         input: interval_list = target_intervals
@@ -58,8 +50,8 @@ workflow variant_calling {
 
     call splitBAMToChr {
         input:
-            bam_file = indexBam.bam,
-            bai_file = indexBam.bai,
+            bam_file = aligned_bam_file,
+            bai_file = aligned_bai_file,
             interval_bed = interval_to_bed.interval_bed
     }
 
