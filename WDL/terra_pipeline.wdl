@@ -2773,7 +2773,7 @@ task lofreq_indelqual {
     }
 
     command <<<
-        /usr/local/bin/samtools index ~{tumor_bam}
+        samtools index ~{tumor_bam}
         /opt/lofreq/bin/lofreq indelqual --dindel -f ~{reference} -o output.indel.bam ~{tumor_bam}
         samtools index output.indel.bam
     >>>
@@ -2955,7 +2955,7 @@ task pindelNormal {
     }
 
     command <<<
-        /usr/bin/samtools index ~{tumor_bam}
+        samtools index ~{tumor_bam}
         echo -e "~{normal_bam}\t~{insert_size}\t~{normal_sample_name}" > pindel.config
         echo -e "~{tumor_bam}\t~{insert_size}\t~{tumor_sample_name}" >> pindel.config
 
