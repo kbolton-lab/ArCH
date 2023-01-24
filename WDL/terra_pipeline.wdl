@@ -483,20 +483,21 @@ workflow boltonlab_CH {
     }
 
     # In order to parallelize as much as the workflow as possible, we analyze by chromosome
-    call splitBedToChr as split_bed_to_chr {
+    call splitBedToChr {
         input:
-        interval_bed = interval_to_bed.interval_bed
+            interval_bed = interval_to_bed.interval_bed
     }
 
-    call lofreq_indelqual {
+    call splitBAMToChr {
         input:
-        reference = reference,
-        reference_fai = reference_fai,
-        tumor_bam = select_first([bqsr.bqsr_bam, indexBam.bam]),
-        tumor_bam_bai = select_first([bqsr.bqsr_bam_bai, indexBam.bai])
+            bam_file = select_first([bqsr.bqsr_bam, indexBam.bam]),
+            bai_file = select_first([bqsr.bqsr_bam_bai, indexBam.bai]),
+            interval_bed = interval_to_bed.interval_bed
     }
 
-    scatter (chr_bed in split_bed_to_chr.split_chr) {
+    Array[Pair[File, Pair[File, File]]] splitBedandBAM = zip(splitBedToChr.split_chr, splitBAMToChr.split_bam_chr)
+
+    scatter (bed_bam_chr in splitBedandBAM) {
         # Mutect
         if (tumor_only) {
             call mutectTumorOnly as mutectTumorTask {
@@ -506,9 +507,9 @@ workflow boltonlab_CH {
               reference_dict = reference_dict,
               gnomad = normalized_gnomad_exclude,
               gnomad_tbi = normalized_gnomad_exclude_tbi,
-              tumor_bam = select_first([bqsr.bqsr_bam, indexBam.bam]),
-              tumor_bam_bai = select_first([bqsr.bqsr_bam_bai, indexBam.bai]),
-              interval_list = chr_bed
+              tumor_bam = bed_bam_chr.right.left,
+              tumor_bam_bai = bed_bam_chr.right.right,
+              interval_list = bed_bam_chr.left
             }
         }
 
@@ -520,11 +521,11 @@ workflow boltonlab_CH {
               reference_dict = reference_dict,
               gnomad = normalized_gnomad_exclude,
               gnomad_tbi = normalized_gnomad_exclude_tbi,
-              tumor_bam = select_first([bqsr.bqsr_bam, indexBam.bam]),
-              tumor_bam_bai = select_first([bqsr.bqsr_bam_bai, indexBam.bai]),
+              tumor_bam = bed_bam_chr.right.left,
+              tumor_bam_bai = bed_bam_chr.right.right,
               normal_bam = normal_bam,
               normal_bam_bai = normal_bam_bai,
-              interval_list = chr_bed
+              interval_list = bed_bam_chr.left
             }
         }
 
@@ -570,9 +571,9 @@ workflow boltonlab_CH {
                 input:
                 reference = reference,
                 reference_fai = reference_fai,
-                tumor_bam = select_first([bqsr.bqsr_bam, indexBam.bam]),
-                tumor_bam_bai = select_first([bqsr.bqsr_bam_bai, indexBam.bai]),
-                interval_bed = chr_bed,
+                tumor_bam = bed_bam_chr.right.left,
+                tumor_bam_bai = bed_bam_chr.right.right,
+                interval_bed = bed_bam_chr.left,
                 min_var_freq = af_threshold,
                 tumor_sample_name = tumor_sample_name
             }
@@ -583,12 +584,12 @@ workflow boltonlab_CH {
                 input:
                 reference = reference,
                 reference_fai = reference_fai,
-                tumor_bam = select_first([bqsr.bqsr_bam, indexBam.bam]),
-                tumor_bam_bai = select_first([bqsr.bqsr_bam_bai, indexBam.bai]),
+                tumor_bam = bed_bam_chr.right.left,
+                tumor_bam_bai = bed_bam_chr.right.right,
                 tumor_sample_name = tumor_sample_name,
                 normal_bam = normal_bam,
                 normal_bam = normal_bam_bai,
-                interval_bed = chr_bed,
+                interval_bed = bed_bam_chr.left,
                 min_var_freq = af_threshold
             }
         }
@@ -641,6 +642,14 @@ workflow boltonlab_CH {
         }
 
         # Lofreq
+        call lofreq_indelqual {
+            input:
+            reference = reference,
+            reference_fai = reference_fai,
+            tumor_bam = bed_bam_chr.right.left,
+            tumor_bam_bai = bed_bam_chr.right.right
+        }
+
         if (tumor_only) {
             call lofreqTumorOnly as lofreqTumorTask {
                 input:
@@ -648,7 +657,7 @@ workflow boltonlab_CH {
                 reference_fai = reference_fai,
                 tumor_bam = lofreq_indelqual.output_indel_qual_bam,
                 tumor_bam_bai = lofreq_indelqual.output_indel_qual_bai,
-                interval_bed = chr_bed
+                interval_bed = bed_bam_chr.left
             }
         }
 
@@ -661,7 +670,7 @@ workflow boltonlab_CH {
                 tumor_bam_bai = lofreq_indelqual.output_indel_qual_bai,
                 normal_bam = normal_bam,
                 normal_bam_bai = normal_bam_bai,
-                interval_bed = chr_bed
+                interval_bed = bed_bam_chr.left
             }
         }
 
@@ -717,9 +726,9 @@ workflow boltonlab_CH {
                 reference = reference,
                 reference_fai = reference_fai,
                 reference_dict = reference_dict,
-                tumor_bam = select_first([bqsr.bqsr_bam, indexBam.bam]),
-                tumor_bam_bai = select_first([bqsr.bqsr_bam_bai, indexBam.bai]),
-                region_file = chr_bed,
+                tumor_bam = bed_bam_chr.right.left,
+                tumor_bam_bai = bed_bam_chr.right.right,
+                region_file = bed_bam_chr.left,
                 insert_size = pindel_insert_size,
                 tumor_sample_name = tumor_sample_name
             }
@@ -745,11 +754,11 @@ workflow boltonlab_CH {
                 reference = reference,
                 reference_fai = reference_fai,
                 reference_dict = reference_dict,
-                tumor_bam = select_first([bqsr.bqsr_bam, indexBam.bam]),
-                tumor_bam_bai = select_first([bqsr.bqsr_bam_bai, indexBam.bai]),
+                tumor_bam = bed_bam_chr.right.left,
+                tumor_bam_bai = bed_bam_chr.right.right,
                 normal_bam = normal_bam,
                 normal_bam_bai = normal_bam_bai,
-                region_file = chr_bed,
+                region_file = bed_bam_chr.left,
                 tumor_sample_name = tumor_sample_name,
                 normal_sample_name = "NORMAL",
                 insert_size = pindel_insert_size
@@ -806,7 +815,7 @@ workflow boltonlab_CH {
             input:
             reference=reference,
             reference_fai=reference_fai,
-            bam = select_first([bqsr.bqsr_bam, indexBam.bam]),
+            bam = bed_bam_chr.right.left,
             vcf=mergeCallers.merged_vcf,
             sample_name=tumor_sample_name,
             min_var_freq=af_threshold,
@@ -2180,6 +2189,46 @@ task splitBedToChr {
     }
 }
 
+task splitBAMToChr {
+    input {
+        File bam_file
+        File bai_file
+        File interval_bed
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
+    }
+
+    Float data_size = size([interval_bed, bam_file], "GB")
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
+    Int preemptible = 1
+    Int maxRetries = 0
+
+    runtime {
+        cpu: cores
+        memory: cores * memory + "GB"
+        docker: "kboltonlab/bst:latest"
+        bootDiskSizeGb: space_needed_gb
+        disks: "local-disk ~{space_needed_gb} SSD"
+        preemptible: preemptible
+        maxRetries: maxRetries
+    }
+
+    command <<<
+        intervals=$(awk '{print $1}' ~{interval_bed} | uniq)
+        for chr in ${intervals}; do
+            samtools view -b ~{bam_file} $chr > ~{basename(bam_file, ".bam")}_${chr}.bam
+            samtools index ~{basename(bam_file, ".bam")}_${chr}.bam
+        done
+    >>>
+
+    output {
+        Array[Pair[File, File]] split_bam_chr = zip(glob(basename(bam_file, ".bam")+"_*.bam"), glob(basename(bam_file, ".bam")+"_*.bam.bai"))
+    }
+}
+
 task mutectNormal {
     input {
         File reference
@@ -2540,6 +2589,8 @@ task vardictTumorOnly {
         echo ${VAR_DICT_OPTS}
         echo ~{space_needed_gb}
 
+        usr/bin/samtools index ~{tumor_bam}
+
         /opt/VarDictJava/build/install/VarDict/bin/VarDict \
             -U -G ~{reference} \
             -X 1 \
@@ -2605,6 +2656,8 @@ task vardictNormal {
     command <<<
         set -o pipefail
         set -o errexit
+
+        usr/bin/samtools index ~{tumor_bam}
 
         export VAR_DICT_OPTS='"-Xms256m" "-Xmx~{JavaXmx}g"'
         echo ${VAR_DICT_OPTS}
@@ -2720,6 +2773,7 @@ task lofreq_indelqual {
     }
 
     command <<<
+        /usr/local/bin/samtools index ~{tumor_bam}
         /opt/lofreq/bin/lofreq indelqual --dindel -f ~{reference} -o output.indel.bam ~{tumor_bam}
         samtools index output.indel.bam
     >>>
@@ -2901,6 +2955,7 @@ task pindelNormal {
     }
 
     command <<<
+        /usr/bin/samtools index ~{tumor_bam}
         echo -e "~{normal_bam}\t~{insert_size}\t~{normal_sample_name}" > pindel.config
         echo -e "~{tumor_bam}\t~{insert_size}\t~{tumor_sample_name}" >> pindel.config
 
@@ -2953,6 +3008,7 @@ task pindelTumorOnly {
     }
 
     command <<<
+        /usr/bin/samtools ~{tumor_bam}
         echo -e "~{tumor_bam}\t~{insert_size}\t~{tumor_sample_name}" >> pindel.config
 
         /usr/bin/pindel -i pindel.config -w 30 -T ~{cores} -o all -f ~{reference} \

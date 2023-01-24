@@ -639,6 +639,8 @@ task vardict {
         echo ${VAR_DICT_OPTS}
         echo ~{space_needed_gb}
 
+        usr/bin/samtools index ~{tumor_bam}
+
         /opt/VarDictJava/build/install/VarDict/bin/VarDict \
             -U -G ~{reference} \
             -X 1 \
