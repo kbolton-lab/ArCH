@@ -2555,7 +2555,7 @@ task vardictTumorOnly {
         Float? min_var_freq = 0.005
         Int? mem_limit_override
         Int? cpu_override
-        Int? JavaXmx = 96
+        Int? JavaXmx = 24
         Int? disk_size_override
         Int? mem_limit_override
         Int? cpu_override
@@ -2570,7 +2570,7 @@ task vardictTumorOnly {
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18)*16 else 16])
 
     runtime {
-        docker: "kboltonlab/vardictjava:1.0"
+        docker: "kboltonlab/vardictjava:bedtools"
         memory: cores * memory + "GB"
         cpu: cores
         bootDiskSizeGb: space_needed_gb
@@ -2590,6 +2590,7 @@ task vardictTumorOnly {
         echo ~{space_needed_gb}
 
         usr/bin/samtools index ~{tumor_bam}
+        bedtools makewindows -b interval_bed -w 50150 -s 5000 > basename(interval_bed, ".bed")+"_windows.bed"
 
         /opt/VarDictJava/build/install/VarDict/bin/VarDict \
             -U -G ~{reference} \
@@ -2597,7 +2598,7 @@ task vardictTumorOnly {
             -f ~{min_var_freq} \
             -N ~{tumor_sample_name} \
             -b ~{tumor_bam} \
-            -c 1 -S 2 -E 3 -g 4 ~{interval_bed} \
+            -c 1 -S 2 -E 3 -g 4 basename(interval_bed, ".bed")+"_windows.bed" \
             -th ~{cores} | \
         /opt/VarDictJava/build/install/VarDict/bin/teststrandbias.R | \
         /opt/VarDictJava/build/install/VarDict/bin/var2vcf_valid.pl \
@@ -2628,7 +2629,7 @@ task vardictNormal {
         Float? min_var_freq = 0.005
         Int? mem_limit_override
         Int? cpu_override
-        Int? JavaXmx = 96
+        Int? JavaXmx = 24
         Int? disk_size_override
         Int? mem_limit_override
         Int? cpu_override
@@ -2643,7 +2644,7 @@ task vardictNormal {
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18)*16 else 16])
 
     runtime {
-        docker: "kboltonlab/vardictjava:1.0"
+        docker: "kboltonlab/vardictjava:bedtools"
         memory: cores * memory + "GB"
         cpu: cores
         bootDiskSizeGb: space_needed_gb
@@ -2658,6 +2659,7 @@ task vardictNormal {
         set -o errexit
 
         usr/bin/samtools index ~{tumor_bam}
+        bedtools makewindows -b interval_bed -w 50150 -s 5000 > basename(interval_bed, ".bed")+"_windows.bed"
 
         export VAR_DICT_OPTS='"-Xms256m" "-Xmx~{JavaXmx}g"'
         echo ${VAR_DICT_OPTS}
@@ -2670,7 +2672,7 @@ task vardictNormal {
             -f ~{min_var_freq} \
             -N ~{tumor_sample_name} \
             -b "~{tumor_bam}|~{normal_bam}" \
-            -c 1 -S 2 -E 3 -g 4 ~{interval_bed} \
+            -c 1 -S 2 -E 3 -g 4 basename(interval_bed, ".bed")+"_windows.bed" \
             -th ~{cores} | \
         /opt/VarDictJava/build/install/VarDict/bin/testsomatic.R | \
         /opt/VarDictJava/build/install/VarDict/bin/var2vcf_paired.pl \
