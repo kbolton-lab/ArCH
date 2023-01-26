@@ -640,7 +640,7 @@ task vardict {
         echo ~{space_needed_gb}
 
         samtools index ~{tumor_bam}
-        bedtools makewindows -b interval_bed -w 50150 -s 5000 > basename(interval_bed, ".bed")+"_windows.bed"
+        bedtools makewindows -b interval_bed -w 50150 -s 5000 > ~{basename(interval_bed, ".bed")}_windows.bed
 
         /opt/VarDictJava/build/install/VarDict/bin/VarDict \
             -U -G ~{reference} \
@@ -648,7 +648,7 @@ task vardict {
             -f ~{min_var_freq} \
             -N ~{tumor_sample_name} \
             -b ~{tumor_bam} \
-            -c 1 -S 2 -E 3 -g 4 basename(interval_bed, ".bed")+"_windows.bed" \
+            -c 1 -S 2 -E 3 -g 4 ~{basename(interval_bed, ".bed")}_windows.bed \
             -th ~{cores} | \
         /opt/VarDictJava/build/install/VarDict/bin/teststrandbias.R | \
         /opt/VarDictJava/build/install/VarDict/bin/var2vcf_valid.pl \

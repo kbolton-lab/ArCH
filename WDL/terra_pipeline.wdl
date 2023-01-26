@@ -82,6 +82,7 @@ workflow boltonlab_CH {
         Float max_no_call_fraction = 0.5    # Maximum fraction of no-calls (N) in the read after filtering
 
         # BQSR
+        # https://www.illumina.com/content/dam/illumina-marketing/documents/products/appnotes/novaseq-hiseq-q30-app-note-770-2017-010.pdf
         Boolean apply_bqsr = false
         Array[File] bqsr_known_sites
         Array[File] bqsr_known_sites_tbi
@@ -2590,7 +2591,7 @@ task vardictTumorOnly {
         echo ~{space_needed_gb}
 
         usr/bin/samtools index ~{tumor_bam}
-        bedtools makewindows -b interval_bed -w 50150 -s 5000 > basename(interval_bed, ".bed")+"_windows.bed"
+        bedtools makewindows -b interval_bed -w 50150 -s 5000 > ~{basename(interval_bed, ".bed")}_windows.bed
 
         /opt/VarDictJava/build/install/VarDict/bin/VarDict \
             -U -G ~{reference} \
@@ -2598,7 +2599,7 @@ task vardictTumorOnly {
             -f ~{min_var_freq} \
             -N ~{tumor_sample_name} \
             -b ~{tumor_bam} \
-            -c 1 -S 2 -E 3 -g 4 basename(interval_bed, ".bed")+"_windows.bed" \
+            -c 1 -S 2 -E 3 -g 4 ~{basename(interval_bed, ".bed")}_windows.bed \
             -th ~{cores} | \
         /opt/VarDictJava/build/install/VarDict/bin/teststrandbias.R | \
         /opt/VarDictJava/build/install/VarDict/bin/var2vcf_valid.pl \
@@ -2659,7 +2660,7 @@ task vardictNormal {
         set -o errexit
 
         usr/bin/samtools index ~{tumor_bam}
-        bedtools makewindows -b interval_bed -w 50150 -s 5000 > basename(interval_bed, ".bed")+"_windows.bed"
+        bedtools makewindows -b interval_bed -w 50150 -s 5000 > ~{basename(interval_bed, ".bed")}_windows.bed
 
         export VAR_DICT_OPTS='"-Xms256m" "-Xmx~{JavaXmx}g"'
         echo ${VAR_DICT_OPTS}
@@ -2672,7 +2673,7 @@ task vardictNormal {
             -f ~{min_var_freq} \
             -N ~{tumor_sample_name} \
             -b "~{tumor_bam}|~{normal_bam}" \
-            -c 1 -S 2 -E 3 -g 4 basename(interval_bed, ".bed")+"_windows.bed" \
+            -c 1 -S 2 -E 3 -g 4 ~{basename(interval_bed, ".bed")}_windows.bed \
             -th ~{cores} | \
         /opt/VarDictJava/build/install/VarDict/bin/testsomatic.R | \
         /opt/VarDictJava/build/install/VarDict/bin/var2vcf_paired.pl \
