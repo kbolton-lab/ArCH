@@ -2591,7 +2591,7 @@ task vardictTumorOnly {
         echo ~{space_needed_gb}
 
         usr/bin/samtools index ~{tumor_bam}
-        bedtools makewindows -b ~{interval_bed} -w 50150 -s 5000 > ~{basename(interval_bed, ".bed")}_windows.bed
+        bedtools makewindows -b ~{interval_bed} -w 50150 -s 50000 > ~{basename(interval_bed, ".bed")}_windows.bed
 
         /opt/VarDictJava/build/install/VarDict/bin/VarDict \
             -U -G ~{reference} \
@@ -2660,7 +2660,7 @@ task vardictNormal {
         set -o errexit
 
         usr/bin/samtools index ~{tumor_bam}
-        bedtools makewindows -b ~{interval_bed} -w 50150 -s 5000 > ~{basename(interval_bed, ".bed")}_windows.bed
+        bedtools makewindows -b ~{interval_bed} -w 50150 -s 50000 > ~{basename(interval_bed, ".bed")}_windows.bed
 
         export VAR_DICT_OPTS='"-Xms256m" "-Xmx~{JavaXmx}g"'
         echo ${VAR_DICT_OPTS}
