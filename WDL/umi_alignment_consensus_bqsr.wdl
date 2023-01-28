@@ -787,13 +787,16 @@ task indexBam {
         maxRetries: maxRetries
     }
 
+    String bam_link = sub(basename(input_bam), basename(basename(input_bam, ".bam"), ".cram"), sample_name)
+
     command <<<
-        /usr/local/bin/samtools index ~{input_bam}
+        cp ~{input_bam} ~{bam_link}
+        /usr/local/bin/samtools index ~{bam_link}
     >>>
 
     output {
-        File bam = input_bam
-        File bai = basename(input_bam, ".bam") + "bam.bai"
+        File bam = bam_link
+        File bai = sub(sub(bam_link, "bam$", "bam.bai"), "cram$", "cram.crai")
     }
 }
 
