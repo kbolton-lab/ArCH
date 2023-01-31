@@ -10,7 +10,7 @@ workflows:
     name: ArCCH-Alignment
   - subclass: WDL
     primaryDescriptorPath: /WDL/terra_pipeline.wdl
-    testParameterFiles: 
+    testParameterFiles:
     - /WDL/pipeline.json
     authors:
       - name: "Irenaeus Chan"
@@ -24,3 +24,11 @@ workflows:
       - name: "Irenaeus Chan"
         email: chani@wustl.edu
     name: ArCCH-PON2
+  - subclass: WDL
+    primaryDescriptorPath: /WDL/Subworkflows/variant_calling.wdl
+    testParameterFiles:
+    - /WDL/pipeline.json
+    authors:
+      - name: "Irenaeus Chan"
+        email: chani@wustl.edu
+    name: ArCCH-WGS-VariantCalling
