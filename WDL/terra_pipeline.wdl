@@ -2591,7 +2591,12 @@ task vardictTumorOnly {
         echo ~{space_needed_gb}
 
         usr/bin/samtools index ~{tumor_bam}
-        bedtools makewindows -b ~{interval_bed} -w 50150 -s 50000 > ~{basename(interval_bed, ".bed")}_windows.bed
+        how_many_lines=$(wc -l ~{interval_bed} | cut -d' ' -f1)
+        if [[ how_many_lines -lt 5 ]]; then
+            bedtools makewindows -b ~{interval_bed} -w 50150 -s 50000 > ~{basename(interval_bed, ".bed")}_windows.bed
+        else
+            cp ~{interval_bed} ~{basename(interval_bed, ".bed")}_windows.bed
+        fi
 
         /opt/VarDictJava/build/install/VarDict/bin/VarDict \
             -U -G ~{reference} \
