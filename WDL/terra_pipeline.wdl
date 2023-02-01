@@ -499,6 +499,18 @@ workflow boltonlab_CH {
     Array[Pair[File, Pair[File, File]]] splitBedandBAM = zip(splitBedToChr.split_chr, splitBAMToChr.split_bam_chr)
 
     scatter (bed_bam_chr in splitBedandBAM) {
+
+        call indexBam as chr_bam {
+            input:
+            input_bam = bed_bam_chr.right.left,
+            sample_name = tumor_sample_name,
+            reference = reference,
+            reference_fai = reference_fai,
+            reference_dict = reference_dict
+        }
+
+        # Have to index here...
+
         # Mutect
         if (tumor_only) {
             call mutectTumorOnly as mutectTumorTask {
@@ -508,8 +520,8 @@ workflow boltonlab_CH {
               reference_dict = reference_dict,
               gnomad = normalized_gnomad_exclude,
               gnomad_tbi = normalized_gnomad_exclude_tbi,
-              tumor_bam = bed_bam_chr.right.left,
-              tumor_bam_bai = bed_bam_chr.right.right,
+              tumor_bam = chr_bam.bam,
+              tumor_bam_bai = chr_bam.bai,
               interval_list = bed_bam_chr.left
             }
         }
@@ -522,8 +534,8 @@ workflow boltonlab_CH {
               reference_dict = reference_dict,
               gnomad = normalized_gnomad_exclude,
               gnomad_tbi = normalized_gnomad_exclude_tbi,
-              tumor_bam = bed_bam_chr.right.left,
-              tumor_bam_bai = bed_bam_chr.right.right,
+              tumor_bam = chr_bam.bam,
+              tumor_bam_bai = chr_bam.bai,
               normal_bam = normal_bam,
               normal_bam_bai = normal_bam_bai,
               interval_list = bed_bam_chr.left
@@ -572,8 +584,8 @@ workflow boltonlab_CH {
                 input:
                 reference = reference,
                 reference_fai = reference_fai,
-                tumor_bam = bed_bam_chr.right.left,
-                tumor_bam_bai = bed_bam_chr.right.right,
+                tumor_bam = chr_bam.bam,
+                tumor_bam_bai = chr_bam.bai,
                 interval_bed = bed_bam_chr.left,
                 min_var_freq = af_threshold,
                 tumor_sample_name = tumor_sample_name
@@ -585,8 +597,8 @@ workflow boltonlab_CH {
                 input:
                 reference = reference,
                 reference_fai = reference_fai,
-                tumor_bam = bed_bam_chr.right.left,
-                tumor_bam_bai = bed_bam_chr.right.right,
+                tumor_bam = chr_bam.bam,
+                tumor_bam_bai = chr_bam.bai,
                 tumor_sample_name = tumor_sample_name,
                 normal_bam = normal_bam,
                 normal_bam = normal_bam_bai,
@@ -647,8 +659,8 @@ workflow boltonlab_CH {
             input:
             reference = reference,
             reference_fai = reference_fai,
-            tumor_bam = bed_bam_chr.right.left,
-            tumor_bam_bai = bed_bam_chr.right.right
+            tumor_bam = chr_bam.bam,
+            tumor_bam_bai = chr_bam.bai
         }
 
         if (tumor_only) {
@@ -727,8 +739,8 @@ workflow boltonlab_CH {
                 reference = reference,
                 reference_fai = reference_fai,
                 reference_dict = reference_dict,
-                tumor_bam = bed_bam_chr.right.left,
-                tumor_bam_bai = bed_bam_chr.right.right,
+                tumor_bam = chr_bam.bam,
+                tumor_bam_bai = chr_bam.bai,
                 region_file = bed_bam_chr.left,
                 insert_size = pindel_insert_size,
                 tumor_sample_name = tumor_sample_name
@@ -755,8 +767,8 @@ workflow boltonlab_CH {
                 reference = reference,
                 reference_fai = reference_fai,
                 reference_dict = reference_dict,
-                tumor_bam = bed_bam_chr.right.left,
-                tumor_bam_bai = bed_bam_chr.right.right,
+                tumor_bam = chr_bam.bam,
+                tumor_bam_bai = chr_bam.bai,
                 normal_bam = normal_bam,
                 normal_bam_bai = normal_bam_bai,
                 region_file = bed_bam_chr.left,
@@ -816,7 +828,7 @@ workflow boltonlab_CH {
             input:
             reference=reference,
             reference_fai=reference_fai,
-            bam = bed_bam_chr.right.left,
+            bam = chr_bam.bam,
             vcf=mergeCallers.merged_vcf,
             sample_name=tumor_sample_name,
             min_var_freq=af_threshold,
@@ -2671,7 +2683,7 @@ task vardictNormal {
         else
             cp ~{interval_bed} ~{basename(interval_bed, ".bed")}_windows.bed
         fi
-        
+
         export VAR_DICT_OPTS='"-Xms256m" "-Xmx~{JavaXmx}g"'
         echo ${VAR_DICT_OPTS}
         echo ~{space_needed_gb}
