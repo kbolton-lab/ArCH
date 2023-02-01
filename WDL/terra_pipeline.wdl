@@ -2590,7 +2590,7 @@ task vardictTumorOnly {
         echo ${VAR_DICT_OPTS}
         echo ~{space_needed_gb}
 
-        usr/bin/samtools index ~{tumor_bam}
+        samtools index ~{tumor_bam}
         how_many_lines=$(wc -l ~{interval_bed} | cut -d' ' -f1)
         if [[ how_many_lines -lt 5 ]]; then
             bedtools makewindows -b ~{interval_bed} -w 50150 -s 50000 > ~{basename(interval_bed, ".bed")}_windows.bed
@@ -2664,9 +2664,14 @@ task vardictNormal {
         set -o pipefail
         set -o errexit
 
-        usr/bin/samtools index ~{tumor_bam}
-        bedtools makewindows -b ~{interval_bed} -w 50150 -s 50000 > ~{basename(interval_bed, ".bed")}_windows.bed
-
+        samtools index ~{tumor_bam}
+        how_many_lines=$(wc -l ~{interval_bed} | cut -d' ' -f1)
+        if [[ how_many_lines -lt 5 ]]; then
+            bedtools makewindows -b ~{interval_bed} -w 50150 -s 50000 > ~{basename(interval_bed, ".bed")}_windows.bed
+        else
+            cp ~{interval_bed} ~{basename(interval_bed, ".bed")}_windows.bed
+        fi
+        
         export VAR_DICT_OPTS='"-Xms256m" "-Xmx~{JavaXmx}g"'
         echo ${VAR_DICT_OPTS}
         echo ~{space_needed_gb}
