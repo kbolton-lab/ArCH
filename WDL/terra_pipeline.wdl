@@ -292,6 +292,7 @@ workflow boltonlab_CH {
                 reference = reference,
                 reference_fai = reference_fai,
                 reference_dict = reference_dict,
+                sample_name = tumor_sample_name,
                 min_reads = min_reads,
                 max_read_error_rate = max_read_error_rate,
                 max_base_error_rate = max_base_error_rate,
@@ -311,6 +312,7 @@ workflow boltonlab_CH {
                 reference = reference,
                 reference_fai = reference_fai,
                 reference_dict = reference_dict,
+                sample_name = tumor_sample_name,
                 target_intervals = target_intervals,
                 description = tumor_sample_name,
                 umi_paired = umi_paired
@@ -1533,6 +1535,7 @@ task filterClipAndCollectMetrics {
         File reference
         File reference_fai
         File reference_dict
+        String sample_name
         Array[Int] min_reads = [1]
         Float? max_read_error_rate = 0.05
         Float? max_base_error_rate = 0.1
@@ -1568,7 +1571,7 @@ task filterClipAndCollectMetrics {
         set -eo pipefail
 
         /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp FilterConsensusReads --input ~{bam} --output consensus_filtered.bam --ref ~{reference} --min-reads ~{sep=" " min_reads} --max-read-error-rate ~{max_read_error_rate} --max-base-error-rate ~{max_base_error_rate} --min-base-quality ~{min_base_quality} --max-no-call-fraction ~{max_no_call_fraction}
-        /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp ClipBam --input consensus_filtered.bam --ref ~{reference} --clipping-mode Hard --clip-overlapping-reads true --output clipped.bam
+        /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp ClipBam --input consensus_filtered.bam --ref ~{reference} --clipping-mode Hard --clip-overlapping-reads true --output ~{sample_name}.bam
 
         PAIRED=~{umi_paired}
         DESCRIPTION=~{description}
@@ -1577,15 +1580,15 @@ task filterClipAndCollectMetrics {
         if [ "$PAIRED" == true ]; then
             if [[ -z "$DESCRIPTION" ]]; then
                 if [[ -z "$INTERVALS" ]]; then
-                    /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp CollectDuplexSeqMetrics --input clipped.bam --output duplex_seq.metrics
+                    /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp CollectDuplexSeqMetrics --input ~{sample_name}.bam --output duplex_seq.metrics
                 else
-                    /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp CollectDuplexSeqMetrics --input clipped.bam --output duplex_seq.metrics --intervals ${INTERVALS}
+                    /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp CollectDuplexSeqMetrics --input ~{sample_name}.bam --output duplex_seq.metrics --intervals ${INTERVALS}
                 fi
             else
                 if [[ -z "$INTERVALS" ]]; then
-                    /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp CollectDuplexSeqMetrics --input clipped.bam --description ${DESCRIPTION} --output duplex_seq.metrics
+                    /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp CollectDuplexSeqMetrics --input ~{sample_name}.bam --description ${DESCRIPTION} --output duplex_seq.metrics
                 else
-                    /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp CollectDuplexSeqMetrics --input clipped.bam --description ${DESCRIPTION} --output duplex_seq.metrics --intervals ${INTERVALS}
+                    /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp CollectDuplexSeqMetrics --input ~{sample_name}.bam --description ${DESCRIPTION} --output duplex_seq.metrics --intervals ${INTERVALS}
                 fi
             fi
         else
@@ -1594,8 +1597,8 @@ task filterClipAndCollectMetrics {
     >>>
 
     output {
-        File clipped_bam = "clipped.bam"
-        File clipped_bai = "clipped.bai"
+        File clipped_bam = "~{sample_name}.bam"
+        File clipped_bai = "~{sample_name}.bai"
         Array[File] duplex_seq_metrics = glob("duplex_seq.metrics.*")
     }
 }
@@ -1606,6 +1609,7 @@ task clipAndCollectMetrics {
         File reference
         File reference_fai
         File reference_dict
+        String sample_name
         File? target_intervals
         String description
         Boolean umi_paired = true
@@ -1635,7 +1639,7 @@ task clipAndCollectMetrics {
     command <<<
         set -eo pipefail
 
-        /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp ClipBam --input ~{bam} --ref ~{reference} --clipping-mode Hard --clip-overlapping-reads true --output clipped.bam
+        /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp ClipBam --input ~{bam} --ref ~{reference} --clipping-mode Hard --clip-overlapping-reads true --output ~{sample_name}.bam
 
         PAIRED=~{umi_paired}
         DESCRIPTION=~{description}
@@ -1644,15 +1648,15 @@ task clipAndCollectMetrics {
         if [ "$PAIRED" == true ]; then
             if [[ -z "$DESCRIPTION" ]]; then
                 if [[ -z "$INTERVALS" ]]; then
-                    /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp CollectDuplexSeqMetrics --input clipped.bam --output duplex_seq.metrics
+                    /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp CollectDuplexSeqMetrics --input ~{sample_name}.bam --output duplex_seq.metrics
                 else
-                    /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp CollectDuplexSeqMetrics --input clipped.bam --output duplex_seq.metrics --intervals ${INTERVALS}
+                    /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp CollectDuplexSeqMetrics --input ~{sample_name}.bam --output duplex_seq.metrics --intervals ${INTERVALS}
                 fi
             else
                 if [[ -z "$INTERVALS" ]]; then
-                    /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp CollectDuplexSeqMetrics --input clipped.bam --description ${DESCRIPTION} --output duplex_seq.metrics
+                    /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp CollectDuplexSeqMetrics --input ~{sample_name}.bam --description ${DESCRIPTION} --output duplex_seq.metrics
                 else
-                    /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp CollectDuplexSeqMetrics --input clipped.bam --description ${DESCRIPTION} --output duplex_seq.metrics --intervals ${INTERVALS}
+                    /usr/local/bin/fgbio -Xmx~{memory_total}g --tmp-dir=`pwd`/large_tmp CollectDuplexSeqMetrics --input ~{sample_name}.bam --description ${DESCRIPTION} --output duplex_seq.metrics --intervals ${INTERVALS}
                 fi
             fi
         else
@@ -1661,8 +1665,8 @@ task clipAndCollectMetrics {
     >>>
 
     output {
-        File clipped_bam = "clipped.bam"
-        File clipped_bai = "clipped.bai"
+        File clipped_bam = "~{sample_name}.bam"
+        File clipped_bai = "~{sample_name}.bai"
         Array[File] duplex_seq_metrics = glob("duplex_seq.metrics.*")
     }
 }
