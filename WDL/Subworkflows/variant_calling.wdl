@@ -4,6 +4,7 @@ workflow variant_calling {
     input {
         File aligned_bam_file
         File aligned_bai_file
+        Boolean cram_input = false          # If the input is a CRAM then we have to convert it into a BAM
         String tumor_sample_name
         File target_intervals               # Interval List
         Int? mem_limit_override = 6         # Some applications will require more memory depending on BAM size and BED size... (in GB)
@@ -48,10 +49,21 @@ workflow variant_calling {
             interval_bed = interval_to_bed.interval_bed
     }
 
+    if (cram_input) {
+        call cramToBAM {
+            input:
+                input_cram = aligned_bam_file,
+                sample_name = tumor_sample_name,
+                reference = reference,
+                reference_fai = reference_fai,
+                reference_dict = reference_dict
+        }
+    }
+
     call splitBAMToChr {
         input:
-            bam_file = aligned_bam_file,
-            bai_file = aligned_bai_file,
+            bam_file = select_first([cramToBAM.bam, aligned_bam_file]),
+            bai_file = select_first([cramToBAM.bai, aligned_bai_file]),
             interval_bed = interval_to_bed.interval_bed
     }
 
@@ -224,9 +236,9 @@ task intervalsToBed {
     }
 }
 
-task indexBam {
+task cramToBAM {
     input {
-        File input_bam
+        File input_cram
         String sample_name
         File reference
         File reference_fai
@@ -236,7 +248,7 @@ task indexBam {
         Int? cpu_override
     }
 
-    Float data_size = size(input_bam, "GB")
+    Float data_size = size(input_cram, "GB")
     Float reference_size = size([reference, reference_fai, reference_dict], "GB")
     Int preemptible = 1
     Int maxRetries = 0
@@ -253,10 +265,10 @@ task indexBam {
         maxRetries: maxRetries
     }
 
-    String bam_link = sub(basename(input_bam), basename(basename(input_bam, ".bam"), ".cram"), sample_name)
+    String bam_link = sub(basename(input_cram), basename(basename(input_cram, ".bam"), ".cram"), sample_name)
 
     command <<<
-        ln -s ~{input_bam} ~{bam_link}
+        ln -s ~{input_cram} ~{bam_link}
         if [[ ~{bam_link} == *.cram ]]; then
             /usr/local/bin/samtools view -b -T ~{reference} -o ~{sample_name}.bam ~{bam_link}
         fi

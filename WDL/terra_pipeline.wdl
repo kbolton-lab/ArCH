@@ -50,10 +50,11 @@ workflow boltonlab_CH {
         File fastq_one
         File fastq_two
         Boolean bam_input = false           # Default input is FASTQ files, but unaligned BAM is preferred
+        Boolean cram_input = false          # If the input is a CRAM then we have to convert it into a BAM
         File unaligned_bam = ""
         Boolean? aligned = false            # If input is an already aligned BAM file then set this flag
         File? aligned_bam_file
-        File? aligned_bam_file_bai
+        File? aligned_bai_file
         Array[String] read_structure        # Used for the UMI processing see: https://github.com/fulcrumgenomics/fgbio/wiki/Read-Structures
         String tumor_sample_name
         File target_intervals               # Interval List
@@ -317,13 +318,15 @@ workflow boltonlab_CH {
         }
     }
 
-    call indexBam {
-        input:
-        input_bam = select_first([filterClipAndCollectMetrics.clipped_bam, aligned_bam_file, clipAndCollectMetrics.clipped_bam]),
-        sample_name = tumor_sample_name,
-        reference = reference,
-        reference_fai = reference_fai,
-        reference_dict = reference_dict
+    if (cram_input) {
+        call cramToBAM {
+            input:
+            input_cram = select_first([filterClipAndCollectMetrics.clipped_bam, clipAndCollectMetrics.clipped_bam, aligned_bam_file]),
+            sample_name = tumor_sample_name,
+            reference = reference,
+            reference_fai = reference_fai,
+            reference_dict = reference_dict
+        }
     }
 
     if (apply_bqsr) {
@@ -335,8 +338,8 @@ workflow boltonlab_CH {
             reference = reference,
             reference_fai = reference_fai,
             reference_dict = reference_dict,
-            bam = indexBam.bam,
-            bam_bai = indexBam.bai,
+            bam = select_first([cramToBAM.bam, filterClipAndCollectMetrics.clipped_bam, clipAndCollectMetrics.clipped_bam, aligned_bam_file]),
+            bam_bai = select_first([cramToBAM.bai, filterClipAndCollectMetrics.clipped_bai, clipAndCollectMetrics.clipped_bai, aligned_bai_file]),
             interval_list = target_intervals,
             known_sites = bqsr_known_sites,
             known_sites_tbi = bqsr_known_sites_tbi,
@@ -347,8 +350,8 @@ workflow boltonlab_CH {
     # Obtains Alignment Metrics and Insert Size Metrics
     call Metrics as collectAllMetrics {
         input:
-        bam = select_first([bqsr.bqsr_bam, indexBam.bam]),
-        bam_bai = select_first([bqsr.bqsr_bam_bai, indexBam.bai]),
+        bam = select_first([bqsr.bqsr_bam, cramToBAM.bam, filterClipAndCollectMetrics.clipped_bam, clipAndCollectMetrics.clipped_bam, aligned_bam_file]),
+        bam_bai = select_first([bqsr.bqsr_bai, cramToBAM.bai, filterClipAndCollectMetrics.clipped_bai, clipAndCollectMetrics.clipped_bai, aligned_bai_file]),
         reference = reference,
         reference_fai = reference_fai,
         reference_dict = reference_dict,
@@ -358,8 +361,8 @@ workflow boltonlab_CH {
     # Collects QC for various levels defined by the User
     call collectHsMetrics as collectRoiHsMetrics {
         input:
-        bam = select_first([bqsr.bqsr_bam, indexBam.bam]),
-        bam_bai = select_first([bqsr.bqsr_bam_bai, indexBam.bai]),
+        bam = select_first([bqsr.bqsr_bam, cramToBAM.bam, filterClipAndCollectMetrics.clipped_bam, clipAndCollectMetrics.clipped_bam, aligned_bam_file]),
+        bam_bai = select_first([bqsr.bqsr_bai, cramToBAM.bai, filterClipAndCollectMetrics.clipped_bai, clipAndCollectMetrics.clipped_bai, aligned_bai_file]),
         reference = reference,
         reference_fai = reference_fai,
         reference_dict = reference_dict,
@@ -376,8 +379,8 @@ workflow boltonlab_CH {
     scatter(interval in summary_intervals) {
         call collectHsMetrics as collectSummaryHsMetrics{
             input:
-            bam = select_first([bqsr.bqsr_bam, indexBam.bam]),
-            bam_bai = select_first([bqsr.bqsr_bam_bai, indexBam.bai]),
+            bam = select_first([bqsr.bqsr_bam, cramToBAM.bam, filterClipAndCollectMetrics.clipped_bam, clipAndCollectMetrics.clipped_bam, aligned_bam_file]),
+            bam_bai = select_first([bqsr.bqsr_bai, cramToBAM.bai, filterClipAndCollectMetrics.clipped_bai, clipAndCollectMetrics.clipped_bai, aligned_bai_file]),
             reference = reference,
             reference_fai = reference_fai,
             reference_dict = reference_dict,
@@ -395,8 +398,8 @@ workflow boltonlab_CH {
     scatter(interval in per_base_intervals) {
         call collectHsMetrics as collectPerBaseHsMetrics {
             input:
-            bam = select_first([bqsr.bqsr_bam, indexBam.bam]),
-            bam_bai = select_first([bqsr.bqsr_bam_bai, indexBam.bai]),
+            bam = select_first([bqsr.bqsr_bam, cramToBAM.bam, filterClipAndCollectMetrics.clipped_bam, clipAndCollectMetrics.clipped_bam, aligned_bam_file]),
+            bam_bai = select_first([bqsr.bqsr_bai, cramToBAM.bai, filterClipAndCollectMetrics.clipped_bai, clipAndCollectMetrics.clipped_bai, aligned_bai_file]),
             reference = reference,
             reference_fai = reference_fai,
             reference_dict = reference_dict,
@@ -414,8 +417,8 @@ workflow boltonlab_CH {
     scatter(interval in per_target_intervals) {
         call collectHsMetrics as collectPerTargetHsMetrics{
             input:
-            bam = select_first([bqsr.bqsr_bam, indexBam.bam]),
-            bam_bai = select_first([bqsr.bqsr_bam_bai, indexBam.bai]),
+            bam = select_first([bqsr.bqsr_bam, cramToBAM.bam, filterClipAndCollectMetrics.clipped_bam, clipAndCollectMetrics.clipped_bam, aligned_bam_file]),
+            bam_bai = select_first([bqsr.bqsr_bai, cramToBAM.bai, filterClipAndCollectMetrics.clipped_bai, clipAndCollectMetrics.clipped_bai, aligned_bai_file]),
             reference = reference,
             reference_fai = reference_fai,
             reference_dict = reference_dict,
@@ -432,8 +435,8 @@ workflow boltonlab_CH {
 
     call samtoolsFlagstat {
         input:
-        bam = select_first([bqsr.bqsr_bam, indexBam.bam]),
-        bam_bai = select_first([bqsr.bqsr_bam_bai, indexBam.bai])
+        bam = select_first([bqsr.bqsr_bam, cramToBAM.bam, filterClipAndCollectMetrics.clipped_bam, clipAndCollectMetrics.clipped_bam, aligned_bam_file]),
+        bam_bai = select_first([bqsr.bqsr_bai, cramToBAM.bai, filterClipAndCollectMetrics.clipped_bai, clipAndCollectMetrics.clipped_bai, aligned_bai_file])
     }
 
     # Uses the OMNI vcf to calculate possible contamination within the Sample
@@ -449,15 +452,15 @@ workflow boltonlab_CH {
 
     call verifyBamId {
         input:
-        bam = select_first([bqsr.bqsr_bam, indexBam.bam]),
-        bam_bai = select_first([bqsr.bqsr_bam_bai, indexBam.bai]),
+        bam = select_first([bqsr.bqsr_bam, cramToBAM.bam, filterClipAndCollectMetrics.clipped_bam, clipAndCollectMetrics.clipped_bam, aligned_bam_file]),
+        bam_bai = select_first([bqsr.bqsr_bai, cramToBAM.bai, filterClipAndCollectMetrics.clipped_bai, clipAndCollectMetrics.clipped_bai, aligned_bai_file]),
         vcf=selectVariants.filtered_vcf
     }
 
     call fastQC {
         input:
-        bam = select_first([bqsr.bqsr_bam, indexBam.bam]),
-        bam_bai = select_first([bqsr.bqsr_bam_bai, indexBam.bai])
+        bam = select_first([bqsr.bqsr_bam, cramToBAM.bam, filterClipAndCollectMetrics.clipped_bam, clipAndCollectMetrics.clipped_bam, aligned_bam_file]),
+        bam_bai = select_first([bqsr.bqsr_bai, cramToBAM.bai, filterClipAndCollectMetrics.clipped_bai, clipAndCollectMetrics.clipped_bai, aligned_bai_file])
     }
 
     # Some of our callers use BED file instead of interval list
@@ -478,8 +481,8 @@ workflow boltonlab_CH {
         input:
         somalier_vcf = createSomalierVcf.somalier_vcf,
         reference = reference,
-        bam = select_first([bqsr.bqsr_bam, indexBam.bam]),
-        bam_bai = select_first([bqsr.bqsr_bam_bai, indexBam.bai]),
+        bam = select_first([bqsr.bqsr_bam, cramToBAM.bam, filterClipAndCollectMetrics.clipped_bam, clipAndCollectMetrics.clipped_bam, aligned_bam_file]),
+        bam_bai = select_first([bqsr.bqsr_bai, cramToBAM.bai, filterClipAndCollectMetrics.clipped_bai, clipAndCollectMetrics.clipped_bai, aligned_bai_file]),
         sample_name = tumor_sample_name
     }
 
@@ -491,9 +494,9 @@ workflow boltonlab_CH {
 
     call splitBAMToChr {
         input:
-            bam_file = select_first([bqsr.bqsr_bam, indexBam.bam]),
-            bai_file = select_first([bqsr.bqsr_bam_bai, indexBam.bai]),
-            interval_bed = interval_to_bed.interval_bed
+        bam = select_first([bqsr.bqsr_bam, cramToBAM.bam, filterClipAndCollectMetrics.clipped_bam, clipAndCollectMetrics.clipped_bam, aligned_bam_file]),
+        bam_bai = select_first([bqsr.bqsr_bai, cramToBAM.bai, filterClipAndCollectMetrics.clipped_bai, clipAndCollectMetrics.clipped_bai, aligned_bai_file]),
+        interval_bed = interval_to_bed.interval_bed
     }
 
     Array[Pair[File, Pair[File, File]]] splitBedandBAM = zip(splitBedToChr.split_chr, splitBAMToChr.split_bam_chr)
@@ -1067,7 +1070,7 @@ workflow boltonlab_CH {
 
     output {
         # Alignments
-        File aligned_bam = indexBam.bam
+        File aligned_bam = select_first([cramToBAM.bam, filterClipAndCollectMetrics.clipped_bam, clipAndCollectMetrics.clipped_bam, aligned_bam_file])
         File? bqsr_bam = bqsr.bqsr_bam
 
         # Tumor QC
@@ -1592,7 +1595,7 @@ task filterClipAndCollectMetrics {
 
     output {
         File clipped_bam = "clipped.bam"
-        File clipped_bam_bai = "clipped.bai"
+        File clipped_bai = "clipped.bai"
         Array[File] duplex_seq_metrics = glob("duplex_seq.metrics.*")
     }
 }
@@ -1659,8 +1662,52 @@ task clipAndCollectMetrics {
 
     output {
         File clipped_bam = "clipped.bam"
-        File clipped_bam_bai = "clipped.bai"
+        File clipped_bai = "clipped.bai"
         Array[File] duplex_seq_metrics = glob("duplex_seq.metrics.*")
+    }
+}
+
+task cramToBAM {
+    input {
+        File input_cram
+        String sample_name
+        File reference
+        File reference_fai
+        File reference_dict
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
+    }
+
+    Float data_size = size(input_cram, "GB")
+    Float reference_size = size([reference, reference_fai, reference_dict], "GB")
+    Int preemptible = 1
+    Int maxRetries = 0
+    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 4 * data_size + reference_size)])
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
+
+    runtime {
+        cpu: cores
+        docker: "quay.io/biocontainers/samtools:1.11--h6270b1f_0"
+        memory: cores * memory + "GB"
+        disks: "local-disk ~{space_needed_gb} SSD"
+        preemptible: preemptible
+        maxRetries: maxRetries
+    }
+
+    String bam_link = sub(basename(input_cram), basename(basename(input_cram, ".bam"), ".cram"), sample_name)
+
+    command <<<
+        ln -s ~{input_cram} ~{bam_link}
+        /usr/local/bin/samtools view -b -T ~{reference} -o ~{sample_name}.bam ~{bam_link}
+        /usr/local/bin/samtools index ~{sample_name}.bam
+    >>>
+
+    output {
+        File bam = "~{sample_name}.bam"
+        File bai = "~{sample_name}.bam.bai"
+        #File bai = sub(sub(bam_link, "bam$", "bam.bai"), "cram$", "cram.crai")
     }
 }
 
@@ -1697,9 +1744,6 @@ task indexBam {
 
     command <<<
         ln -s ~{input_bam} ~{bam_link}
-        if [[ ~{bam_link} == *.cram ]]; then
-            /usr/local/bin/samtools view -b -T ~{reference} -o ~{sample_name}.bam ~{bam_link}
-        fi
         /usr/local/bin/samtools index ~{sample_name}.bam
     >>>
 
@@ -1752,7 +1796,7 @@ task bqsrApply {
 
     output {
         File bqsr_bam = "~{output_name}.bam"
-        File bqsr_bam_bai = "~{output_name}.bai"
+        File bqsr_bai = "~{output_name}.bai"
     }
 }
 
@@ -2204,15 +2248,15 @@ task splitBedToChr {
 
 task splitBAMToChr {
     input {
-        File bam_file
-        File bai_file
+        File bam
+        File bam_bai
         File interval_bed
         Int? disk_size_override
         Int? mem_limit_override
         Int? cpu_override
     }
 
-    Float data_size = size([interval_bed, bam_file], "GB")
+    Float data_size = size([interval_bed, bam], "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
     Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
@@ -2232,13 +2276,13 @@ task splitBAMToChr {
     command <<<
         intervals=$(awk '{print $1}' ~{interval_bed} | uniq)
         for chr in ${intervals}; do
-            samtools view -b ~{bam_file} $chr > ~{basename(bam_file, ".bam")}_${chr}.bam
-            samtools index ~{basename(bam_file, ".bam")}_${chr}.bam
+            samtools view -b ~{bam} $chr > ~{basename(bam, ".bam")}_${chr}.bam
+            samtools index ~{basename(bam, ".bam")}_${chr}.bam
         done
     >>>
 
     output {
-        Array[Pair[File, File]] split_bam_chr = zip(glob(basename(bam_file, ".bam")+"_*.bam"), glob(basename(bam_file, ".bam")+"_*.bam.bai"))
+        Array[Pair[File, File]] split_bam_chr = zip(glob(basename(bam, ".bam")+"_*.bam"), glob(basename(bam, ".bam")+"_*.bam.bai"))
     }
 }
 
