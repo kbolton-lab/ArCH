@@ -561,7 +561,7 @@ task pon2Percent {
     Float data_size = size([vcf, vcf2PON, vcf2PON_tbi],"GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + data_size)])
     Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18)*4 else 4])
     Int preemptible = 1
     Int maxRetries = 0
 
@@ -617,7 +617,7 @@ task vardict {
     Int preemptible = 1
     Int maxRetries = 0
     Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18)*16 else 16])
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18)*4 else 4])
 
     runtime {
         docker: "kboltonlab/vardictjava:bedtools"

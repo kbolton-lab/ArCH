@@ -2580,7 +2580,7 @@ task vardictTumorOnly {
     Int preemptible = 1
     Int maxRetries = 0
     Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18)*16 else 16])
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18)*4 else 4])
 
     runtime {
         docker: "kboltonlab/vardictjava:bedtools"
@@ -2659,7 +2659,7 @@ task vardictNormal {
     Int preemptible = 1
     Int maxRetries = 0
     Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18)*16 else 16])
+    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18)*4 else 4])
 
     runtime {
         docker: "kboltonlab/vardictjava:bedtools"
