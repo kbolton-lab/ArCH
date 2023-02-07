@@ -397,20 +397,20 @@ task vardictTumorOnly {
         File interval_bed
         Int? mem_limit_override
         Int? cpu_override
-        Int? JavaXmx = 96
+        Int? JavaXmx = 24
     }
 
-    Int cores = 16
+    Int cores = 4
     Float reference_size = size([reference, reference_fai], "GB")
     Float bam_size = size([tumor_bam, tumor_bam_bai], "GB")
     Int space_needed_gb = 10 + round(reference_size + 4*bam_size + size(interval_bed, "GB"))
     Int preemptible = 1
     Int maxRetries = 0
-    Int memory = select_first([mem_limit_override, if 2.0*bam_size > 96.0 then 12 else 8])
+    Int memory = select_first([mem_limit_override, ceil(bam_size/6 + 5)]) # We want the base to be around 6
     Int memory_total = cores * memory
 
     runtime {
-        docker: "kboltonlab/vardictjava:1.0"
+        docker: "kboltonlab/vardictjava:bedtools"
         memory: memory_total + "GB"
         cpu: cores
         bootDiskSizeGb: space_needed_gb
@@ -429,13 +429,20 @@ task vardictTumorOnly {
         echo ${VAR_DICT_OPTS}
         echo ~{space_needed_gb}
 
+        how_many_lines=$(wc -l ~{interval_bed} | cut -d' ' -f1)
+        if [[ how_many_lines -lt 25 ]]; then
+            bedtools makewindows -b ~{interval_bed} -w 50150 -s 50000 > ~{basename(interval_bed, ".bed")}_windows.bed
+        else
+            cp ~{interval_bed} ~{basename(interval_bed, ".bed")}_windows.bed
+        fi
+
         /opt/VarDictJava/build/install/VarDict/bin/VarDict \
             -U -G ~{reference} \
             -X 1 \
             -f 0.02 \
             -N ~{tumor_sample_name} \
             -b ~{tumor_bam} \
-            -c 1 -S 2 -E 3 -g 4 ~{interval_bed} \
+            -c 1 -S 2 -E 3 -g 4 ~{basename(interval_bed, ".bed")}_windows.bed \
             -th ~{cores} | \
         /opt/VarDictJava/build/install/VarDict/bin/teststrandbias.R | \
         /opt/VarDictJava/build/install/VarDict/bin/var2vcf_valid.pl \
