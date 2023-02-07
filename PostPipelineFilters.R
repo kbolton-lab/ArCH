@@ -9,23 +9,23 @@ library(sqldf)
 bolton_bick_vars <- "/Users/irenaeuschan/Documents/Irenaeus/data/bick.bolton.vars3.txt"
 cosmic_hotspots <- "/Users/irenaeuschan/Documents/Irenaeus/data/COSMIC.heme.myeloid.hotspot.tsv"
 gene_list <- "/Users/irenaeuschan/Documents/Irenaeus/UKBB/oncoKB_CGC_pd_table_disparity_KB.csv"
-pd_table <- "/Volumes/bolton/Active/Protected/Annotation_Files/pd_table_kbreview_bick_trunc4.tsv"
+pd_table <- "/Volumes/bolton/Active/Protected/Annotation_Files/pd_table_kbreview_bick_trunc4_oncoKB_SAFE.filtered_genes_oncoKB_CGC.tsv"
 
 #Pilot <- "/Users/irenaeuschan/Documents/Irenaeus/archer_pilot_data/pilot.archer.combined.FPpass.tsv"
 #Pilot <- "/Users/irenaeuschan/Documents/Irenaeus/archer_pilot_data/pilot.mgi.combined.FPpass.tsv"
-Pilot <- "/Volumes/bolton/Active/projects/ArcherPilot/Pilot/TERRA/pilot.combined.tsv"
+Pilot <- "/Volumes/bolton/Active/Projects/ArcherPilot/Pilot/TERRA/pilot.combined.tsv"
 #Trios <- "/Users/irenaeuschan/Documents/Irenaeus/MGI_Yizhe/trios.combined.tsv"
-#MGI_EXTRA <- "/Volumes/bolton/Active/projects/MGI_Data/TERRA_EXTRA/MGI_EXTRA.combined.tsv"
+#MGI_EXTRA <- "/Volumes/bolton/Active/Projects/MGI_Data/TERRA_EXTRA/MGI_EXTRA.combined.tsv"
 #Dilution <- "/Users/irenaeuschan/Documents/Irenaeus/archer_pilot_data/dilution.combined.tsv"
-#Final <- "/Volumes/bolton/Active/projects/ProstateCancer/TERRA/prostate.final.FPpass.tsv"
+#Final <- "/Volumes/bolton/Active/Projects/ProstateCancer/TERRA/prostate.final.FPpass.tsv"
 #Prostate <- "/Users/irenaeuschan/Documents/Irenaeus/ProstateCancer/prostate.final.combined.FPpass.filtered_KB2.csv"
-Final <- "/Volumes/bolton/Active/projects/GoodCell/TERRA/GoodCell.combined.FPpass.tsv"
+Final <- "/Volumes/bolton/Active/Projects/GoodCell/TERRA/GoodCell2.combined.FPpass.tsv"
 #Final <- "/Users/irenaeuschan/Documents/Irenaeus/Freidman/final.combined.Freidman.FPpass.tsv"
 #Final <- "/Users/irenaeuschan/Documents/Irenaeus/ArcherDX/final.combined.FPpass.tsv"
 #Orig <- "/Users/irenaeuschan/Documents/Irenaeus/ArcherDX/data/variant_review_IC_31722_KB_complete_updated.csv"
 #Alex_Filter <- "/Users/irenaeuschan/Documents/Irenaeus/archer_pilot_data/alex_filter.csv"
 # alex_filter <- read.csv(Alex_Filter, header = TRUE)
-Final <- "/Volumes/bolton/Active/projects/ElementBio/TERRAFinal/final.combined.tsv"
+#Final <- "/Volumes/bolton/Active/Projects/ElementBio/TERRAFinal/final.combined.tsv"
 
 unfiltered <- read.table(Final, sep='\t', header = TRUE, comment.char = '', quote = '')
 final <- unfiltered
@@ -47,7 +47,9 @@ final <- final %>% dplyr::filter(ifelse(grepl('N', REF), FALSE, TRUE))
 final <- final %>% dplyr::filter(Consequence_VEP != "")
 
 # Remove Variants that Failed PoN
+# Bonferroni Corrected p-value for Fisher's Exact Test (0.05 / Size of BED Panel)
 pon_pvalue = 2.114164905e-6
+pon_pvalue = 0.000000511148141
 final <- final %>% mutate(pon_pvalue_Mutect_Raw = ifelse(is.na(pon_pvalue_Mutect_Raw), 0, pon_pvalue_Mutect_Raw),
                  pon_pvalue_Lofreq_Raw = ifelse(is.na(pon_pvalue_Lofreq_Raw), 0, pon_pvalue_Lofreq_Raw),
                  pon_pvalue_Vardict_Raw = ifelse(is.na(pon_pvalue_Vardict_Raw), 0, pon_pvalue_Vardict_Raw))
@@ -251,7 +253,7 @@ final <- final %>% mutate(comp_germline = ifelse(median_VAF >= 0.35 & average_AF
 
 # Adding INDEL lengths
 final <- final %>% mutate(alt_len = nchar(ALT), ref_len = nchar(REF))
-# Filter out weird INDELs
+# Filter out Complex INDELs
 final <- final %>% dplyr::filter(ifelse(CALL_BY_1 == TRUE & (nchar(REF) >= 20 | nchar(ALT) >= 20) & PINDEL_MATCH == "", FALSE, TRUE))
 
 # Adding Near Columns
@@ -694,8 +696,8 @@ final <- final %>% mutate(Review = case_when(
   TRUE ~ Review
 ))
 final <- final %>% mutate(Review = case_when(
-  Review == "No Review" & alt_len >= 2 & ref_len >= 2 ~ "Weird INDEL",
-  Review != "No Review" & alt_len >= 2 & ref_len >= 2 ~ paste(Review, "Weird INDEL", sep = ";"),
+  Review == "No Review" & alt_len >= 2 & ref_len >= 2 ~ "Complex INDEL",
+  Review != "No Review" & alt_len >= 2 & ref_len >= 2 ~ paste(Review, "Complex INDEL", sep = ";"),
   TRUE ~ Review
 ))
 final <- final %>% mutate(Review = case_when(
@@ -754,7 +756,7 @@ final <- final %>% mutate(auto_pass_recurrence = case_when(
   TRUE ~ FALSE
 )) %>% mutate(Review = ifelse(auto_pass_recurrence, "Was Recurrent", Review))
 
-# If Long INDEL or Weird INDEL have at least SOME PINDEL Support (>= 10) then it should be okay.
+# If Long INDEL or Complex INDEL have at least SOME PINDEL Support (>= 10) then it should be okay.
 final$MAX_PINDEL_MATCH <- unlist(lapply(final$PINDEL_MATCH, function(x) {
   if (x == "") {
     return(0)
@@ -789,7 +791,7 @@ final <- final %>% arrange(CHROM, POS, REF, ALT)
 review <- final %>% filter(case_when(
   grepl("LowVAF Mutect", Review) & putative_driver == 1 ~ TRUE,
   grepl("Long INDEL", Review) & putative_driver == 1 ~ TRUE,
-  grepl("Weird INDEL", Review) & putative_driver == 1 ~ TRUE,
+  grepl("Complex INDEL", Review) & putative_driver == 1 ~ TRUE,
   grepl("High VAF", Review) & putative_driver == 1 ~ TRUE,
   grepl("Missense Review", Review) & putative_driver == 0 ~ TRUE,
   grepl("^Recurrent$", Review) & putative_driver == 1 ~ TRUE,
