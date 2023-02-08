@@ -406,7 +406,7 @@ task vardictTumorOnly {
     Int space_needed_gb = 10 + round(reference_size + 4*bam_size + size(interval_bed, "GB"))
     Int preemptible = 1
     Int maxRetries = 0
-    Int memory = select_first([mem_limit_override, ceil(bam_size/6 + 5)]) # We want the base to be around 6
+    Int memory = select_first([mem_limit_override, ceil(bam_size/6 + 6)]) # We want the base to be around 6
     Int memory_total = cores * memory
 
     runtime {

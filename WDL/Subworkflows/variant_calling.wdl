@@ -628,7 +628,7 @@ task vardict {
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 4 * data_size + reference_size)])
     Int preemptible = 1
     Int maxRetries = 0
-    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 6)]) # We want the base to be around 7
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18)*4 else 4])
 
     runtime {
