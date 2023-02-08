@@ -637,8 +637,8 @@ task bcftoolsPoN2 {
             /usr/local/bin/bcftools +fill-tags -- ~{vcf} -t NS > NS.vcf
             /usr/local/bin/bcftools filter -i 'INFO/NS >= 2' NS.vcf > 2N.vcf
             /usr/local/bin/bcftools +fill-tags -- 2N.vcf -t 'max_VAF=max(FORMAT/AF)' > ~{caller}.2N.maxVAF.vcf
-            bgzip 2N.maxVAF.vcf
-            tabix 2N.maxVAF.vcf.gz
+            bgzip ~{caller}.2N.maxVAF.vcf
+            tabix ~{caller}.2N.maxVAF.vcf.gz
         fi
     >>>
 
