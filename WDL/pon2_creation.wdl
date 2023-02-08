@@ -523,7 +523,8 @@ task lofreqTumorOnly {
     }
 
     command <<<
-        /opt/lofreq/bin/lofreq call-parallel --pp-threads ~{cores} -A -B -f ~{reference} --call-indels --bed ~{interval_bed} -o ~{output_name} ~{tumor_bam} --force-overwrite
+        /opt/lofreq/bin/lofreq call-parallel --pp-threads ~{cores} -A -B -f ~{reference} --call-indels --bed ~{interval_bed} -o unsorted.~{output_name} ~{tumor_bam} --force-overwrite
+        cat unsorted.~{output_name} | awk '$1 ~ /^#/ {print $0;next} {print $0 | "sort -k1,1 -k2,2n"}' > ~{output_name}
         bgzip ~{output_name} && tabix ~{output_name}.gz
     >>>
 
