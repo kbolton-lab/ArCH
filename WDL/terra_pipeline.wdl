@@ -1747,7 +1747,7 @@ task indexBam {
     String bam_link = sub(basename(input_bam), basename(basename(input_bam, ".bam"), ".cram"), sample_name)
 
     command <<<
-        cp ~{input_bam} ~{bam_link}
+        ln -s ~{input_bam} ~{bam_link}
         /usr/local/bin/samtools index ~{sample_name}.bam
     >>>
 
