@@ -652,18 +652,40 @@ task vardict {
         echo ~{space_needed_gb}
 
         samtools index ~{tumor_bam}
-        bedtools makewindows -b ~{interval_bed} -w 50150 -s 50000 > ~{basename(interval_bed, ".bed")}_windows.bed
+        bedtools makewindows -b ~{interval_bed} -w 20250 -s 20000 > ~{basename(interval_bed, ".bed")}_windows.bed
 
-        /opt/VarDictJava/build/install/VarDict/bin/VarDict \
-            -U -G ~{reference} \
-            -X 1 \
-            -f ~{min_var_freq} \
-            -N ~{tumor_sample_name} \
-            -b ~{tumor_bam} \
-            -c 1 -S 2 -E 3 -g 4 ~{basename(interval_bed, ".bed")}_windows.bed \
-            -th ~{cores} | \
-        /opt/VarDictJava/build/install/VarDict/bin/teststrandbias.R | \
-        /opt/VarDictJava/build/install/VarDict/bin/var2vcf_valid.pl \
+        # Split bed file into 16 equal parts
+        split -d --additional-suffix .bed -n l/16 interval_list_chr1_windows.bed splitBed.
+
+        nProcs=4
+        nJobs="\j"
+
+        for fName in splitBed.*.bed; do
+            # Wait until nJobs < nProcs, only start nProcs jobs at most
+            while (( ${nJjobs@P} >= nProcs )); do
+                wait -n
+            done
+
+            part=$(echo $fName | cut -d'.' -f2)
+
+            /opt/VarDictJava/build/install/VarDict/bin/VarDict \
+                -U -G ~{reference} \
+                -X 1 \
+                -f ~{min_var_freq} \
+                -N ~{tumor_sample_name} \
+                -b ~{tumor_bam} \
+                -c 1 -S 2 -E 3 -g 4 ~{basename(interval_bed, ".bed")}_windows.bed \
+                -th ~{cores} \
+                --deldupvar -Q 10 -F 0x700 --fisher > result.${part}.txt &
+        done;
+        # Wait for all running jobs to finish
+        wait
+
+        for fName in result.*.txt; do
+            cat ${fName} >> resultCombine.txt
+        done;
+
+        cat resultCombine.txt | /opt/VarDictJava/build/install/VarDict/bin/var2vcf_valid.pl \
             -N "~{tumor_sample_name}" \
             -E \
             -f ~{min_var_freq} > ~{output_name}.vcf
