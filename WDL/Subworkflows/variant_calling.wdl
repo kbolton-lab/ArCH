@@ -655,18 +655,22 @@ task vardict {
         bedtools makewindows -b ~{interval_bed} -w 20250 -s 20000 > ~{basename(interval_bed, ".bed")}_windows.bed
 
         # Split bed file into 16 equal parts
-        split -d --additional-suffix .bed -n l/16 interval_list_chr1_windows.bed splitBed.
+        split -d --additional-suffix .bed -n l/16 ~{basename(interval_bed, ".bed")}_windows.bed splitBed.
 
         nProcs=4
         nJobs="\j"
 
         for fName in splitBed.*.bed; do
             # Wait until nJobs < nProcs, only start nProcs jobs at most
-            while (( ${nJjobs@P} >= nProcs )); do
+            echo ${nJobs@P}
+            while (( ${nJobs@P} >= nProcs )); do
                 wait -n
             done
 
             part=$(echo $fName | cut -d'.' -f2)
+
+            echo ${fName}
+            echo ${part}
 
             /opt/VarDictJava/build/install/VarDict/bin/VarDict \
                 -U -G ~{reference} \
@@ -674,7 +678,7 @@ task vardict {
                 -f ~{min_var_freq} \
                 -N ~{tumor_sample_name} \
                 -b ~{tumor_bam} \
-                -c 1 -S 2 -E 3 -g 4 ~{basename(interval_bed, ".bed")}_windows.bed \
+                -c 1 -S 2 -E 3 -g 4 ${fName} \
                 -th ~{cores} \
                 --deldupvar -Q 10 -F 0x700 --fisher > result.${part}.txt &
         done;
