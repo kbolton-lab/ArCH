@@ -1,6 +1,6 @@
 version 1.0
 
-workflow variant_calling {
+workflow PoN_Pileup {
     input {
         Array[File] pon_bam
         Array[File] pon_bai
