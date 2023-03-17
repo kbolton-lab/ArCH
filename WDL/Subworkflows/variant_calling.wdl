@@ -647,6 +647,9 @@ task vardict {
         set -o pipefail
         set -o errexit
 
+        # Increase RAM
+        # Drop the multithreading
+
         export VAR_DICT_OPTS='"-Xms256m" "-Xmx~{JavaXmx}g"'
         echo ${VAR_DICT_OPTS}
         echo ~{space_needed_gb}
@@ -657,7 +660,7 @@ task vardict {
         # Split bed file into 16 equal parts
         split -d --additional-suffix .bed -n l/16 ~{basename(interval_bed, ".bed")}_windows.bed splitBed.
 
-        nProcs=4
+        nProcs=~{cores}
         nJobs="\j"
 
         for fName in splitBed.*.bed; do
@@ -679,7 +682,7 @@ task vardict {
                 -N ~{tumor_sample_name} \
                 -b ~{tumor_bam} \
                 -c 1 -S 2 -E 3 -g 4 ${fName} \
-                -th ~{cores} \
+                #-th ~{cores} \
                 --deldupvar -Q 10 -F 0x700 --fisher > result.${part}.txt &
         done;
         # Wait for all running jobs to finish
