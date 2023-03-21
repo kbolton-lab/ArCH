@@ -123,8 +123,8 @@ task bcftoolsMergePileup {
     command <<<
         /usr/local/bin/bcftools merge --output-type z -o merged.vcf.gz ~{sep=" " vcfs}
         /usr/local/bin/tabix merged.vcf.gz
-        /usr/local/bin/bcftools bcftools +fill-tags -Oz -o RD.vcf.gz ~{output_file} -- -t "PON_RefDepth=sum(RD)"
-        /usr/local/bin/bcftools bcftools +fill-tags -Oz -o pon_pileup.vcf.gz RD.vcf.gz -- -t "PON_AltDepth=sum(AD)" && tabix pon_pileup.vcf.gz
+        /usr/local/bin/bcftools +fill-tags -Oz -o RD.vcf.gz ~{output_file} -- -t "PON_RefDepth=sum(RD)"
+        /usr/local/bin/bcftools +fill-tags -Oz -o pon_pileup.vcf.gz RD.vcf.gz -- -t "PON_AltDepth=sum(AD)" && tabix pon_pileup.vcf.gz
     >>>
 
     output {
