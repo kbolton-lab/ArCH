@@ -682,8 +682,8 @@ task vardict {
                 -N ~{tumor_sample_name} \
                 -b ~{tumor_bam} \
                 -c 1 -S 2 -E 3 -g 4 ${fName} \
-                #-th ~{cores} \
                 --deldupvar -Q 10 -F 0x700 --fisher > result.${part}.txt &
+                #-th ~{cores} \
         done;
         # Wait for all running jobs to finish
         wait
