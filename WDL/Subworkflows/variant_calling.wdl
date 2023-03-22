@@ -197,17 +197,14 @@ workflow variant_calling {
 task intervalsToBed {
     input {
         File interval_list
-        Int? disk_size_override
-        Int? mem_limit_override
-        Int? cpu_override
     }
 
     Int preemptible = 1
     Int maxRetries = 0
     Float data_size = size(interval_list, "GB")
-    Int space_needed_gb = select_first([disk_size_override, ceil(10 + data_size)])
-    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
+    Int space_needed_gb = ceil(10 + data_size)
+    Float memory = 2
+    Int cores = 1
 
     runtime {
         docker: "ubuntu:bionic"
@@ -243,18 +240,15 @@ task cramToBAM {
         File reference
         File reference_fai
         File reference_dict
-        Int? disk_size_override
-        Int? mem_limit_override
-        Int? cpu_override
     }
 
     Float data_size = size(input_cram, "GB")
     Float reference_size = size([reference, reference_fai, reference_dict], "GB")
     Int preemptible = 1
-    Int maxRetries = 0
-    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 4 * data_size + reference_size)])
-    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
+    Int maxRetries = 1
+    Int space_needed_gb = ceil(10 + 4 * data_size + reference_size)
+    Float memory = 6
+    Int cores = 1
 
     runtime {
         cpu: cores
@@ -285,15 +279,12 @@ task cramToBAM {
 task splitBedToChr {
     input {
         File interval_bed
-        Int? disk_size_override
-        Int? mem_limit_override
-        Int? cpu_override
     }
 
     Float data_size = size(interval_bed, "GB")
-    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
-    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
+    Int space_needed_gb = ceil(10 + 2 * data_size)
+    Int memory = 1
+    Int cores = 1
     Int preemptible = 1
     Int maxRetries = 0
 
@@ -324,15 +315,12 @@ task splitBAMToChr {
         File bam_file
         File bai_file
         File interval_bed
-        Int? disk_size_override
-        Int? mem_limit_override
-        Int? cpu_override
     }
 
     Float data_size = size([interval_bed, bam_file], "GB")
-    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
-    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
+    Int space_needed_gb = ceil(10 + 2 * data_size)
+    Int memory = 2
+    Int cores = 1
     Int preemptible = 1
     Int maxRetries = 0
 
@@ -349,9 +337,16 @@ task splitBAMToChr {
     command <<<
         intervals=$(awk '{print $1}' ~{interval_bed} | uniq)
         for chr in ${intervals}; do
-            samtools view -b ~{bam_file} $chr > ~{basename(bam_file, ".bam")}_${chr}.bam
-            samtools index ~{basename(bam_file, ".bam")}_${chr}.bam
+            samtools view -b ~{bam_file} $chr > ~{basename(bam_file, ".bam")}_${chr}.bam &
         done
+        wait
+        # Potential issue with @HD and @SQ
+        rm *@SQ*
+        rm *@HD*
+        for chr in ${intervals}; do
+            samtools index ~{basename(bam_file, ".bam")}_${chr}.bam &
+        done
+        wait
     >>>
 
     output {
@@ -369,18 +364,15 @@ task mutect {
         File tumor_bam
         File tumor_bam_bai
         File interval_list
-        Int? disk_size_override
-        Int? mem_limit_override
-        Int? cpu_override
     }
 
     Float reference_size = size([reference, reference_fai, reference_dict, interval_list], "GB")
     Float data_size = size([tumor_bam, tumor_bam_bai], "GB")
-    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size + reference_size)])
-    Float memory = select_first([mem_limit_override, ceil(data_size/2 + 20)]) # We want the base to be around 6
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
+    Int space_needed_gb = ceil(10 + 2 * data_size + reference_size)
+    Int memory = 6
+    Int cores = 1
     Int preemptible = 1
-    Int maxRetries = 0
+    Int maxRetries = 2
 
     runtime {
         cpu: cores
@@ -398,10 +390,8 @@ task mutect {
         set -o pipefail
         set -o errexit
 
-        THREADS=$((~{cores}*4))
-
-        /gatk/gatk Mutect2 --java-options "-Xmx20g" \
-        --native-pair-hmm-threads ${THREADS} \
+        /gatk/gatk Mutect2 --java-options "-Xmx~{memory}g" \
+        --native-pair-hmm-threads ~{cores} \
             -O mutect.vcf.gz \
             -R ~{reference} \
             -L ~{interval_list} \
@@ -430,17 +420,14 @@ task mutect {
 task vcfSanitize {
     input {
         File vcf
-        Int? disk_size_override
-        Int? mem_limit_override
-        Int? cpu_override
     }
 
     Int preemptible = 1
     Int maxRetries = 0
     Float data_size = size(vcf, "GB")
-    Int space_needed_gb = select_first([disk_size_override, ceil(10 + data_size)])
-    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
+    Int space_needed_gb = ceil(10 + data_size)
+    Int memory = 1
+    Int cores = 1
 
     runtime {
         memory: cores * memory + "GB"
@@ -486,16 +473,13 @@ task bcftoolsNorm {
         File reference_fai
         File vcf
         File vcf_tbi
-        Int? disk_size_override
-        Int? mem_limit_override
-        Int? cpu_override
     }
 
     Float data_size = size([vcf, vcf_tbi], "GB")
     Float reference_size = size([reference, reference_fai], "GB")
-    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size + reference_size)])
-    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
+    Int space_needed_gb = ceil(10 + 2 * data_size + reference_size)
+    Int memory = 1
+    Int cores = 1
     Int preemptible = 1
     Int maxRetries = 0
 
@@ -527,15 +511,12 @@ task bcftoolsIsecComplement {
         File exclude_vcf_tbi
         String output_type = "z"
         String? output_vcf_name = "bcftools_isec.vcf"
-        Int? disk_size_override
-        Int? mem_limit_override
-        Int? cpu_override
     }
 
     Float data_size = size([vcf, vcf_tbi, exclude_vcf, exclude_vcf_tbi], "GB")
-    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
-    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
+    Int space_needed_gb = ceil(10 + 2 * data_size)
+    Int memory = 1
+    Int cores = 1
     Int preemptible = 1
     Int maxRetries = 0
 
@@ -565,15 +546,12 @@ task pon2Percent {
         File vcf2PON_tbi
         String caller = "caller"
         String sample_name = "tumor"
-        Int? disk_size_override
-        Int? mem_limit_override
-        Int? cpu_override
     }
 
     Float data_size = size([vcf, vcf2PON, vcf2PON_tbi],"GB")
-    Int space_needed_gb = select_first([disk_size_override, ceil(10 + data_size)])
-    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18)*4 else 4])
+    Int space_needed_gb = ceil(10 + data_size)
+    Int memory = 1
+    Int cores = 1
     Int preemptible = 1
     Int maxRetries = 0
 
@@ -618,18 +596,15 @@ task vardict {
         Int? mem_limit_override
         Int? cpu_override
         Int? JavaXmx = 24
-        Int? disk_size_override
-        Int? mem_limit_override
-        Int? cpu_override
     }
 
     Float reference_size = size([reference, reference_fai, interval_bed], "GB")
     Float data_size = size([tumor_bam, tumor_bam_bai], "GB")
-    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 4 * data_size + reference_size)])
+    Int space_needed_gb = ceil(10 + 4 * data_size + reference_size)
     Int preemptible = 1
-    Int maxRetries = 0
-    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 6)]) # We want the base to be around 7
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18)*4 else 4])
+    Int maxRetries = 2
+    Int memory = 2
+    Int cores = 4
 
     runtime {
         docker: "kboltonlab/vardictjava:bedtools"
@@ -650,15 +625,21 @@ task vardict {
         # Increase RAM
         # Drop the multithreading
 
-        export VAR_DICT_OPTS='"-Xms256m" "-Xmx~{JavaXmx}g"'
-        echo ${VAR_DICT_OPTS}
+        #export VAR_DICT_OPTS='"-Xms256m" "-Xmx~{JavaXmx}g"'
+        #echo ${VAR_DICT_OPTS}
         echo ~{space_needed_gb}
 
+        # TODO: Account for when Mutect File is "Empty"..
+
         samtools index ~{tumor_bam}
-        bedtools makewindows -b ~{interval_bed} -w 20250 -s 20000 > ~{basename(interval_bed, ".bed")}_windows.bed
+        #bedtools makewindows -b ~{interval_bed} -w 20250 -s 20000 > ~{basename(interval_bed, ".bed")}_windows.bed
+        bedtools makewindows -b ~{interval_bed} -w 1150 -s 1000 > ~{basename(interval_bed, ".bed")}_windows.bed
+        bedtools intersect -u -wa -a ~{basename(interval_bed, ".bed")}_windows.bed -b ~{mutect_vcf} > interval_list_mutect.bed
+        bedtools merge -i interval_list_mutect.bed > interval_list_mutect_merged.bed
 
         # Split bed file into 16 equal parts
-        split -d --additional-suffix .bed -n l/16 ~{basename(interval_bed, ".bed")}_windows.bed splitBed.
+        #split -d --additional-suffix .bed -n l/16 ~{basename(interval_bed, ".bed")}_windows.bed splitBed.
+        split -d --additional-suffix .bed -n l/16 interval_list_mutect_merged.bed splitBed.
 
         nProcs=~{cores}
         nJobs="\j"
@@ -682,8 +663,8 @@ task vardict {
                 -N ~{tumor_sample_name} \
                 -b ~{tumor_bam} \
                 -c 1 -S 2 -E 3 -g 4 ${fName} \
+                -th ~{cores} \
                 --deldupvar -Q 10 -F 0x700 --fisher > result.${part}.txt &
-                #-th ~{cores} \
         done;
         # Wait for all running jobs to finish
         wait
@@ -714,15 +695,12 @@ task bcftoolsFilterBcbio {
         String filter_string
         String? output_vcf_prefix = "bcftools_filter"
         String output_type = "z"
-        Int? disk_size_override
-        Int? mem_limit_override
-        Int? cpu_override
     }
 
     Float data_size = size([vcf, vcf_tbi], "GB")
-    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
-    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
+    Int space_needed_gb = ceil(10 + 2 * data_size)
+    Float memory = 1
+    Int cores = 1
     Int preemptible = 1
     Int maxRetries = 0
 
@@ -752,15 +730,12 @@ task mergeVcf {
         Array[File] vcfs
         Array[File] vcf_tbis
         String merged_vcf_basename = "merged"
-        Int? disk_size_override
-        Int? mem_limit_override
-        Int? cpu_override
     }
 
     Float data_size = size(vcfs, "GB")
-    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
-    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
+    Int space_needed_gb = ceil(10 + 2 * data_size)
+    Float memory = 1
+    Int cores = 1
     Int preemptible = 1
     Int maxRetries = 0
 
