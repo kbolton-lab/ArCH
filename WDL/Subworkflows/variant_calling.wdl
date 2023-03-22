@@ -125,7 +125,8 @@ workflow variant_calling {
             tumor_bam_bai = bed_bam_chr.right.right,
             interval_bed = bed_bam_chr.left,
             min_var_freq = af_threshold,
-            tumor_sample_name = tumor_sample_name
+            tumor_sample_name = tumor_sample_name,
+            mutect_vcf = mutect_pon2.annotated_vcf
         }
 
         # Performs the BCBIO Filtering: http://bcb.io/2016/04/04/vardict-filtering/
@@ -592,6 +593,7 @@ task vardict {
         File tumor_bam_bai
         String tumor_sample_name = "TUMOR"
         File interval_bed
+        File mutect_vcf
         Float? min_var_freq = 0.005
         Int? mem_limit_override
         Int? cpu_override
