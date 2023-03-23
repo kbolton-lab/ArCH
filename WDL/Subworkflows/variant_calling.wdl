@@ -595,17 +595,15 @@ task vardict {
         File interval_bed
         File mutect_vcf
         Float? min_var_freq = 0.005
-        Int? mem_limit_override
-        Int? cpu_override
         Int? JavaXmx = 24
     }
 
     Float reference_size = size([reference, reference_fai, interval_bed], "GB")
-    Float data_size = size([tumor_bam, tumor_bam_bai], "GB")
+    Float data_size = size([tumor_bam, tumor_bam_bai, mutect_vcf], "GB")
     Int space_needed_gb = ceil(10 + 4 * data_size + reference_size)
     Int preemptible = 1
     Int maxRetries = 2
-    Int memory = 2
+    Int memory = 4
     Int cores = 4
 
     runtime {
