@@ -253,7 +253,7 @@ task cramToBAM {
 
     runtime {
         cpu: cores
-        docker: "quay.io/biocontainers/samtools:1.11--h6270b1f_0"
+        docker: "quay.io/biocontainers/samtools:1.16.1--h00cdaf9_2"
         memory: cores * memory + "GB"
         disks: "local-disk ~{space_needed_gb} SSD"
         preemptible: preemptible
