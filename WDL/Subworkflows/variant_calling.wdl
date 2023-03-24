@@ -321,7 +321,7 @@ task splitBAMToChr {
     Float data_size = size([interval_bed, bam_file], "GB")
     Int space_needed_gb = ceil(10 + 2 * data_size)
     Int memory = 2
-    Int cores = 1
+    Int cores = 4
     Int preemptible = 1
     Int maxRetries = 0
 
@@ -338,16 +338,9 @@ task splitBAMToChr {
     command <<<
         intervals=$(awk '{print $1}' ~{interval_bed} | uniq)
         for chr in ${intervals}; do
-            samtools view -b ~{bam_file} $chr > ~{basename(bam_file, ".bam")}_${chr}.bam &
+            samtools view -@ ~{cores} --fast -b ~{bam_file} $chr > ~{basename(bam_file, ".bam")}_${chr}.bam
+            samtools index ~{basename(bam_file, ".bam")}_${chr}.bam
         done
-        wait
-        # Potential issue with @HD and @SQ
-        rm *@SQ*
-        rm *@HD*
-        for chr in ${intervals}; do
-            samtools index ~{basename(bam_file, ".bam")}_${chr}.bam &
-        done
-        wait
     >>>
 
     output {
