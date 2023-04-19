@@ -552,15 +552,20 @@ final$near.BB.loci.HS.logic <- unlist(lapply(final$near.BB.loci.HS, function(x) 
   }
 }))
 
-if (!("n.loci.truncating.vep" %in% colnames(final))){
-  final$truncating <- ifelse(grepl("Ter",final$AAchange.x), "truncating", "not")
+if (!("n.loci.truncating.vep" %in% colnames(final))) {
+  final$truncating <- ifelse(grepl("Ter", final$AAchange), "truncating", "not")
   dims <- dim(final)[[1]]
-  final <- sqldf("SELECT l.*, r.`n.loci.truncating.vep`, r.`source.totals.loci.truncating`, r.`truncating`
-             FROM `final` as l
+  tmp <- final[final$key %in% vars$key | final$gene_loci_vep %in% vars$gene_loci_vep, ]
+  tmp <- sqldf("SELECT l.*, r.`n.loci.truncating.vep`, r.`source.totals.loci.truncating`
+             FROM `tmp` as l
              LEFT JOIN `vars` as r
              on (l.key = r.key AND l.truncating = r.truncating) OR (l.gene_loci_vep = r.gene_loci_vep AND l.truncating = r.truncating)")
-  final <- final[!duplicated(final),]
-  paste0("dims match after sqldf: ",dim(final)[[1]] == dims)
+  tmp <- tmp %>% select(key, gene_loci_vep, truncating, n.loci.truncating.vep)
+  tmp <- tmp[!duplicated(tmp), ]
+  final <- final %>% left_join(tmp %>% select(key, gene_loci_vep, truncating, n.loci.truncating.vep),
+                             by = c("key", "gene_loci_vep", "truncating")
+  )
+  paste0("dims match after sqldf: ", dim(final)[[1]] == dims)
   final <- final %>% dplyr::select(-truncating)
 }
 
@@ -593,64 +598,43 @@ final <- final %>% filter(ifelse(
 # 1) TSG + Nonsense Mutation --> PD = 1
 # 2) OncoKB is Reviewed by Pathologists --> PD = 1
 # 3) If OncoKB Reports as 'Neutral' but A LOT of Support from B/B then B/B takes precedence
-# 4) TSG + OncoKB No Support --> PD = 0
-# 5) TSG + Missense Variant + Cosmic Support  --> PD = 1
-# 6) TSG + Missense Variant + B/B Loci Count + SIFT & PolyPhen Support --> PD = 1
-# 7) TSG + Missense Variant + Near B/B Hotspot | Near Cosmic Hotspot + SIFT & PolyPhen Support --> PD = 1
+# 4) OncoKB No Support --> PD = 0
+# 5) Missense Variant + Cosmic Support  --> PD = 1
+# 6) Missense Variant + B/B Loci Count + SIFT & PolyPhen Support --> PD = 1
+# 7) Missense Variant + Near B/B Hotspot | Near Cosmic Hotspot + SIFT & PolyPhen Support --> PD = 1
 # 8a) SRSF2 + Hotspot
 # 8b) SRSF2 + OncoKB
 # 9) SF3B1 Rules
 # 10) IDH1 and IDH2 Hotspots
 # 11) JAK2 Rules
 # 12) PPM1D Exon 6 Rules
-# 13) TSG + Missense Variant + B/B AA Support w/ EITHER SIFT | PolyPhen Support --> PD = 1
-# 14) TSG + Missense Variant + Extension of Termination Codon --> PD = 1
+# 13) Missense Variant + B/B AA Support w/ EITHER SIFT | PolyPhen Support --> PD = 1
+# 14) Missense Variant + Extension of Termination Codon --> PD = 1
 # 15) TSG + Splice Acceptor/Donor Variant --> PD = 1
 # 16) TSG + ClinVar Support --> PD == 1
 # 17) Synonymous Variant in Splicing Region (Handled with SpliceAI)
-final <- final %>% mutate(putative_driver = case_when(
-  Gene %in% gene_list & VariantClass %in% nonsense_mutation  ~ 1,
-  grepl("Oncogenic", oncoKB) ~ 1,
-  Gene %in% gene_list & VariantClass %in% missense_mutation & (sourcetotalsp_XGB >= 10 | sourcetotalsc_XGB >= 5) ~ 1,
-  Gene %in% TSG_gene_list & grepl("Neutral", oncoKB) ~ 0,
-  Gene %in% gene_list & VariantClass %in% missense_mutation & (CosmicCount >= 10 | heme_cosmic_count >= 5 | myeloid_cosmic_count >= 1) ~ 1,
-  Gene %in% gene_list & VariantClass %in% missense_mutation & (n.loci.vep - n.loci.truncating.vep) >= 5 & grepl("deleterious", SIFT_VEP) & grepl("damaging", PolyPhen_VEP) ~ 1,
-  Gene %in% gene_list & VariantClass %in% missense_mutation & (near.BB.loci.HS.logic == TRUE | near.heme.cosmic.loci.HS.logic == TRUE) & grepl("deleterious", SIFT_VEP) & grepl("damaging", PolyPhen_VEP) ~ 1,
-  Gene == "SRSF2" & VariantClass %in% missense_mutation & aa.pos == 95 ~ 1,
-  Gene == "SRSF2" & grepl("Oncogenic", oncoKB) ~ 1,
-  Gene == "SF3B1" & VariantClass %in% missense_mutation & aa.pos %in% SF3B1_positions ~ 1,
-  Gene == "IDH1" & VariantClass %in% missense_mutation & aa.pos == 132 ~ 1,
-  Gene == "IDH2" & VariantClass %in% missense_mutation & (aa.pos == 140 | aa.pos == 172) ~ 1,
-  Gene == "JAK2" & grepl("Oncogenic", oncoKB) ~ 1,
-  Gene == "PPM1D" & VariantClass %in% nonsense_mutation & EXON_VEP == "6/6" ~ 1,
-  Gene %in% gene_list & VariantClass %in% missense_mutation & sourcetotalsp_XGB >= 1 & (grepl("deleterious", SIFT_VEP) | grepl("damaging", PolyPhen_VEP)) ~ 1,
-  Gene %in% gene_list & VariantClass %in% missense_mutation & grepl('extTer', gene_aachange) ~ 1,
-  Gene %in% TSG_gene_list & (VariantClass == "splice_donor_variant" | VariantClass == "splice_aceptor_variant" | (VariantClass == "splice_region_variant" & Consequence_VEP != "splice_region_variant&synonymous_variant")) ~ 1, 
-  Gene %in% TSG_gene_list & clinvar_CLINSIGN_VEP %in% clinvar_sig_terms ~ 1,
-  Gene %in% TSG_gene_list & Consequence_VEP == "splice_region_variant&synonymous_variant" ~ 0,
-  TRUE ~ 0
-), pd_reason = case_when(
-  Gene %in% gene_list & VariantClass %in% nonsense_mutation  ~ "Nonsense Mutation in TSG",
+final <- final %>% mutate(pd_reason = case_when(
+  Gene %in% TSG_gene_list & VariantClass %in% nonsense_mutation ~ "Nonsense Mutation in TSG",
   grepl("Oncogenic", oncoKB) ~ "OncoKB",
   Gene %in% gene_list & VariantClass %in% missense_mutation & (sourcetotalsp_XGB >= 10 | sourcetotalsc_XGB >= 5) ~ "B/B Hotspot >= 10",
-  Gene %in% TSG_gene_list & grepl("Neutral", oncoKB) ~ "Not PD",
+  Gene %in% gene_list & grepl("Neutral", oncoKB) ~ "Not PD",
   Gene %in% gene_list & VariantClass %in% missense_mutation & (CosmicCount >= 10 | heme_cosmic_count >= 5 | myeloid_cosmic_count >= 1) ~ "COSMIC",
   Gene %in% gene_list & VariantClass %in% missense_mutation & (n.loci.vep - n.loci.truncating.vep) >= 5 & grepl("deleterious", SIFT_VEP) & grepl("damaging", PolyPhen_VEP) ~ "Loci + SIFT/PolyPhen",
   Gene %in% gene_list & VariantClass %in% missense_mutation & (near.BB.loci.HS.logic == TRUE | near.heme.cosmic.loci.HS.logic == TRUE) & grepl("deleterious", SIFT_VEP) & grepl("damaging", PolyPhen_VEP) ~ "Near Hotspot + SIFT/PolyPhen",
   Gene == "SRSF2" & VariantClass %in% missense_mutation & aa.pos == 95 ~ "SRSF2 Hotspot",
-  Gene == "SRSF2" & grepl("Oncogenic", oncoKB) ~ "SRSF2 OncoKB",
+  # Gene == "SRSF2" & grepl("Oncogenic", oncoKB) ~ "SRSF2 OncoKB", # redundant
   Gene == "SF3B1" & VariantClass %in% missense_mutation & aa.pos %in% SF3B1_positions ~ "SF3B1 Hotspot",
   Gene == "IDH1" & VariantClass %in% missense_mutation & aa.pos == 132 ~ "IDH1 Hotspot",
-  Gene == "IDH2" & VariantClass %in% missense_mutation & (aa.pos == 140 | aa.pos == 172) ~ "IDH2 Hotspot",
-  Gene == "JAK2" & grepl("Oncogenic", oncoKB) ~ "JAK2 OncoKB",
+  Gene == "IDH2" & VariantClass %in% missense_mutation & (aa.pos == 140 | aa.pos == 172) ~ "IDH2 Hotspot"
+  # Gene == "JAK2" & grepl("Oncogenic", oncoKB) ~ "JAK2 OncoKB", # redundant
   Gene == "PPM1D" & VariantClass %in% nonsense_mutation & EXON_VEP == "6/6" ~ "Nonsense Mutation on Exon 6",
-  Gene %in% gene_list & VariantClass %in% missense_mutation & n.HGVSp.y >= 1 & (grepl("deleterious", SIFT_VEP) | grepl("damaging", PolyPhen_VEP)) ~ "B/B Hotspot + SIFT/PolyPhen",
-  Gene %in% gene_list & VariantClass %in% missense_mutation & grepl('extTer', gene_aachange) ~ "Termination Extension",
-  Gene %in% TSG_gene_list & (VariantClass == "splice_donor_variant" | VariantClass == "splice_aceptor_variant" | (VariantClass == "splice_region_variant" & Consequence_VEP != "splice_region_variant&synonymous_variant")) ~ "Splicing Mutation", 
+  Gene %in% gene_list & VariantClass %in% missense_mutation & sourcetotalsp_XGB >= 1 & (grepl("deleterious", SIFT_VEP) | grepl("damaging", PolyPhen_VEP)) ~ "B/B Hotspot + SIFT/PolyPhen",
+  # Gene %in% gene_list & VariantClass %in% missense_mutation & grepl("extTer", gene_aachange) ~ "Termination Extension", # remove
+  Gene %in% TSG_gene_list & VariantClass %in% c("splice_donor_variant", "splice_aceptor_variant", "splice_region_variant") & Consequence_VEP != "splice_region_variant&synonymous_variant" ~ "Splicing Mutation",
   Gene %in% TSG_gene_list & clinvar_CLINSIGN_VEP %in% clinvar_sig_terms ~ "ClinVar",
-  Gene %in% TSG_gene_list & Consequence_VEP == "splice_region_variant&synonymous_variant" ~ "Not PD",
+  Gene %in% gene_list & Consequence_VEP == "splice_region_variant&synonymous_variant" ~ "Not PD",
   TRUE ~ "Not PD"
-))
+), putative_driver = ifelse(pd_reason != "Not PD", 1, 0))
 
 # OncoKB API automatically classifies ALL splicing mutations as oncogenic, however if the mutation is synonymous, then we have to change it
 final <- final %>% mutate(putative_driver = ifelse(grepl("Oncogenic", oncoKB) & Consequence_VEP == "splice_region_variant&synonymous_variant" & !(clinvar_CLINSIGN_VEP %in% clinvar_sig_terms), 0, putative_driver),
