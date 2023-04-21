@@ -27,7 +27,7 @@ workflow ArCCH_PoN2 {
 
     scatter (bam in aligned_bam_bai) {
         # Mutect
-        call mutectTumorOnly as mutectTask {
+        call mutect {
           input:
           reference = reference,
           reference_fai = reference_fai,
@@ -39,7 +39,7 @@ workflow ArCCH_PoN2 {
 
         # Cleans the VCF output that don't match the expected VCF Format
         call vcfSanitize as mutectSanitizeVcf {
-            input: vcf = mutectTask.vcf
+            input: vcf = mutect.vcf
         }
 
         # Normalize the VCF by left aligning and trimming indels. Also splits multiallelics into multiple rows
@@ -57,7 +57,7 @@ workflow ArCCH_PoN2 {
             vcf_tbi = mutectNormalize.normalized_vcf_tbi
         }
 
-        call vardictTumorOnly as vardictTask {
+        call vardict {
             input:
             reference = reference,
             reference_fai = reference_fai,
@@ -69,7 +69,7 @@ workflow ArCCH_PoN2 {
 
         # Cleans the VCF output that don't match the expected VCF Format
         call vcfSanitize as vardictSanitizeVcf {
-            input: vcf = vardictTask.vcf
+            input: vcf = vardict.vcf
         }
 
         # Normalize the VCF by left aligning and trimming indels. Also splits multiallelics into multiple rows
@@ -89,7 +89,7 @@ workflow ArCCH_PoN2 {
             tumor_bam_bai = bam.right.right
         }
 
-        call lofreqTumorOnly as lofreqTask {
+        call lofreq {
             input:
             reference = reference,
             reference_fai = reference_fai,
@@ -100,7 +100,7 @@ workflow ArCCH_PoN2 {
 
         call lofreqReformat as reformat {
             input:
-            vcf = lofreqTask.vcf,
+            vcf = lofreq.vcf,
             tumor_sample_name = bam.left
         }
 
@@ -176,17 +176,14 @@ workflow ArCCH_PoN2 {
 task intervalsToBed {
     input {
         File interval_list
-        Int? disk_size_override
-        Int? mem_limit_override
-        Int? cpu_override
     }
 
     Int preemptible = 1
     Int maxRetries = 0
     Float data_size = size(interval_list, "GB")
-    Int space_needed_gb = select_first([disk_size_override, ceil(10 + data_size)])
-    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
+    Int space_needed_gb = ceil(10 + data_size)
+    Float memory = 2
+    Int cores = 1
 
     runtime {
         docker: "ubuntu:bionic"
@@ -215,27 +212,30 @@ task intervalsToBed {
     }
 }
 
-task mutectTumorOnly {
+task mutect {
     input {
         File reference
         File reference_fai
         File reference_dict
+        File? gnomad
+        File? gnomad_tbi
         File tumor_bam
         File tumor_bam_bai
         File interval_list
     }
 
-    Float reference_size = size([reference, reference_fai, reference_dict], "GB")
-    Float bam_size = size([tumor_bam, tumor_bam_bai], "GB")
-    Int space_needed_gb = 10 + round(reference_size + 2*bam_size + size(interval_list, "GB"))
+    Float reference_size = size([reference, reference_fai, reference_dict, interval_list], "GB")
+    Float data_size = size([tumor_bam, tumor_bam_bai], "GB")
+    Int space_needed_gb = ceil(10 + 2 * data_size + reference_size)
+    Int memory = 6
     Int cores = 1
     Int preemptible = 1
-    Int maxRetries = 0
+    Int maxRetries = 2
 
     runtime {
         cpu: cores
         docker: "broadinstitute/gatk:4.2.0.0"
-        memory: "32GB"
+        memory: cores * memory + "GB"
         bootDiskSizeGb: space_needed_gb
         disks: "local-disk ~{space_needed_gb} SSD"
         preemptible: preemptible
@@ -248,17 +248,15 @@ task mutectTumorOnly {
         set -o pipefail
         set -o errexit
 
-        THREADS=$((~{cores}*4))
-
-        /gatk/gatk Mutect2 --java-options "-Xmx20g" \
-            --native-pair-hmm-threads ${THREADS} \
+        /gatk/gatk Mutect2 --java-options "-Xmx~{memory}g" \
+        --native-pair-hmm-threads ~{cores} \
             -O mutect.vcf.gz \
             -R ~{reference} \
             -L ~{interval_list} \
             -I ~{tumor_bam} \
+            ~{"--germline-resource " + gnomad} \
             --read-index ~{tumor_bam_bai} \
-            --f1r2-tar-gz mutect.f1r2.tar.gz \
-            --max-reads-per-alignment-start 0
+            --f1r2-tar-gz mutect.f1r2.tar.gz
 
         /gatk/gatk LearnReadOrientationModel \
             -I mutect.f1r2.tar.gz \
@@ -282,13 +280,18 @@ task vcfSanitize {
         File vcf
     }
 
-    Int cores = 1
     Int preemptible = 1
     Int maxRetries = 0
+    Float data_size = size(vcf, "GB")
+    Int space_needed_gb = ceil(10 + data_size)
+    Int memory = 1
+    Int cores = 1
 
     runtime {
-        memory: "6GB"
+        memory: cores * memory + "GB"
         cpu: cores
+        bootDiskSizeGb: space_needed_gb
+        disks: "local-disk ~{space_needed_gb} SSD"
         docker: "mgibio/samtools-cwl:1.0.0"
         preemptible: preemptible
         maxRetries: maxRetries
@@ -326,18 +329,20 @@ task bcftoolsNorm {
     input {
         File reference
         File reference_fai
-
         File vcf
         File vcf_tbi
     }
 
-    Int space_needed_gb = 10 + round(size([vcf, vcf_tbi], "GB") * 2 + size([reference, reference_fai], "GB"))
+    Float data_size = size([vcf, vcf_tbi], "GB")
+    Float reference_size = size([reference, reference_fai], "GB")
+    Int space_needed_gb = ceil(10 + 2 * data_size + reference_size)
+    Int memory = 1
     Int cores = 1
     Int preemptible = 1
     Int maxRetries = 0
 
     runtime {
-        memory: "6GB"
+        memory: cores * memory + "GB"
         docker: "kboltonlab/bst"
         disks: "local-disk ~{space_needed_gb} SSD"
         cpu: cores
@@ -363,12 +368,13 @@ task bcftoolsFilter {
     }
 
     Int space_needed_gb = 10 + round(size([vcf, vcf_tbi], "GB") * 2)
+    Int memory = 1
     Int cores = 1
     Int preemptible = 1
     Int maxRetries = 0
 
     runtime {
-        memory: "6GB"
+        memory: cores * memory + "GB"
         docker: "kboltonlab/bst"
         disks: "local-disk ~{space_needed_gb} SSD"
         cpu: cores
@@ -387,7 +393,7 @@ task bcftoolsFilter {
     }
 }
 
-task vardictTumorOnly {
+task vardict {
     input {
         File reference
         File reference_fai
@@ -395,23 +401,22 @@ task vardictTumorOnly {
         File tumor_bam_bai
         String tumor_sample_name = "TUMOR"
         File interval_bed
-        Int? mem_limit_override
-        Int? cpu_override
+        File mutect_vcf
+        Float? min_var_freq = 0.005
         Int? JavaXmx = 24
     }
 
-    Int cores = 4
-    Float reference_size = size([reference, reference_fai], "GB")
-    Float bam_size = size([tumor_bam, tumor_bam_bai], "GB")
-    Int space_needed_gb = 10 + round(reference_size + 4*bam_size + size(interval_bed, "GB"))
+    Float reference_size = size([reference, reference_fai, interval_bed], "GB")
+    Float data_size = size([tumor_bam, tumor_bam_bai, mutect_vcf], "GB")
+    Int space_needed_gb = ceil(10 + 4 * data_size + reference_size)
     Int preemptible = 1
-    Int maxRetries = 0
-    Int memory = select_first([mem_limit_override, ceil(bam_size/6 + 6)]) # We want the base to be around 6
-    Int memory_total = cores * memory
+    Int maxRetries = 2
+    Int memory = 4
+    Int cores = 4
 
     runtime {
         docker: "kboltonlab/vardictjava:bedtools"
-        memory: memory_total + "GB"
+        memory: cores * memory + "GB"
         cpu: cores
         bootDiskSizeGb: space_needed_gb
         disks: "local-disk ~{space_needed_gb} SSD"
@@ -425,30 +430,61 @@ task vardictTumorOnly {
         set -o pipefail
         set -o errexit
 
-        export VAR_DICT_OPTS='"-Xms256m" "-Xmx~{JavaXmx}g"'
-        echo ${VAR_DICT_OPTS}
+        # Increase RAM
+        # Drop the multithreading
+
+        #export VAR_DICT_OPTS='"-Xms256m" "-Xmx~{JavaXmx}g"'
+        #echo ${VAR_DICT_OPTS}
         echo ~{space_needed_gb}
 
-        how_many_lines=$(wc -l ~{interval_bed} | cut -d' ' -f1)
-        if [[ how_many_lines -lt 25 ]]; then
-            bedtools makewindows -b ~{interval_bed} -w 50150 -s 50000 > ~{basename(interval_bed, ".bed")}_windows.bed
-        else
-            cp ~{interval_bed} ~{basename(interval_bed, ".bed")}_windows.bed
-        fi
+        # TODO: Account for when Mutect File is "Empty"..
 
-        /opt/VarDictJava/build/install/VarDict/bin/VarDict \
-            -U -G ~{reference} \
-            -X 1 \
-            -f 0.02 \
-            -N ~{tumor_sample_name} \
-            -b ~{tumor_bam} \
-            -c 1 -S 2 -E 3 -g 4 ~{basename(interval_bed, ".bed")}_windows.bed \
-            -th ~{cores} | \
-        /opt/VarDictJava/build/install/VarDict/bin/teststrandbias.R | \
-        /opt/VarDictJava/build/install/VarDict/bin/var2vcf_valid.pl \
+        samtools index ~{tumor_bam}
+        #bedtools makewindows -b ~{interval_bed} -w 20250 -s 20000 > ~{basename(interval_bed, ".bed")}_windows.bed
+        bedtools makewindows -b ~{interval_bed} -w 1150 -s 1000 > ~{basename(interval_bed, ".bed")}_windows.bed
+        bedtools intersect -u -wa -a ~{basename(interval_bed, ".bed")}_windows.bed -b ~{mutect_vcf} > interval_list_mutect.bed
+        bedtools merge -i interval_list_mutect.bed > interval_list_mutect_merged.bed
+
+        # Split bed file into 16 equal parts
+        #split -d --additional-suffix .bed -n l/16 ~{basename(interval_bed, ".bed")}_windows.bed splitBed.
+        split -d --additional-suffix .bed -n l/16 interval_list_mutect_merged.bed splitBed.
+
+        nProcs=~{cores}
+        nJobs="\j"
+
+        for fName in splitBed.*.bed; do
+            # Wait until nJobs < nProcs, only start nProcs jobs at most
+            echo ${nJobs@P}
+            while (( ${nJobs@P} >= nProcs )); do
+                wait -n
+            done
+
+            part=$(echo $fName | cut -d'.' -f2)
+
+            echo ${fName}
+            echo ${part}
+
+            /opt/VarDictJava/build/install/VarDict/bin/VarDict \
+                -U -G ~{reference} \
+                -X 1 \
+                -f ~{min_var_freq} \
+                -N ~{tumor_sample_name} \
+                -b ~{tumor_bam} \
+                -c 1 -S 2 -E 3 -g 4 ${fName} \
+                -th ~{cores} \
+                --deldupvar -Q 10 -F 0x700 --fisher > result.${part}.txt &
+        done;
+        # Wait for all running jobs to finish
+        wait
+
+        for fName in result.*.txt; do
+            cat ${fName} >> resultCombine.txt
+        done;
+
+        cat resultCombine.txt | /opt/VarDictJava/build/install/VarDict/bin/var2vcf_valid.pl \
             -N "~{tumor_sample_name}" \
             -E \
-            -f 0.02 > ~{output_name}.vcf
+            -f ~{min_var_freq} > ~{output_name}.vcf
 
         /usr/bin/bgzip ~{output_name}.vcf && /usr/bin/tabix ~{output_name}.vcf.gz
     >>>
@@ -467,6 +503,7 @@ task lofreq_indelqual {
         File tumor_bam_bai
     }
 
+    Int memory = 1
     Int cores = 1
     Float reference_size = size([reference, reference_fai], "GB")
     Float bam_size = size([tumor_bam, tumor_bam_bai], "GB")
@@ -476,7 +513,7 @@ task lofreq_indelqual {
 
     runtime {
         docker: "kboltonlab/lofreq:latest"
-        memory: "6GB"
+        memory: cores * memory + "GB"
         cpu: cores
         bootDiskSizeGb: space_needed_gb
         disks: "local-disk ~{space_needed_gb} SSD"
@@ -495,7 +532,7 @@ task lofreq_indelqual {
     }
 }
 
-task lofreqTumorOnly {
+task lofreq {
     input {
         File reference
         File reference_fai
@@ -505,16 +542,17 @@ task lofreqTumorOnly {
         String? output_name = "lofreq.vcf"
     }
 
-    Int cores = 4
+    Int memory = 6
+    Int cores = 1
     Float reference_size = size([reference, reference_fai], "GB")
     Float bam_size = size([tumor_bam, tumor_bam_bai], "GB")
     Int space_needed_gb = 10 + round(reference_size + 2*bam_size + size(interval_bed, "GB"))
     Int preemptible = 1
-    Int maxRetries = 0
+    Int maxRetries = 2
 
     runtime {
         docker: "kboltonlab/lofreq:latest"
-        memory: "24GB"
+        memory: cores * memory + "GB"
         cpu: cores
         bootDiskSizeGb: space_needed_gb
         disks: "local-disk ~{space_needed_gb} SSD"
@@ -541,6 +579,7 @@ task lofreqReformat {
     }
 
     Int space_needed_gb = 10 + 2*round(size(vcf, "GB"))
+    Int memory = 1
     Int cores = 1
     Int preemptible = 1
     Int maxRetries = 0
@@ -548,7 +587,7 @@ task lofreqReformat {
     runtime {
       cpu: cores
       docker: "quay.io/biocontainers/samtools:1.11--h6270b1f_0"
-      memory: "6GB"
+      memory: cores * memory + "GB"
       bootDiskSizeGb: space_needed_gb
       disks: "local-disk ~{space_needed_gb} SSD"
       preemptible: preemptible
@@ -580,13 +619,14 @@ task bcftoolsMerge {
     }
 
     Int space_needed_gb = 10 + round(2*(size(vcfs, "GB") + size(vcf_tbis, "GB")))
+    Int memory = 1
     Int cores = 1
     Int preemptible = 1
     Int maxRetries = 0
 
     runtime {
         docker: "kboltonlab/bst:latest"
-        memory: "6GB"
+        memory: cores * memory + "GB"
         disks: "local-disk ~{space_needed_gb} SSD"
         cpu: cores
         preemptible: preemptible
@@ -613,13 +653,14 @@ task bcftoolsPoN2 {
     }
 
     Int space_needed_gb = 10 + round(2*size(vcf, "GB"))
+    Int memory = 1
     Int cores = 1
     Int preemptible = 1
     Int maxRetries = 0
 
     runtime {
         docker: "kboltonlab/bst:latest"
-        memory: "6GB"
+        memory: cores * memory + "GB"
         disks: "local-disk ~{space_needed_gb} SSD"
         cpu: cores
         preemptible: preemptible
