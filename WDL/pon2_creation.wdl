@@ -401,7 +401,6 @@ task vardict {
         File tumor_bam_bai
         String tumor_sample_name = "TUMOR"
         File interval_bed
-        File mutect_vcf
         Float? min_var_freq = 0.005
         Int? JavaXmx = 24
     }
@@ -437,17 +436,11 @@ task vardict {
         #echo ${VAR_DICT_OPTS}
         echo ~{space_needed_gb}
 
-        # TODO: Account for when Mutect File is "Empty"..
-
         samtools index ~{tumor_bam}
-        #bedtools makewindows -b ~{interval_bed} -w 20250 -s 20000 > ~{basename(interval_bed, ".bed")}_windows.bed
-        bedtools makewindows -b ~{interval_bed} -w 1150 -s 1000 > ~{basename(interval_bed, ".bed")}_windows.bed
-        bedtools intersect -u -wa -a ~{basename(interval_bed, ".bed")}_windows.bed -b ~{mutect_vcf} > interval_list_mutect.bed
-        bedtools merge -i interval_list_mutect.bed > interval_list_mutect_merged.bed
+        bedtools makewindows -b ~{interval_bed} -w 20250 -s 20000 > ~{basename(interval_bed, ".bed")}_windows.bed
 
         # Split bed file into 16 equal parts
-        #split -d --additional-suffix .bed -n l/16 ~{basename(interval_bed, ".bed")}_windows.bed splitBed.
-        split -d --additional-suffix .bed -n l/16 interval_list_mutect_merged.bed splitBed.
+        split -d --additional-suffix .bed -n l/16 ~{basename(interval_bed, ".bed")}_windows.bed splitBed.
 
         nProcs=~{cores}
         nJobs="\j"
