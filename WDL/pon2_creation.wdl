@@ -406,7 +406,7 @@ task vardict {
     }
 
     Float reference_size = size([reference, reference_fai, interval_bed], "GB")
-    Float data_size = size([tumor_bam, tumor_bam_bai, mutect_vcf], "GB")
+    Float data_size = size([tumor_bam, tumor_bam_bai], "GB")
     Int space_needed_gb = ceil(10 + 4 * data_size + reference_size)
     Int preemptible = 1
     Int maxRetries = 2
