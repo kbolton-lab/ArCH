@@ -358,13 +358,15 @@ task mutect {
         File tumor_bam
         File tumor_bam_bai
         File interval_list
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
     Float reference_size = size([reference, reference_fai, reference_dict, interval_list], "GB")
     Float data_size = size([tumor_bam, tumor_bam_bai], "GB")
     Int space_needed_gb = ceil(10 + 2 * data_size + reference_size)
-    Int memory = 6
-    Int cores = 1
+    Int memory = select_first([mem_limit_override, 6])
+        Int cores = select_first([cpu_override, 1])
     Int preemptible = 1
     Int maxRetries = 2
 
@@ -589,6 +591,8 @@ task vardict {
         File mutect_vcf
         Float? min_var_freq = 0.005
         Int? JavaXmx = 24
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
     Float reference_size = size([reference, reference_fai, interval_bed], "GB")
@@ -596,8 +600,8 @@ task vardict {
     Int space_needed_gb = ceil(10 + 4 * data_size + reference_size)
     Int preemptible = 1
     Int maxRetries = 2
-    Int memory = 4
-    Int cores = 4
+    Int memory = select_first([mem_limit_override, 4])
+    Int cores = select_first([cpu_override, 4])
 
     runtime {
         docker: "kboltonlab/vardictjava:bedtools"

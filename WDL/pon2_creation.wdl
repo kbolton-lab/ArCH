@@ -222,13 +222,15 @@ task mutect {
         File tumor_bam
         File tumor_bam_bai
         File interval_list
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
     Float reference_size = size([reference, reference_fai, reference_dict, interval_list], "GB")
     Float data_size = size([tumor_bam, tumor_bam_bai], "GB")
     Int space_needed_gb = ceil(10 + 2 * data_size + reference_size)
-    Int memory = 6
-    Int cores = 1
+    Int memory = select_first([mem_limit_override, 6])
+    Int cores = select_first([cpu_override, 1])
     Int preemptible = 1
     Int maxRetries = 2
 
@@ -403,6 +405,8 @@ task vardict {
         File interval_bed
         Float? min_var_freq = 0.005
         Int? JavaXmx = 24
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
     Float reference_size = size([reference, reference_fai, interval_bed], "GB")
@@ -410,8 +414,8 @@ task vardict {
     Int space_needed_gb = ceil(10 + 4 * data_size + reference_size)
     Int preemptible = 1
     Int maxRetries = 2
-    Int memory = 4
-    Int cores = 4
+    Int memory = select_first([mem_limit_override, 4])
+    Int cores = select_first([cpu_override, 4])
 
     runtime {
         docker: "kboltonlab/vardictjava:bedtools"
@@ -496,7 +500,7 @@ task lofreq_indelqual {
         File tumor_bam_bai
     }
 
-    Int memory = 1
+    Int memory = 4
     Int cores = 1
     Float reference_size = size([reference, reference_fai], "GB")
     Float bam_size = size([tumor_bam, tumor_bam_bai], "GB")
@@ -533,10 +537,12 @@ task lofreq {
         File tumor_bam_bai
         File interval_bed
         String? output_name = "lofreq.vcf"
+        Int? mem_limit_override
+        Int? cpu_override
     }
 
-    Int memory = 6
-    Int cores = 1
+    Int memory = select_first([mem_limit_override, 6])
+    Int cores = select_first([cpu_override, 1])
     Float reference_size = size([reference, reference_fai], "GB")
     Float bam_size = size([tumor_bam, tumor_bam_bai], "GB")
     Int space_needed_gb = 10 + round(reference_size + 2*bam_size + size(interval_bed, "GB"))
