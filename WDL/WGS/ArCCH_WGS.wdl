@@ -4,6 +4,7 @@ workflow WGS {
     input {
         #General
         String db_path                         # We need a centralized path for the DBs
+        File chip_toolkit = "/storage1/fs1/bolton/Active/Projects/chip-toolkit/venv_ic/bin/chip-variant-db"
         Int batch_number
 
         # Information pertaining to Samples
@@ -34,6 +35,7 @@ workflow WGS {
     call import_samples as samples {
         input:
             db_path = db_path,
+            chip_toolkit = chip_toolkit,
             samples_csv = samples_csv,
             samples_db = sdb_name
     }
@@ -50,6 +52,7 @@ workflow WGS {
 task import_samples {
     input {
         String db_path
+        File chip_toolkit
         File samples_csv
         String samples_db
     }
@@ -59,17 +62,10 @@ task import_samples {
         memory: "1GB"
         cpu: 1
         disks: "local-disk 10GB SSD"
-        bootDiskSizeGb: "10GB"
     }
 
     command <<<
-        SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-        VIRTUALENV=${SCRIPT_DIR}/../venv_ic
-        BASE_CMD=${VIRTUALENV}/bin/chip-variant-db
-
-        echo ${BASE_CMD}
-
-        ${BASE_CMD} import-samples --samples samples_csv --sdb ~{db_path}/samples_db
+        ~{chip_toolkit} import-samples --samples samples_csv --sdb ~{db_path}/samples_db
     >>>
 
     output {
