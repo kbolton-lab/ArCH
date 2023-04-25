@@ -9,7 +9,7 @@ workflows:
         email: chani@wustl.edu
     name: ArCCH-Alignment
   - subclass: WDL
-    primaryDescriptorPath: /WDL/terra_pipeline.wdl
+    primaryDescriptorPath: /WDL/ArCCH.wdl
     testParameterFiles:
     - /WDL/pipeline.json
     authors:
@@ -25,7 +25,7 @@ workflows:
         email: chani@wustl.edu
     name: ArCCH-PON2
   - subclass: WDL
-    primaryDescriptorPath: /WDL/Subworkflows/variant_calling.wdl
+    primaryDescriptorPath: /WDL/WGS/Subworkflows/variant_calling.wdl
     testParameterFiles:
     - /WDL/pipeline.json
     authors:
