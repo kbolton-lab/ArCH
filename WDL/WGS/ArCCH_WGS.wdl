@@ -4,7 +4,8 @@ workflow WGS {
     input {
         #General
         String db_path                         # We need a centralized path for the DBs
-        File chip_toolkit = "/storage1/fs1/bolton/Active/Projects/chip-toolkit/venv_ic/bin/chip-variant-db"
+        #File chip_toolkit = "/storage1/fs1/bolton/Active/Projects/chip-toolkit/venv_ic/bin/chip-variant-db"
+        String chip_toolkit = "/storage1/fs1/bolton/Active/Projects/chip-toolkit/venv_ic/bin/chip-variant-db"
         Int batch_number
 
         # Information pertaining to Samples
@@ -65,7 +66,7 @@ task import_samples {
     }
 
     command <<<
-        ~{chip_toolkit} import-samples --samples samples_csv --sdb ~{db_path}/samples_db
+        ~{chip_toolkit} import-samples --samples samples_csv --sdb ~{db_path}/~{samples_db}
     >>>
 
     output {
