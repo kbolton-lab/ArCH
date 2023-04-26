@@ -618,7 +618,7 @@ task bcftoolsMerge {
     }
 
     Int space_needed_gb = 10 + round(2*(size(vcfs, "GB") + size(vcf_tbis, "GB")))
-    Int memory = 1
+    Int memory = 8
     Int cores = 1
     Int preemptible = 1
     Int maxRetries = 0
