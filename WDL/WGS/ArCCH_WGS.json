@@ -6,6 +6,7 @@
   "WGS.chip_toolkit": "/storage1/fs1/bolton/Active/Projects/chip-toolkit/venv_ic/bin/chip-variant-db",
   "WGS.batch_number": 1,
   "WGS.vep_input": "/storage1/fs1/bolton/Active/Projects/chip-toolkit/data/derived/5.1-vep/batch1_VEP_annotated.tsv",
+  "WGS.annotate_pd": "/storage1/fs1/bolton/Active/Projects/chip-toolkit/data/derived/6-annotate-pd/annotatePD_results.csv",
   "WGS.vcfs": [
       {"left": "/storage1/fs1/bolton/Active/Projects/chip-toolkit/data/external/washu-cad-1/H_VL-MI-00052-AB43684226/mutect.H_VL-MI-00052-AB43684226.vcf.gz", "right": "/storage1/fs1/bolton/Active/Projects/chip-toolkit/data/external/washu-cad-1/H_VL-MI-00052-AB43684226/vardict.H_VL-MI-00052-AB43684226.vcf.gz"},
       {"left": "/storage1/fs1/bolton/Active/Projects/chip-toolkit/data/external/washu-cad-1/H_VL-MI-00062-AB43684224/mutect.H_VL-MI-00062-AB43684224.vcf.gz", "right": "/storage1/fs1/bolton/Active/Projects/chip-toolkit/data/external/washu-cad-1/H_VL-MI-00062-AB43684224/vardict.H_VL-MI-00062-AB43684224.vcf.gz"},
