@@ -231,8 +231,8 @@ task mutect {
     Int space_needed_gb = ceil(10 + 2 * data_size + reference_size)
     Int memory = select_first([mem_limit_override, 6])
     Int cores = select_first([cpu_override, 1])
-    Int preemptible = 1
-    Int maxRetries = 2
+    Int preemptible = 3
+    Int maxRetries = 3
 
     runtime {
         cpu: cores
@@ -412,8 +412,8 @@ task vardict {
     Float reference_size = size([reference, reference_fai, interval_bed], "GB")
     Float data_size = size([tumor_bam, tumor_bam_bai], "GB")
     Int space_needed_gb = ceil(10 + 4 * data_size + reference_size)
-    Int preemptible = 1
-    Int maxRetries = 2
+    Int preemptible = 3
+    Int maxRetries = 3
     Int memory = select_first([mem_limit_override, 4])
     Int cores = select_first([cpu_override, 4])
 
@@ -505,8 +505,8 @@ task lofreq_indelqual {
     Float reference_size = size([reference, reference_fai], "GB")
     Float bam_size = size([tumor_bam, tumor_bam_bai], "GB")
     Int space_needed_gb = 10 + round(reference_size + 4*bam_size)
-    Int preemptible = 1
-    Int maxRetries = 0
+    Int preemptible = 3
+    Int maxRetries = 3
 
     runtime {
         docker: "kboltonlab/lofreq:latest"
@@ -546,8 +546,8 @@ task lofreq {
     Float reference_size = size([reference, reference_fai], "GB")
     Float bam_size = size([tumor_bam, tumor_bam_bai], "GB")
     Int space_needed_gb = 10 + round(reference_size + 2*bam_size + size(interval_bed, "GB"))
-    Int preemptible = 1
-    Int maxRetries = 2
+    Int preemptible = 3
+    Int maxRetries = 3
 
     runtime {
         docker: "kboltonlab/lofreq:latest"
@@ -621,7 +621,7 @@ task bcftoolsMerge {
     Int memory = 8
     Int cores = 1
     Int preemptible = 1
-    Int maxRetries = 0
+    Int maxRetries = 2
 
     runtime {
         docker: "kboltonlab/bst:latest"

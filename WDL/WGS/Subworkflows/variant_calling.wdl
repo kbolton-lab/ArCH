@@ -245,8 +245,8 @@ task cramToBAM {
 
     Float data_size = size(input_cram, "GB")
     Float reference_size = size([reference, reference_fai, reference_dict], "GB")
-    Int preemptible = 1
-    Int maxRetries = 1
+    Int preemptible = 2
+    Int maxRetries = 2
     Int space_needed_gb = ceil(10 + 4 * data_size + reference_size)
     Float memory = 6
     Int cores = 1
@@ -322,8 +322,8 @@ task splitBAMToChr {
     Int space_needed_gb = ceil(10 + 2 * data_size)
     Int memory = 2
     Int cores = 4
-    Int preemptible = 1
-    Int maxRetries = 0
+    Int preemptible = 2
+    Int maxRetries = 2
 
     runtime {
         cpu: cores
@@ -367,8 +367,8 @@ task mutect {
     Int space_needed_gb = ceil(10 + 2 * data_size + reference_size)
     Int memory = select_first([mem_limit_override, 6])
         Int cores = select_first([cpu_override, 1])
-    Int preemptible = 1
-    Int maxRetries = 2
+    Int preemptible = 3
+    Int maxRetries = 3
 
     runtime {
         cpu: cores
@@ -598,8 +598,8 @@ task vardict {
     Float reference_size = size([reference, reference_fai, interval_bed], "GB")
     Float data_size = size([tumor_bam, tumor_bam_bai, mutect_vcf], "GB")
     Int space_needed_gb = ceil(10 + 4 * data_size + reference_size)
-    Int preemptible = 1
-    Int maxRetries = 2
+    Int preemptible = 3
+    Int maxRetries = 3
     Int memory = select_first([mem_limit_override, 4])
     Int cores = select_first([cpu_override, 4])
 
