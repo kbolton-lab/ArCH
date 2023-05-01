@@ -16,9 +16,9 @@ workflow variant_calling {
 
         Float? af_threshold = 0.0001                # Minimum VAF Cut-Off
 
-        # See: http://bcb.io/2016/04/04/vardict-filtering/
+        # See: https://github.com/bcbio/bcbio_validations/blob/master/somatic-lowfreq/README.md
         # Parameters MQ, NM, DP, and QUAL are calculated using a small subset then identifying the cut-off for 2% of the left side samples
-        String bcbio_filter_string = "((FMT/AF * FMT/DP < 6) && ((INFO/MQ < 55.0 && INFO/NM > 1.0) || (INFO/MQ < 60.0 && INFO/NM > 3.0) || (FMT/DP < 6500) || (INFO/QUAL < 27)))"
+        String bcbio_filter_string = "((FMT/AF * FMT/DP < 3) && ((INFO/MQ < 55.0 && INFO/NM > 1.0) || (INFO/MQ < 60.0 && INFO/NM > 2.0) || (FMT/DP < 10) || (INFO/QUAL < 30)))"
 
         # PoN2
         # If a variant exists inside two or more of our Panel of Normal Samples (PoN) at 2% VAF or greater, then this variant is assumed to be
@@ -116,6 +116,12 @@ workflow variant_calling {
             sample_name = tumor_sample_name
         }
 
+        call mutect_pass {
+            input:
+            mutect_vcf = mutect_pon2.annotated_vcf,
+            mutect_vcf_tbi = mutect_pon2.annotated_vcf_tbi
+        }
+
         # Vardict
         call vardict {
             input:
@@ -126,7 +132,7 @@ workflow variant_calling {
             interval_bed = bed_bam_chr.left,
             min_var_freq = af_threshold,
             tumor_sample_name = tumor_sample_name,
-            mutect_vcf = mutect_pon2.annotated_vcf
+            mutect_vcf = mutect_pass.vcf
         }
 
         # Performs the BCBIO Filtering: http://bcb.io/2016/04/04/vardict-filtering/
@@ -580,6 +586,39 @@ task pon2Percent {
     }
 }
 
+task mutect_pass {
+    input {
+        File mutect_vcf
+        File mutect_vcf_tbi
+    }
+
+    Float data_size = size([mutect_vcf, mutect_vcf_tbi], "GB")
+    Int space_needed_gb = ceil(10 + data_size)
+    Int memory = 1
+    Int cores = 1
+    Int preemptible = 1
+    Int maxRetries = 0
+
+    runtime {
+        docker: "staphb/bcftools:latest"
+        memory: cores * memory + "GB"
+        disks: "local-disk ~{space_needed_gb} SSD"
+        bootDiskSizeGb: space_needed_gb
+        preemptible: preemptible
+        maxRetries: maxRetries
+    }
+
+    command <<<
+        bcftools filter -i 'FILTER="PASS" || FILTER="weak_evidence" || FILTER="strand_bias" || FILTER="weak_evidence;strand_bias"' ~{mutect_vcf} > mutect_passed.vcf
+        bcftools view -r 'chr20:32434638' --no-header >> mutect_passed.vcf
+        bcftools sort -m ~{memory} mutect_passed -Oz -o mutect_passed.sorted.vcf.gz
+    >>>
+
+    output {
+        File vcf = "mutect_passed.sorted.vcf.gz"
+    }
+}
+
 task vardict {
     input {
         File reference
@@ -627,6 +666,9 @@ task vardict {
         echo ~{space_needed_gb}
 
         # TODO: Account for when Mutect File is "Empty"..
+
+        |------------|
+                   |---------|
 
         samtools index ~{tumor_bam}
         #bedtools makewindows -b ~{interval_bed} -w 20250 -s 20000 > ~{basename(interval_bed, ".bed")}_windows.bed

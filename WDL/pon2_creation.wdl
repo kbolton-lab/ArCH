@@ -652,10 +652,10 @@ task bcftoolsPoN2 {
     }
 
     Int space_needed_gb = 10 + round(2*size(vcf, "GB"))
-    Int memory = 1
+    Int memory = 8
     Int cores = 1
     Int preemptible = 1
-    Int maxRetries = 0
+    Int maxRetries = 2
 
     runtime {
         docker: "kboltonlab/bst:latest"

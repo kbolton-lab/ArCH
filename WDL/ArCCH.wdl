@@ -121,7 +121,7 @@ workflow boltonlab_CH {
         String? ref_date = "20161216"
         Int? pindel_min_supporting_reads = 3
 
-        # See: http://bcb.io/2016/04/04/vardict-filtering/
+        # See: https://github.com/bcbio/bcbio_validations/blob/master/somatic-lowfreq/README.md
         # Parameters MQ, NM, DP, and QUAL are calculated using a small subset then identifying the cut-off for 2% of the left side samples
         String bcbio_filter_string = "((FMT/AF * FMT/DP < 6) && ((INFO/MQ < 55.0 && INFO/NM > 1.0) || (INFO/MQ < 60.0 && INFO/NM > 3.0) || (FMT/DP < 6500) || (INFO/QUAL < 27)))"
 
