@@ -230,7 +230,7 @@ task mutect {
     Float data_size = size([tumor_bam, tumor_bam_bai], "GB")
     Int space_needed_gb = ceil(10 + 2 * data_size + reference_size)
     Int memory = select_first([mem_limit_override, 6])
-    Int cores = select_first([cpu_override, 1])
+    Int cores = select_first([cpu_override, 4])
     Int preemptible = 3
     Int maxRetries = 3
 
@@ -542,7 +542,7 @@ task lofreq {
     }
 
     Int memory = select_first([mem_limit_override, 6])
-    Int cores = select_first([cpu_override, 1])
+    Int cores = select_first([cpu_override, 4])
     Float reference_size = size([reference, reference_fai], "GB")
     Float bam_size = size([tumor_bam, tumor_bam_bai], "GB")
     Int space_needed_gb = 10 + round(reference_size + 2*bam_size + size(interval_bed, "GB"))
