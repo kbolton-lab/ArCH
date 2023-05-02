@@ -611,7 +611,7 @@ task mutect_pass {
     command <<<
         bcftools filter -i 'FILTER="PASS" || FILTER="weak_evidence" || FILTER="strand_bias" || FILTER="weak_evidence;strand_bias"' ~{mutect_vcf} > mutect_passed.vcf
         bcftools view -r 'chr20:32434638' --no-header >> mutect_passed.vcf
-        bcftools sort -m ~{memory} mutect_passed -Oz -o mutect_passed.sorted.vcf.gz
+        bcftools sort -m ~{memory} mutect_passed.vcf -Oz -o mutect_passed.sorted.vcf.gz
     >>>
 
     output {
@@ -666,9 +666,6 @@ task vardict {
         echo ~{space_needed_gb}
 
         # TODO: Account for when Mutect File is "Empty"..
-
-        |------------|
-                   |---------|
 
         samtools index ~{tumor_bam}
         #bedtools makewindows -b ~{interval_bed} -w 20250 -s 20000 > ~{basename(interval_bed, ".bed")}_windows.bed
