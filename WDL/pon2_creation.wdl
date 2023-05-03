@@ -651,7 +651,7 @@ task bcftoolsPoN2 {
         String caller
     }
 
-    Int space_needed_gb = 10 + round(2*size(vcf, "GB"))
+    Int space_needed_gb = 10 + round(3*size(vcf, "GB"))
     Int memory = 12
     Int cores = 1
     Int preemptible = 1
