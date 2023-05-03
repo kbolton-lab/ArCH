@@ -652,7 +652,7 @@ task bcftoolsPoN2 {
     }
 
     Int space_needed_gb = 10 + round(2*size(vcf, "GB"))
-    Int memory = 8
+    Int memory = 12
     Int cores = 1
     Int preemptible = 1
     Int maxRetries = 2

@@ -594,7 +594,7 @@ task mutect_pass {
 
     Float data_size = size([mutect_vcf, mutect_vcf_tbi], "GB")
     Int space_needed_gb = ceil(10 + data_size)
-    Int memory = 1
+    Int memory = 4
     Int cores = 1
     Int preemptible = 1
     Int maxRetries = 0
@@ -610,7 +610,7 @@ task mutect_pass {
 
     command <<<
         bcftools filter -i 'FILTER="PASS" || FILTER="weak_evidence" || FILTER="strand_bias" || FILTER="weak_evidence;strand_bias"' ~{mutect_vcf} > mutect_passed.vcf
-        bcftools view -r 'chr20:32434638' --no-header >> mutect_passed.vcf
+        bcftools view -r 'chr20:32434638' --no-header ~{mutect_vcf} >> mutect_passed.vcf
         bcftools sort -m ~{memory} mutect_passed.vcf -Oz -o mutect_passed.sorted.vcf.gz
     >>>
 
