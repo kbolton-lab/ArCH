@@ -49,21 +49,11 @@ workflow variant_calling {
             interval_bed = interval_to_bed.interval_bed
     }
 
-    if (cram_input) {
-        call cramToBAM {
-            input:
-                input_cram = aligned_bam_file,
-                sample_name = tumor_sample_name,
-                reference = reference,
-                reference_fai = reference_fai,
-                reference_dict = reference_dict
-        }
-    }
-
+    # This combines the CRAMtoBAM and the SplitBAMtoChr into one step
     call splitBAMToChr {
         input:
-            bam_file = select_first([cramToBAM.bam, aligned_bam_file]),
-            bai_file = select_first([cramToBAM.bai, aligned_bai_file]),
+            bam_file = aligned_bam_file,
+            bai_file = aligned_bai_file,
             interval_bed = interval_to_bed.interval_bed
     }
 
