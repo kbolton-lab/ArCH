@@ -651,7 +651,7 @@ task bcftoolsPoN2 {
         String caller
     }
 
-    Int space_needed_gb = 10 + round(3*size(vcf, "GB"))
+    Int space_needed_gb = 10 + round(4*size(vcf, "GB"))
     Int memory = 12
     Int cores = 1
     Int preemptible = 1
@@ -667,17 +667,13 @@ task bcftoolsPoN2 {
     }
 
     command <<<
+        /usr/local/bin/bcftools +fill-tags -Oz -o NS.vcf.gz -- ~{vcf} -t NS
+        /usr/local/bin/bcftools filter -i 'INFO/NS >= 2' -Oz -o 2N.vcf.gz NS.vcf.gz
         if [[ "~{caller}" =~ "mutect" ]];then
-            /usr/local/bin/bcftools +fill-tags -- ~{vcf} -t NS > NS.vcf
-            /usr/local/bin/bcftools filter -i 'INFO/NS >= 2' NS.vcf > 2N.vcf
-            /usr/local/bin/bcftools +fill-tags -- 2N.vcf -t 'max_VAF=max(AF)' > ~{caller}.2N.maxVAF.vcf
-            bgzip ~{caller}.2N.maxVAF.vcf
+            /usr/local/bin/bcftools +fill-tags -Oz -o ~{caller}.2N.maxVAF.vcf.gz -- 2N.vcf.gz -t 'max_VAF=max(AF)'
             tabix ~{caller}.2N.maxVAF.vcf.gz
         else
-            /usr/local/bin/bcftools +fill-tags -- ~{vcf} -t NS > NS.vcf
-            /usr/local/bin/bcftools filter -i 'INFO/NS >= 2' NS.vcf > 2N.vcf
-            /usr/local/bin/bcftools +fill-tags -- 2N.vcf -t 'max_VAF=max(FORMAT/AF)' > ~{caller}.2N.maxVAF.vcf
-            bgzip ~{caller}.2N.maxVAF.vcf
+            /usr/local/bin/bcftools +fill-tags -Oz -o ~{caller}.2N.maxVAF.vcf.gz -- 2N.vcf.gz -t 'max_VAF=max(FORMAT/AF)'
             tabix ~{caller}.2N.maxVAF.vcf.gz
         fi
     >>>
