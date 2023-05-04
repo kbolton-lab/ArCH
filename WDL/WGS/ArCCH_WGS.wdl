@@ -23,8 +23,8 @@ workflow WGS {
 
         # Information pertaining to Annotations
         String adb_name = "annotations.db"
-        File vep_input
-        File annotate_pd
+        File? vep_input
+        File? annotate_pd
 
     }
 
@@ -167,7 +167,7 @@ task import_samples {
     }
 
     command <<<
-        ~{chip_toolkit} import-samples --samples ~{samples_csv} --sdb ~{db_path}/~{samples_db} --clobber
+        ~{chip_toolkit} import-samples --samples ~{samples_csv} --sdb ~{db_path}/~{samples_db}
     >>>
 
     output {
@@ -191,11 +191,11 @@ task register_sample_variants {
     command <<<
         # Mutect
         sample_name=~{basename(input_vcf.left, ".vcf.gz")}.db
-        ~{chip_toolkit} register-sample-variants --input-vcf ~{input_vcf.left} --db ${sample_name} --batch-number ~{batch_number} --clobber
+        ~{chip_toolkit} register-sample-variants --input-vcf ~{input_vcf.left} --db ${sample_name} --batch-number ~{batch_number}
 
         # Vardict
         sample_name=~{basename(input_vcf.right, ".vcf.gz")}.db
-        ~{chip_toolkit} register-sample-variants --input-vcf ~{input_vcf.right} --db ${sample_name} --batch-number ~{batch_number} --clobber
+        ~{chip_toolkit} register-sample-variants --input-vcf ~{input_vcf.right} --db ${sample_name} --batch-number ~{batch_number}
     >>>
 
     output {
@@ -327,8 +327,8 @@ task merge_batch_vcfs {
         mkdir vardict
         cp ~{sep=" " mutect_vcfs} mutect
         cp ~{sep=" " vardict_vcfs} vardict
-        ~{chip_toolkit} merge-batch-vcf --db-path mutect --cdb ~{db_path}/~{mutect_caller} --caller mutect --batch-number ~{batch_number} --clobber
-        ~{chip_toolkit} merge-batch-vcf --db-path vardict --cdb ~{db_path}/~{vardict_caller} --caller vardict --batch-number ~{batch_number} --clobber
+        ~{chip_toolkit} merge-batch-vcf --db-path mutect --cdb ~{db_path}/~{mutect_caller} --caller mutect --batch-number ~{batch_number}
+        ~{chip_toolkit} merge-batch-vcf --db-path vardict --cdb ~{db_path}/~{vardict_caller} --caller vardict --batch-number ~{batch_number}
     >>>
 
     output {
@@ -415,7 +415,7 @@ task import_vep {
 
     runtime {
         docker: "indraniel/bolton-db-toolkit:v1"
-        memory: "4GB"
+        memory: "86GB"
         cpu: 1
     }
 
