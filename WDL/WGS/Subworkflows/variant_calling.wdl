@@ -340,6 +340,7 @@ task splitBAMToChr {
     }
 
     command <<<
+        /usr/local/bin/samtools index bam_file
         intervals=$(awk '{print $1}' ~{interval_bed} | uniq)
         for chr in ${intervals}; do
             samtools view -@ ~{cores} --fast -b -T ~{reference} -o ~{sample_name}_${chr}.bam ~{bam_file} $chr
