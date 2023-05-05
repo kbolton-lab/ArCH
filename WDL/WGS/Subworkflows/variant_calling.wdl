@@ -339,12 +339,17 @@ task splitBAMToChr {
         maxRetries: maxRetries
     }
 
+    String bam_link = sub(basename(bam_file), basename(basename(bam_file, ".bam"), ".cram"), sample_name)
+
     command <<<
-        /usr/local/bin/samtools index bam_file
+        ln -s ~{bam_file} ~{bam_link}
+        if [[ ~{bam_link} == *.cram ]]; then
+            /usr/local/bin/samtools index ~{bam_link}
+        fi
         intervals=$(awk '{print $1}' ~{interval_bed} | uniq)
         for chr in ${intervals}; do
-            samtools view -@ ~{cores} --fast -b -T ~{reference} -o ~{sample_name}_${chr}.bam ~{bam_file} $chr
-            samtools index ~{basename(bam_file, ".bam")}_${chr}.bam
+            samtools view -@ ~{cores} --fast -b -T ~{reference} -o ~{sample_name}_${chr}.bam ~{bam_link} $chr
+            samtools index ~{sample_name}_${chr}.bam
         done
     >>>
 
