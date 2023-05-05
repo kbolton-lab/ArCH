@@ -54,7 +54,11 @@ workflow variant_calling {
         input:
             bam_file = aligned_bam_file,
             bai_file = aligned_bai_file,
-            interval_bed = interval_to_bed.interval_bed
+            interval_bed = interval_to_bed.interval_bed,
+            sample_name = tumor_sample_name,
+            reference = reference,
+            reference_fai = reference_fai,
+            reference_dict = reference_dict
     }
 
     Array[Pair[File, Pair[File, File]]] splitBedandBAM = zip(splitBedToChr.split_chr, splitBAMToChr.split_bam_chr)
@@ -312,6 +316,10 @@ task splitBAMToChr {
         File bam_file
         File bai_file
         File interval_bed
+        String sample_name
+        File reference
+        File reference_fai
+        File reference_dict
     }
 
     Float data_size = size([interval_bed, bam_file], "GB")
@@ -334,13 +342,13 @@ task splitBAMToChr {
     command <<<
         intervals=$(awk '{print $1}' ~{interval_bed} | uniq)
         for chr in ${intervals}; do
-            samtools view -@ ~{cores} --fast -b ~{bam_file} $chr > ~{basename(bam_file, ".bam")}_${chr}.bam
+            samtools view -@ ~{cores} --fast -b -T ~{reference} -o ~{sample_name}_${chr}.bam ~{bam_file} $chr
             samtools index ~{basename(bam_file, ".bam")}_${chr}.bam
         done
     >>>
 
     output {
-        Array[Pair[File, File]] split_bam_chr = zip(glob(basename(bam_file, ".bam")+"_*.bam"), glob(basename(bam_file, ".bam")+"_*.bam.bai"))
+        Array[Pair[File, File]] split_bam_chr = zip(glob(sample_name+"_*.bam"), glob(sample_name+"_*.bam.bai"))
     }
 }
 
