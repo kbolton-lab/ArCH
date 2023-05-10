@@ -1176,7 +1176,6 @@ task bamToFastq {
         Float? mem_limit_override
         Int? cpu_override
         Int? disk_size_override
-        Int? disk_size_override
     }
 
     Int preemptible = 1
