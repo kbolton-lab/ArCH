@@ -191,11 +191,11 @@ task register_sample_variants {
     command <<<
         # Mutect
         sample_name=~{basename(input_vcf.left, ".vcf.gz")}.db
-        ~{chip_toolkit} register-sample-variants --input-vcf ~{input_vcf.left} --db ${sample_name} --batch-number ~{batch_number}
+        ~{chip_toolkit} import-sample-variants --input-vcf ~{input_vcf.left} --vdb ${sample_name} --batch-number ~{batch_number}
 
         # Vardict
         sample_name=~{basename(input_vcf.right, ".vcf.gz")}.db
-        ~{chip_toolkit} register-sample-variants --input-vcf ~{input_vcf.right} --db ${sample_name} --batch-number ~{batch_number}
+        ~{chip_toolkit} import-sample-variants --input-vcf ~{input_vcf.right} --vdb ${sample_name} --batch-number ~{batch_number}
     >>>
 
     output {
@@ -347,7 +347,7 @@ task run_vep {
     runtime {
         docker: "kboltonlab/ic_vep:latest"
         memory: "32GB"
-        cpu: 1
+        cpu: 4
     }
 
     String chrom = basename(fake_vcf, ".vcf.gz")

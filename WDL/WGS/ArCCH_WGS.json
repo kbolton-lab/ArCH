@@ -2,7 +2,7 @@
   "WGS.samples_csv": "/storage1/fs1/bolton/Active/Projects/chip-toolkit/washu-cad-1.csv",
   "WGS.pileup_input": "/storage1/fs1/bolton/Active/Projects/chip-toolkit/data/external/PoN_Pileup-washu_cad_1/pon_pileup.vcf.gz",
   "WGS.pileup_input_tbi": "/storage1/fs1/bolton/Active/Projects/chip-toolkit/data/external/PoN_Pileup-washu_cad_1/pon_pileup.vcf.gz.tbi",
-  "WGS.db_path": "/storage1/fs1/bolton/Active/Users/IrenaeusChan/cromwell-executions/chip-toolkit",
+  "WGS.db_path": "/scratch1/fs1/bolton/chani/chip-toolkit",
   "WGS.chip_toolkit": "/storage1/fs1/bolton/Active/Projects/chip-toolkit/venv_ic/bin/chip-variant-db",
   "WGS.batch_number": 1,
   "WGS.vep_input": "/storage1/fs1/bolton/Active/Projects/chip-toolkit/data/derived/5.1-vep/batch1_VEP_annotated.tsv",

@@ -224,8 +224,10 @@ workflow ArCCH_Alignment {
 
     output {
         # Alignments
-        File aligned_bam = indexBam.bam
-        File aligned_bam_bai = indexBam.bai
+        File? aligned_bam = align.aligned_bam
+        File? aligned_bam_bai = align.aligned_bam_bai
+        File consensus_bam = indexBam.bam
+        File consensus_bam_bai = indexBam.bai
         File? bqsr_bam = bqsr.bqsr_bam
         File? bqsr_bam_bai = bqsr.bqsr_bam_bai
     }
