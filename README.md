@@ -1,4 +1,4 @@
-# BoltonLab CH Calling Pipeline
+# BoltonLab (Ar)tifact Filtering (C)lonal (H)ematapoiesis Variant Calling Pipeline
 
 This pipeline is designed to process mutant/wildtype H.sapiens sequencing data from Illumina based sequencing for low VAF CH variants. It features four variant callers (Mutect2, VarDictJava, Lofreq2, and Pindel) for variant detection and performs various false positive filters and detection methods (fp_filter, PoN Fisher’s Exact Test, XGB model, etc.). This pipeline also generates VEP style annotations for all called variants as well as additional putative driver annotations generated from various database sources (TOPMed, MSK-IMPACT, COSMIC, OncoKB, etc.) <br />
 
