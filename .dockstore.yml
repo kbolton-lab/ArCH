@@ -23,7 +23,7 @@ workflows:
     authors:
       - name: "Irenaeus Chan"
         email: chani@wustl.edu
-    name: ArCH-PON2
+    name: ArCH-PoN2
   - subclass: WDL
     primaryDescriptorPath: /WDL/WGS/Subworkflows/variant_calling.wdl
     testParameterFiles:
@@ -32,3 +32,11 @@ workflows:
       - name: "Irenaeus Chan"
         email: chani@wustl.edu
     name: ArCH-WGS-VariantCalling
+  - subclass: WDL
+    primaryDescriptorPath: /WDL/WGS/Subworkflows/PoN.wdl
+    testParameterFiles:
+    - /WDL/pipeline.json
+    authors:
+      - name: "Irenaeus Chan"
+        email: chani@wustl.edu
+    name: ArCH-PoN-Pileup
