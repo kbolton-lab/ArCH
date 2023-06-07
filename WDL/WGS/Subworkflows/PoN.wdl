@@ -58,8 +58,8 @@ task mskGetBaseCounts {
     Float vcf_size = size(vcfs, "GB")
     Float data_size = size([normal_bam.left, normal_bam.right], "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size + vcf_size + reference_size)])
-    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18)*4 else 4])
+    Float memory = select_first([mem_limit_override, ceil(data_size/4 + 5)])
+    Int cores = 4
     Int preemptible = 1
     Int maxRetries = 0
 
@@ -104,8 +104,8 @@ task bcftoolsMergePileup {
 
     Float data_size = size(vcfs, "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
-    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
+    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)])
+    Int cores = 1
     Int preemptible = 1
     Int maxRetries = 0
 
