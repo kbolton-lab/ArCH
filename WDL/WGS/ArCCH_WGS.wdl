@@ -13,8 +13,6 @@ workflow WGS {
 
         # Information pertaining to Variants
         String vdb_name = "variants.db"
-        File? pileup_input
-        File? pileup_input_tbi
 
         # Information pertaining to Callers
         String mutect_cdb_name = "mutect.db"
@@ -23,9 +21,8 @@ workflow WGS {
 
         # Information pertaining to Annotations
         String adb_name = "annotations.db"
+        Boolean vep_done = false
         File? vep_input
-        File? annotate_pd
-
     }
 
     call import_samples as samples {
@@ -37,18 +34,27 @@ workflow WGS {
     }
 
     scatter (vcf in vcfs) {
-        call register_sample_variants {
+        call register_sample_variants as mutect_variants {
             input:
                 chip_toolkit = chip_toolkit,
-                input_vcf = vcf,
-                batch_number = batch_number
+                input_vcf = vcf.left,
+                batch_number = batch_number,
+                caller = "mutect"
+        }
+
+        call register_sample_variants as vardict_variants {
+            input:
+                chip_toolkit = chip_toolkit,
+                input_vcf = vcf.right,
+                batch_number = batch_number,
+                caller = "vardict"
         }
     }
 
     call merge_batch_variants as variants {
         input:
             chip_toolkit = chip_toolkit,
-            sample_variants = flatten(register_sample_variants.sample_vdb),
+            sample_variants = flatten([mutect_variants.sample_vdb, vardict_variants.sample_vdb]),
             variants_db = vdb_name,
             batch_number = batch_number,
             db_path = db_path
@@ -64,47 +70,55 @@ workflow WGS {
     }
 
     scatter(vcf in vcfs) {
-        File mutect = vcf.left
-        File vardict = vcf.right
-    }
+        call import_sample_vcf as mutect_vcfs {
+            input:
+                chip_toolkit = chip_toolkit,
+                input_vcf = vcf.left,
+                caller = "mutect",
+                db_path = db_path,
+                batch_number = batch_number,
+                status_samples = samples.status,
+                status_variants = variants.status
+        }
 
-    # This step can't be parallized because only ONE file can access the DB at a time..
-    call import_sample_vcf {
-        input:
-            chip_toolkit = chip_toolkit,
-            mutect_vcfs = mutect,
-            vardict_vcfs = vardict,
-            db_path = db_path,
-            variants_db = vdb_name,
-            samples_db = sdb_name,
-            batch_number = batch_number,
-            status_samples = samples.status,
-            status_variants = variants.status,
-            status_dump = dump_variants.status
+        call import_sample_vcf as vardict_vcfs {
+            input:
+                chip_toolkit = chip_toolkit,
+                input_vcf = vcf.right,
+                caller = "vardict",
+                db_path = db_path,
+                batch_number = batch_number,
+                status_samples = samples.status,
+                status_variants = variants.status
+        }
     }
 
     call merge_batch_vcfs {
         input:
             chip_toolkit = chip_toolkit,
-            mutect_vcfs = import_sample_vcf.mutect_cdb,
-            vardict_vcfs = import_sample_vcf.vardict_cdb,
+            mutect_vcfs = mutect_vcfs.sample_cdb,
+            vardict_vcfs = vardict_vcfs.sample_cdb,
             db_path = db_path,
-            mutect_caller = mutect_cdb_name,
-            vardict_caller = vardict_cdb_name,
-            batch_number = batch_number
+            mutect_db = mutect_cdb_name,
+            vardict_db = vardict_cdb_name,
+            variants_db = vdb_name,
+            samples_db = sdb_name,
+            batch_number = batch_number,
+            status_dump = dump_variants.status
     }
 
-    scatter(vcf in dump_variants.chr_vcf) {
-        call run_vep {
-            input:
-                fake_vcf = vcf
+    if (!vep_done) {
+        scatter(vcf in dump_variants.chr_vcf) {
+            call run_vep {
+                input:
+                    fake_vcf = vcf
+            }
         }
-    }
 
-    call merge_vep {
-        input:
-            vep_tsv = run_vep.vep,
-            vep_input = vep_input
+        call merge_vep {
+            input:
+                vep_tsv = run_vep.vep
+        }
     }
 
     call import_vep {
@@ -113,7 +127,7 @@ workflow WGS {
             db_path = db_path,
             variants_db = vdb_name,
             annotations_db = adb_name,
-            vep = merge_vep.vep,
+            vep = select_first([vep_input, merge_vep.vep]),
             batch_number = batch_number,
             status_import = merge_batch_vcfs.status
     }
@@ -129,8 +143,7 @@ workflow WGS {
 
     call run_annotatePD {
         input:
-            csv_input = dump_annotations.csv_file,
-            annotate_pd_input = annotate_pd
+            csv_input = dump_annotations.csv_file
     }
 
     call import_annotate_pd {
@@ -149,6 +162,7 @@ workflow WGS {
         String mutect_database = db_path + "/" + mutect_cdb_name
         String vardict_database =  db_path + "/" + vardict_cdb_name
         File variants_vcf = dump_variants.fake_vcf
+        Array[File] chr_vcf = dump_variants.chr_vcf
     }
 }
 
@@ -178,8 +192,9 @@ task import_samples {
 task register_sample_variants {
     input {
         String chip_toolkit
-        Pair[File, File] input_vcf
+        File input_vcf
         Int batch_number
+        String caller
     }
 
     runtime {
@@ -189,17 +204,12 @@ task register_sample_variants {
     }
 
     command <<<
-        # Mutect
-        sample_name=~{basename(input_vcf.left, ".vcf.gz")}.db
-        ~{chip_toolkit} import-sample-variants --input-vcf ~{input_vcf.left} --vdb ${sample_name} --batch-number ~{batch_number}
-
-        # Vardict
-        sample_name=~{basename(input_vcf.right, ".vcf.gz")}.db
-        ~{chip_toolkit} import-sample-variants --input-vcf ~{input_vcf.right} --vdb ${sample_name} --batch-number ~{batch_number}
+        sample_name=~{basename(input_vcf, ".vcf.gz")}.db
+        ~{chip_toolkit} import-sample-variants --input-vcf ~{input_vcf} --vdb ${sample_name} --batch-number ~{batch_number}
     >>>
 
     output {
-        Array[File] sample_vdb = glob("*.db")
+        File sample_vdb = basename(input_vcf, ".vcf.gz") + ".db"
     }
 }
 
@@ -246,9 +256,7 @@ task dump_variants {
 
     command <<<
         ~{chip_toolkit} dump-variants --vdb ~{db_path}/~{variants_db} --header-type dummy --batch-number ~{batch_number}
-        CHROMS=($(seq 1 22))
-        CHROMS+=( "X" "Y" )
-        for chr in ${CHROMS[@]}; do
+        for chr in {1..22} X Y; do
             ~{chip_toolkit} dump-variants --vdb ~{db_path}/~{variants_db} --header-type dummy --batch-number ~{batch_number} --chromosome chr${chr}
         done;
     >>>
@@ -263,17 +271,12 @@ task dump_variants {
 task import_sample_vcf {
     input {
         String chip_toolkit
-        #Array[Pair[File, File]] input_vcfs
-        #Pair[Array[File], Array[File]] input_vcfs
-        Array[File] mutect_vcfs
-        Array[File] vardict_vcfs
+        File input_vcf
+        String caller
         String db_path
-        String variants_db
-        String samples_db
         Int batch_number
         String status_samples
         String status_variants
-        String status_dump
     }
 
     runtime {
@@ -282,26 +285,13 @@ task import_sample_vcf {
         cpu: 1
     }
 
+    String sample_name = basename(input_vcf, ".vcf.gz")
     command <<<
-        # Mutect
-        for vcf in ~{sep=" " mutect_vcfs}; do
-            sample_name=$(basename ${vcf} ".vcf.gz").db
-            ~{chip_toolkit} import-sample-vcf --input-vcf ${vcf} \
-                --cdb ${sample_name} --vdb ~{db_path}/~{variants_db} --sdb ~{db_path}/~{samples_db} \
-                --batch-number ~{batch_number} --caller mutect
-        done
-        #Vardict
-        for vcf in ~{sep=" " vardict_vcfs}; do
-            sample_name=$(basename ${vcf} ".vcf.gz").db
-            ~{chip_toolkit} import-sample-vcf --input-vcf ${vcf} \
-                --cdb ${sample_name} --vdb ~{db_path}/~{variants_db} --sdb ~{db_path}/~{samples_db} \
-                --batch-number ~{batch_number} --caller vardict
-        done
+        ~{chip_toolkit} import-sample-vcf --caller ~{caller} --input-vcf ~{input_vcf} --cdb ~{sample_name}.db --batch-number ~{batch_number}
     >>>
 
     output {
-        Array[File] mutect_cdb = glob("mutect*.db")
-        Array[File] vardict_cdb = glob("vardict*.db")
+        File sample_cdb = sample_name + ".db"
     }
 }
 
@@ -311,14 +301,17 @@ task merge_batch_vcfs {
         Array[File] mutect_vcfs
         Array[File] vardict_vcfs
         String db_path
-        String mutect_caller
-        String vardict_caller
+        String mutect_db
+        String vardict_db
+        String samples_db
+        String variants_db
         Int batch_number
+        String status_dump
     }
 
     runtime {
         docker: "indraniel/bolton-db-toolkit:v1"
-        memory: "32GB"
+        memory: "86GB"
         cpu: 1
     }
 
@@ -327,8 +320,8 @@ task merge_batch_vcfs {
         mkdir vardict
         cp ~{sep=" " mutect_vcfs} mutect
         cp ~{sep=" " vardict_vcfs} vardict
-        ~{chip_toolkit} merge-batch-vcf --db-path mutect --cdb ~{db_path}/~{mutect_caller} --caller mutect --batch-number ~{batch_number}
-        ~{chip_toolkit} merge-batch-vcf --db-path vardict --cdb ~{db_path}/~{vardict_caller} --caller vardict --batch-number ~{batch_number}
+        ~{chip_toolkit} merge-batch-vcf --db-path mutect --cdb ~{db_path}/~{mutect_db} --caller mutect --vdb ~{db_path}/~{variants_db} --sdb ~{db_path}/~{samples_db} --batch-number ~{batch_number}
+        ~{chip_toolkit} merge-batch-vcf --db-path vardict --cdb ~{db_path}/~{vardict_db} --caller vardict --vdb ~{db_path}/~{variants_db} --sdb ~{db_path}/~{samples_db} --batch-number ~{batch_number}
     >>>
 
     output {
@@ -344,10 +337,11 @@ task run_vep {
         File? reference_dict
     }
 
+    Int cores = 4
     runtime {
         docker: "kboltonlab/ic_vep:latest"
         memory: "32GB"
-        cpu: 4
+        cpu: cores
     }
 
     String chrom = basename(fake_vcf, ".vcf.gz")
@@ -355,7 +349,7 @@ task run_vep {
     command <<<
         outfile=~{chrom}_VEP_annotated.tsv
         /usr/bin/perl -I /opt/lib/perl/VEP/Plugins /usr/bin/variant_effect_predictor.pl \
-            --fork 4 -i ~{fake_vcf} --tab -o ${outfile} \
+            --fork ~{cores} -i ~{fake_vcf} --tab -o ${outfile} \
             --offline --cache --buffer_size 1000 \
             --symbol --transcript_version --assembly GRCh38 --cache_version 104 --species homo_sapiens --merged --use_given_ref \
             --synonyms /storage1/fs1/bga/Active/gmsroot/gc2560/core/model_data/2887491634/build50f99e75d14340ffb5b7d21b03887637/chromAlias.ensembl.txt \
@@ -380,7 +374,6 @@ task run_vep {
 task merge_vep {
     input {
         Array[File] vep_tsv
-        File? vep_input
     }
 
     runtime {
@@ -390,15 +383,14 @@ task merge_vep {
     }
 
     command <<<
-        header=$(grep '#Uploaded_variation' ~{select_first(vep_tsv)})
-        echo ${header} >> VEP_annotated.tsv
+        grep '#Uploaded_variation' ~{select_first(vep_tsv)} >> VEP_annotated.tsv
         for tsv in ~{sep=" " vep_tsv}; do
             grep -v '^#' ${tsv} >> VEP_annotated.tsv
         done
     >>>
 
     output {
-        File vep = select_first([vep_input, "VEP_annotated.tsv"])
+        File vep = "VEP_annotated.tsv"
     }
 }
 
@@ -439,7 +431,7 @@ task dump_annotations {
 
     runtime {
         docker: "indraniel/bolton-db-toolkit:v1"
-        memory: "4GB"
+        memory: "12GB"
         cpu: 1
     }
 
@@ -456,21 +448,20 @@ task dump_annotations {
 task run_annotatePD {
     input {
         File csv_input
-        File? annotate_pd_input
     }
 
     runtime {
-        docker: "kboltonlab/r_docker_ichan:latest"
+        docker: "indraniel/chip-pipeline-annotation:v1"
         memory: "32GB"
         cpu: 1
     }
 
     command <<<
-        Rscript /storage1/fs1/bolton/Active/Projects/chip-toolkit/scripts/run_annotePD.R ~{csv_input}
+        /opt/bolton-lab/R-4.2.3/bin/Rscript /storage1/fs1/bolton/Active/Projects/chip-toolkit/scripts/run_annotePD.R ~{csv_input}
     >>>
 
     output {
-        File annotate_pd = select_first([annotate_pd_input, "annotatePD_results.csv"])
+        File annotate_pd = "annotatePD_results.csv"
     }
 }
 

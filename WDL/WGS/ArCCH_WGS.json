@@ -1,12 +1,10 @@
 {
   "WGS.samples_csv": "/storage1/fs1/bolton/Active/Projects/chip-toolkit/washu-cad-1.csv",
-  "WGS.pileup_input": "/storage1/fs1/bolton/Active/Projects/chip-toolkit/data/external/PoN_Pileup-washu_cad_1/pon_pileup.vcf.gz",
-  "WGS.pileup_input_tbi": "/storage1/fs1/bolton/Active/Projects/chip-toolkit/data/external/PoN_Pileup-washu_cad_1/pon_pileup.vcf.gz.tbi",
   "WGS.db_path": "/scratch1/fs1/bolton/chani/chip-toolkit",
   "WGS.chip_toolkit": "/storage1/fs1/bolton/Active/Projects/chip-toolkit/venv_ic/bin/chip-variant-db",
   "WGS.batch_number": 1,
   "WGS.vep_input": "/storage1/fs1/bolton/Active/Projects/chip-toolkit/data/derived/5.1-vep/batch1_VEP_annotated.tsv",
-  "WGS.annotate_pd": "/storage1/fs1/bolton/Active/Projects/chip-toolkit/data/derived/6-annotate-pd/annotatePD_results.csv",
+  "WGS.vep_done": true,
   "WGS.vcfs": [
       {"left": "/storage1/fs1/bolton/Active/Projects/chip-toolkit/data/external/washu-cad-1/H_VL-MI-00052-AB43684226/mutect.H_VL-MI-00052-AB43684226.vcf.gz", "right": "/storage1/fs1/bolton/Active/Projects/chip-toolkit/data/external/washu-cad-1/H_VL-MI-00052-AB43684226/vardict.H_VL-MI-00052-AB43684226.fixed.BCBIO.vcf.gz"},
       {"left": "/storage1/fs1/bolton/Active/Projects/chip-toolkit/data/external/washu-cad-1/H_VL-MI-00062-AB43684224/mutect.H_VL-MI-00062-AB43684224.vcf.gz", "right": "/storage1/fs1/bolton/Active/Projects/chip-toolkit/data/external/washu-cad-1/H_VL-MI-00062-AB43684224/vardict.H_VL-MI-00062-AB43684224.fixed.BCBIO.vcf.gz"},
@@ -31,6 +29,7 @@
       {"left": "/storage1/fs1/bolton/Active/Projects/chip-toolkit/data/external/washu-cad-1/H_VL-MI-00272-NA0002318241/mutect.H_VL-MI-00272-NA0002318241.vcf.gz", "right": "/storage1/fs1/bolton/Active/Projects/chip-toolkit/data/external/washu-cad-1/H_VL-MI-00272-NA0002318241/vardict.H_VL-MI-00272-NA0002318241.fixed.BCBIO.vcf.gz"},
       {"left": "/storage1/fs1/bolton/Active/Projects/chip-toolkit/data/external/washu-cad-1/H_VL-MI-00282-NA0002318588/mutect.H_VL-MI-00282-NA0002318588.vcf.gz", "right": "/storage1/fs1/bolton/Active/Projects/chip-toolkit/data/external/washu-cad-1/H_VL-MI-00282-NA0002318588/vardict.H_VL-MI-00282-NA0002318588.fixed.BCBIO.vcf.gz"},
       {"left": "/storage1/fs1/bolton/Active/Projects/chip-toolkit/data/external/washu-cad-1/H_VL-MI-00292-FR04507658/mutect.H_VL-MI-00292-FR04507658.vcf.gz", "right": "/storage1/fs1/bolton/Active/Projects/chip-toolkit/data/external/washu-cad-1/H_VL-MI-00292-FR04507658/vardict.H_VL-MI-00292-FR04507658.fixed.BCBIO.vcf.gz"},
-      {"left": "/storage1/fs1/bolton/Active/Projects/chip-toolkit/data/external/washu-cad-1/H_VL-MI-00302-FR04507654/mutect.H_VL-MI-00302-FR04507654.vcf.gz", "right": "/storage1/fs1/bolton/Active/Projects/chip-toolkit/data/external/washu-cad-1/H_VL-MI-00302-FR04507654/vardict.H_VL-MI-00302-FR04507654.fixed.BCBIO.vcf.gz"}
+      {"left": "/storage1/fs1/bolton/Active/Projects/chip-toolkit/data/external/washu-cad-1/H_VL-MI-00302-FR04507654/mutect.H_VL-MI-00302-FR04507654.vcf.gz", "right": "/storage1/fs1/bolton/Active/Projects/chip-toolkit/data/external/washu-cad-1/H_VL-MI-00302-FR04507654/vardict.H_VL-MI-00302-FR04507654.fixed.BCBIO.vcf.gz"},
+      {"left": "/storage1/fs1/bolton/Active/Projects/chip-toolkit/data/external/washu-cad-1/H_VL-MI-00232-FR04507599/mutect.H_VL-MI-00232-FR04507599.vcf.gz", "right": "/storage1/fs1/bolton/Active/Projects/chip-toolkit/data/external/washu-cad-1/H_VL-MI-00232-FR04507599/vardict.H_VL-MI-00232-FR04507599.fixed.BCBIO.vcf.gz"}
   ]
 }
