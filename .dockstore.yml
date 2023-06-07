@@ -7,7 +7,7 @@ workflows:
     authors:
       - name: "Irenaeus Chan"
         email: chani@wustl.edu
-    name: ArCCH-Alignment
+    name: ArCH-Alignment
   - subclass: WDL
     primaryDescriptorPath: /WDL/ArCCH.wdl
     testParameterFiles:
@@ -15,7 +15,7 @@ workflows:
     authors:
       - name: "Irenaeus Chan"
         email: chani@wustl.edu
-    name: ArCCH
+    name: ArCH
   - subclass: WDL
     primaryDescriptorPath: /WDL/pon2_creation.wdl
     testParameterFiles:
@@ -23,7 +23,7 @@ workflows:
     authors:
       - name: "Irenaeus Chan"
         email: chani@wustl.edu
-    name: ArCCH-PON2
+    name: ArCH-PON2
   - subclass: WDL
     primaryDescriptorPath: /WDL/WGS/Subworkflows/variant_calling.wdl
     testParameterFiles:
@@ -31,4 +31,4 @@ workflows:
     authors:
       - name: "Irenaeus Chan"
         email: chani@wustl.edu
-    name: ArCCH-WGS-VariantCalling
+    name: ArCH-WGS-VariantCalling
