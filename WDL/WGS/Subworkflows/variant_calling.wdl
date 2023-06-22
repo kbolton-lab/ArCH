@@ -4,17 +4,16 @@ workflow variant_calling {
     input {
         File aligned_bam_file
         File aligned_bai_file
-        Boolean cram_input = false          # If the input is a CRAM then we have to convert it into a BAM
         String tumor_sample_name
         File target_intervals               # Interval List
-        Int? mem_limit_override = 6         # Some applications will require more memory depending on BAM size and BED size... (in GB)
+        Int mem_limit_override = 6         # Some applications will require more memory depending on BAM size and BED size... (in GB)
                                             # Need to account for these types of errors
         # Reference
         File reference
         File reference_fai
         File reference_dict
 
-        Float? af_threshold = 0.0001                # Minimum VAF Cut-Off
+        Float af_threshold = 0.0001                # Minimum VAF Cut-Off
 
         # See: https://github.com/bcbio/bcbio_validations/blob/master/somatic-lowfreq/README.md
         # Parameters MQ, NM, DP, and QUAL are calculated using a small subset then identifying the cut-off for 2% of the left side samples
@@ -65,13 +64,13 @@ workflow variant_calling {
 
     scatter (bed_bam_chr in splitBedandBAM) {
         # Mutect
+        #          gnomad = normalized_gnomad_exclude,
+        #          gnomad_tbi = normalized_gnomad_exclude_tbi,
         call mutect {
           input:
           reference = reference,
           reference_fai = reference_fai,
           reference_dict = reference_dict,
-          gnomad = normalized_gnomad_exclude,
-          gnomad_tbi = normalized_gnomad_exclude_tbi,
           tumor_bam = bed_bam_chr.right.left,
           tumor_bam_bai = bed_bam_chr.right.right,
           interval_list = bed_bam_chr.left
@@ -327,7 +326,7 @@ task mutect {
     Float reference_size = size([reference, reference_fai, reference_dict, interval_list], "GB")
     Float data_size = size([tumor_bam, tumor_bam_bai], "GB")
     Int space_needed_gb = ceil(10 + 2 * data_size + reference_size)
-    Int memory = select_first([mem_limit_override, 6])
+    Int memory = select_first([mem_limit_override, 4])
     Int cores = select_first([cpu_override, 1])
     Int preemptible = 3
     Int maxRetries = 3
@@ -461,7 +460,7 @@ task mutect_pass {
 
     Float data_size = size([mutect_vcf, mutect_vcf_tbi], "GB")
     Int space_needed_gb = ceil(10 + data_size)
-    Int memory = 6
+    Int memory = 1
     Int cores = 1
     Int preemptible = 1
     Int maxRetries = 0
@@ -495,8 +494,8 @@ task vardict {
         String tumor_sample_name = "TUMOR"
         File interval_bed
         File mutect_vcf
-        Float? min_var_freq = 0.005
-        Int? JavaXmx = 24
+        Float min_var_freq = 0.005
+        Int JavaXmx = 24
         Int? mem_limit_override
         Int? cpu_override
     }
@@ -506,8 +505,8 @@ task vardict {
     Int space_needed_gb = ceil(10 + 4 * data_size + reference_size)
     Int preemptible = 3
     Int maxRetries = 3
-    Int memory = select_first([mem_limit_override, 4])
-    Int cores = select_first([cpu_override, 4])
+    Int memory = select_first([mem_limit_override, 2])
+    Int cores = select_first([cpu_override, 2])
 
     runtime {
         docker: "kboltonlab/vardictjava:bedtools"
@@ -539,10 +538,11 @@ task vardict {
         bedtools makewindows -b ~{interval_bed} -w 1150 -s 1000 > ~{basename(interval_bed, ".bed")}_windows.bed
         bedtools intersect -u -wa -a ~{basename(interval_bed, ".bed")}_windows.bed -b ~{mutect_vcf} > interval_list_mutect.bed
         bedtools merge -i interval_list_mutect.bed > interval_list_mutect_merged.bed
+        bedtools makewindows -b interval_list_mutect_merged.bed -w 1150 -s 1000 > interval_list_mutect_merged_windows.bed
 
         # Split bed file into 16 equal parts
         #split -d --additional-suffix .bed -n l/16 ~{basename(interval_bed, ".bed")}_windows.bed splitBed.
-        split -d --additional-suffix .bed -n l/16 interval_list_mutect_merged.bed splitBed.
+        split -d --additional-suffix .bed -n l/16 interval_list_mutect_merged_windows.bed splitBed.
 
         nProcs=~{cores}
         nJobs="\j"

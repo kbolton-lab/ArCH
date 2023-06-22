@@ -59,24 +59,14 @@ workflow ArCCH_PoN2 {
               interval_list = bed_bam_chr.left
             }
 
-            # Cleans the VCF output that don't match the expected VCF Format
-            call vcfSanitize as mutectSanitizeVcf {
-                input: vcf = mutect.vcf
-            }
-
-            # Normalize the VCF by left aligning and trimming indels. Also splits multiallelics into multiple rows
-            call bcftoolsNorm as mutectNormalize {
+            call sanitizeNormalizeFilter as mutectFilter {
                 input:
-                reference = reference,
-                reference_fai = reference_fai,
-                vcf = mutectSanitizeVcf.sanitized_vcf,
-                vcf_tbi = mutectSanitizeVcf.sanitized_vcf_tbi
-            }
-
-            call bcftoolsFilter as mutectFilter {
-                input:
-                vcf = mutectNormalize.normalized_vcf,
-                vcf_tbi = mutectNormalize.normalized_vcf_tbi
+                    vcf = mutect.vcf,
+                    vcf_tbi = mutect.vcf_tbi,
+                    reference = reference,
+                    reference_fai = reference_fai,
+                    caller = "mutect",
+                    sample_name = bam.left
             }
 
             call vardict {
@@ -89,24 +79,14 @@ workflow ArCCH_PoN2 {
                 tumor_sample_name = bam.left
             }
 
-            # Cleans the VCF output that don't match the expected VCF Format
-            call vcfSanitize as vardictSanitizeVcf {
-                input: vcf = vardict.vcf
-            }
-
-            # Normalize the VCF by left aligning and trimming indels. Also splits multiallelics into multiple rows
-            call bcftoolsNorm as vardictNormalize {
+            call sanitizeNormalizeFilter as vardictFilter {
                 input:
-                reference = reference,
-                reference_fai = reference_fai,
-                vcf = vardictSanitizeVcf.sanitized_vcf,
-                vcf_tbi = vardictSanitizeVcf.sanitized_vcf_tbi
-            }
-
-            call bcftoolsFilter as vardictFilter {
-                input:
-                vcf = vardictNormalize.normalized_vcf,
-                vcf_tbi = vardictNormalize.normalized_vcf_tbi
+                    vcf = vardict.vcf,
+                    vcf_tbi = vardict.vcf_tbi,
+                    reference = reference,
+                    reference_fai = reference_fai,
+                    caller = "vardict",
+                    sample_name = bam.left
             }
 
             call lofreq_indelqual {
@@ -132,22 +112,14 @@ workflow ArCCH_PoN2 {
                 tumor_sample_name = bam.left
             }
 
-            call vcfSanitize as lofreqSanitizeVcf {
-                input: vcf = reformat.reformat_vcf
-            }
-
-            call bcftoolsNorm as lofreqNormalize {
+            call sanitizeNormalizeFilter as lofreqFilter {
                 input:
-                reference = reference,
-                reference_fai = reference_fai,
-                vcf = lofreqSanitizeVcf.sanitized_vcf,
-                vcf_tbi = lofreqSanitizeVcf.sanitized_vcf_tbi
-            }
-
-            call bcftoolsFilter as lofreqFilter {
-                input:
-                vcf = lofreqNormalize.normalized_vcf,
-                vcf_tbi = lofreqNormalize.normalized_vcf_tbi
+                    vcf = lofreq.vcf,
+                    vcf_tbi = lofreq.vcf_tbi,
+                    reference = reference,
+                    reference_fai = reference_fai,
+                    caller = "lofreq",
+                    sample_name = bam.left
             }
         }
 
@@ -403,76 +375,28 @@ task mutect {
     >>>
 
     output {
-    File vcf = output_vcf
-    File vcf_tbi = output_vcf + ".tbi"
+        File vcf = output_vcf
+        File vcf_tbi = output_vcf + ".tbi"
     }
 }
 
-task vcfSanitize {
+task sanitizeNormalizeFilter {
     input {
         File vcf
+        File vcf_tbi
+        File reference
+        File reference_fai
+        String caller = "caller"
+        String sample_name = "tumor"
     }
 
     Int preemptible = 1
     Int maxRetries = 0
-    Float data_size = size(vcf, "GB")
-    Int space_needed_gb = ceil(10 + data_size)
-    Int memory = 1
-    Int cores = 1
-
-    runtime {
-        memory: cores * memory + "GB"
-        cpu: cores
-        bootDiskSizeGb: space_needed_gb
-        disks: "local-disk ~{space_needed_gb} SSD"
-        docker: "mgibio/samtools-cwl:1.0.0"
-        preemptible: preemptible
-        maxRetries: maxRetries
-    }
-
-    # outbase should match in script but I don't want to risk changing it yet
-    String outbase = basename(basename(vcf, ".gz"), ".vcf")
-
-    command <<<
-        set -eou pipefail
-
-        # 1) removes lines containing non ACTGN bases, as they conflict with the VCF spec and cause GATK to choke
-        # 2) removes mutect-specific format tags containing underscores, which are likewise illegal in the vcf spec
-        base=`basename ~{vcf}`
-        outbase=`echo $base | perl -pe 's/.vcf(.gz)?$//g'`
-        echo "~{vcf}   $base    $outbase"
-        if [[ "~{vcf}" =~ ".gz" ]];then
-        #gzipped input
-        gunzip -c "~{vcf}" | perl -a -F'\t' -ne 'print $_ if $_ =~ /^#/ || $F[3] !~ /[^ACTGNactgn]/' | sed -e "s/ALT_F1R2/ALTF1R2/g;s/ALT_F2R1/ALTF2R1/g;s/REF_F1R2/REFF1R2/g;s/REF_F2R1/REFF2R1/g" >$outbase.sanitized.vcf
-        else
-        #non-gzipped input
-        cat "~{vcf}" | perl -a -F'\t' -ne 'print $_ if $_ =~ /^#/ || $F[3] !~ /[^ACTGNactgn]/' | sed -e "s/ALT_F1R2/ALTF1R2/g;s/ALT_F2R1/ALTF2R1/g;s/REF_F1R2/REFF1R2/g;s/REF_F2R1/REFF2R1/g" >$outbase.sanitized.vcf
-        fi
-        /opt/htslib/bin/bgzip $outbase.sanitized.vcf
-        /usr/bin/tabix -p vcf $outbase.sanitized.vcf.gz
-    >>>
-
-    output {
-        File sanitized_vcf = outbase + ".sanitized.vcf.gz"
-        File sanitized_vcf_tbi = outbase + ".sanitized.vcf.gz.tbi"
-    }
-}
-
-task bcftoolsNorm {
-    input {
-        File reference
-        File reference_fai
-        File vcf
-        File vcf_tbi
-    }
-
-    Float data_size = size([vcf, vcf_tbi], "GB")
+    Float data_size = size([vcf, vcf_tbi, exclude_vcf, exclude_vcf_tbi, vcf2PON, vcf2PON_tbi], "GB")
     Float reference_size = size([reference, reference_fai], "GB")
     Int space_needed_gb = ceil(10 + 2 * data_size + reference_size)
     Int memory = 1
     Int cores = 1
-    Int preemptible = 1
-    Int maxRetries = 0
 
     runtime {
         memory: cores * memory + "GB"
@@ -484,45 +408,24 @@ task bcftoolsNorm {
     }
 
     command <<<
-        /usr/local/bin/bcftools norm --check-ref w --multiallelics -any --output-type z --output bcftools_norm.vcf.gz ~{vcf} -f ~{reference}
-        /usr/local/bin/tabix bcftools_norm.vcf.gz
+        set -eou pipefail
+
+        # Santize Step
+        # 1) removes lines containing non ACTGN bases, as they conflict with the VCF spec and cause GATK to choke
+        # 2) removes mutect-specific format tags containing underscores, which are likewise illegal in the vcf spec
+        gunzip -c ~{vcf} | perl -a -F'\t' -ne 'print $_ if $_ =~ /^#/ || $F[3] !~ /[^ACTGNactgn]/' | sed -e "s/ALT_F1R2/ALTF1R2/g;s/ALT_F2R1/ALTF2R1/g;s/REF_F1R2/REFF1R2/g;s/REF_F2R1/REFF2R1/g" > sanitized.vcf
+
+        # Normalize Step
+        bcftools norm --check-ref w --multiallelics -any --output-type z --output norm.vcf.gz sanitized.vcf -f ~{reference}
+        tabix norm.vcf.gz
+
+        bcftools filter -i 'FILTER~"PASS" && FMT/AF >= 0.02' -Oz -o filtered.vcf.gz norm.vcf.gz
+        tabix filtered.vcf.gz
     >>>
 
     output {
-        File normalized_vcf = "bcftools_norm.vcf.gz"
-        File normalized_vcf_tbi = "bcftools_norm.vcf.gz.tbi"
-    }
-}
-
-task bcftoolsFilter {
-    input {
-        File vcf
-        File vcf_tbi
-    }
-
-    Int space_needed_gb = 10 + round(size([vcf, vcf_tbi], "GB") * 2)
-    Int memory = 1
-    Int cores = 1
-    Int preemptible = 1
-    Int maxRetries = 0
-
-    runtime {
-        memory: cores * memory + "GB"
-        docker: "kboltonlab/bst"
-        disks: "local-disk ~{space_needed_gb} SSD"
-        cpu: cores
-        preemptible: preemptible
-        maxRetries: maxRetries
-    }
-
-    command <<<
-    /usr/local/bin/bcftools filter -i 'FILTER~"PASS" && FMT/AF >= 0.02' -Oz -o bcftools_filtered.vcf.gz ~{vcf}
-    /usr/local/bin/tabix bcftools_filtered.vcf.gz
-    >>>
-
-    output {
-        File filtered_vcf = "bcftools_filtered.vcf.gz"
-        File filtered_vcf_tbi = "bcftools_filtered.vcf.gz.tbi"
+        File filtered_vcf = "filtered.vcf.gz"
+        File filtered_vcf_tbi = "filtered.vcf.gz.tbi"
     }
 }
 
