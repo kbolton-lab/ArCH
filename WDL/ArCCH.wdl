@@ -183,16 +183,11 @@ workflow boltonlab_CH {
 
             # Archer UMIs are not typical, they have a 13 bp Adapter after their 8 bp UMI
             # There needs to be some pruning involved before we can extract the UMIs
-            call filterArcherUmiLength as filterUMI {
+            call filterArcherUMILengthAndbbmapRepair as repair {
                 input:
                 fastq1 = select_first([bamToFastq.fastq_one, fastq_one]),
                 fastq2 = select_first([bamToFastq.fastq_two, fastq_two]),
                 umi_length = umi_length
-            }
-            call bbmapRepair as repair {
-                input:
-                fastq1 = filterUMI.fastq1_filtered,
-                fastq2 = filterUMI.fastq2_filtered
             }
             call fastqToBam as archer_fastq_to_bam {
                 input:
@@ -1131,59 +1126,18 @@ workflow boltonlab_CH {
     }
 }
 
-task filterArcherUmiLength {
-    input {
-        File fastq1
-        File fastq2
-        Int umi_length
-        Float? mem_limit_override
-        Int? cpu_override
-        Int? disk_size_override
-    }
-
-    Int preemptible = 1
-    Int maxRetries = 0
-    Float data_size = size([fastq1, fastq2], "GB")
-    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
-    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
-
-    runtime {
-        docker: "ubuntu:bionic"
-        memory: cores * memory + "GB"
-        cpu: cores          # Increasing cores will not increase the speed of this task
-        disks: "local-disk ~{space_needed_gb} SSD"
-        bootDiskSizeGb: space_needed_gb
-        preemptible: preemptible
-        maxRetries: maxRetries
-    }
-
-    command <<<
-        zcat ~{fastq1} | awk -v regex="AACCGCCAGGAGT" -v umi_length="~{umi_length}" 'BEGIN {FS = "\t" ; OFS = "\n"} {header = $0 ; getline seq ; getline qheader ; getline qseq ; split(seq,a,regex); if (length(a[1]) == umi_length) {print header, seq, qheader, qseq}}' > R1_filtered.fastq
-        gzip R1_filtered.fastq
-        cp ~{fastq2} R2_filtered.fastq.gz
-    >>>
-
-    output {
-        File fastq1_filtered = "R1_filtered.fastq.gz"
-        File fastq2_filtered = "R2_filtered.fastq.gz"
-    }
-}
-
 task bamToFastq {
     input {
         File unaligned_bam
         Float? mem_limit_override
-        Int? cpu_override
-        Int? disk_size_override
     }
 
     Int preemptible = 1
     Int maxRetries = 0
     Float data_size = size(unaligned_bam, "GB")
-    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
-    Float memory = select_first([mem_limit_override, ceil(data_size/6 + 5)]) # We want the base to be around 6
-    Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
+    Int space_needed_gb = ceil(10 + 2 * data_size)
+    Float memory = select_first([mem_limit_override, 6])
+    Int cores = 1
     Int memory_total = floor(memory)-2
 
     runtime {
@@ -1205,10 +1159,11 @@ task bamToFastq {
     }
 }
 
-task bbmapRepair {
+task filterArcherUMILengthAndbbmapRepair {
     input {
         File fastq1
         File fastq2
+        Int umi_length
         Float? mem_limit_override
         Int? cpu_override
         Int? disk_size_override
@@ -1232,7 +1187,18 @@ task bbmapRepair {
     }
 
     command <<<
-        repair.sh -Xmx~{memory_total}g repair=t overwrite=true interleaved=false outs=singletons.fq out1=R1.fixed.fastq.gz out2=R2.fixed.fastq.gz in1=~{fastq1} in2=~{fastq2}
+        zcat ~{fastq1} | awk -v regex="AACCGCCAGGAGT" -v umi_length="~{umi_length}" 'BEGIN {FS = "\t" ; OFS = "\n"} {header = $0 ; getline seq ; getline qheader ; getline qseq ; split(seq,a,regex); if (length(a[1]) == umi_length) {print header, seq, qheader, qseq}}' > R1_filtered.fastq
+        gzip R1_filtered.fastq
+        cp ~{fastq2} R2_filtered.fastq.gz
+        repair.sh -Xmx~{memory_total}g \
+            repair=t \
+            overwrite=true \
+            interleaved=false \
+            outs=singletons.fq \
+            out1=R1.fixed.fastq.gz \
+            out2=R2.fixed.fastq.gz \
+            in1=R1_filtered.fastq.gz \
+            in2=R2_filtered.fastq.gz
     >>>
 
     output {
@@ -2645,28 +2611,43 @@ task vardictTumorOnly {
         set -o pipefail
         set -o errexit
 
-        export VAR_DICT_OPTS='"-Xms256m" "-Xmx~{JavaXmx}g"'
-        echo ${VAR_DICT_OPTS}
-        echo ~{space_needed_gb}
-
         samtools index ~{tumor_bam}
-        how_many_lines=$(wc -l ~{interval_bed} | cut -d' ' -f1)
-        if [[ how_many_lines -lt 5 ]]; then
-            bedtools makewindows -b ~{interval_bed} -w 50150 -s 50000 > ~{basename(interval_bed, ".bed")}_windows.bed
-        else
-            cp ~{interval_bed} ~{basename(interval_bed, ".bed")}_windows.bed
-        fi
+        bedtools makewindows -b ~{interval_bed} -w 20250 -s 20000 > ~{basename(interval_bed, ".bed")}_windows.bed
+        split -d --additional-suffix .bed -n l/16 ~{basename(interval_bed, ".bed")}_windows.bed splitBed.
 
-        /opt/VarDictJava/build/install/VarDict/bin/VarDict \
-            -U -G ~{reference} \
-            -X 1 \
-            -f ~{min_var_freq} \
-            -N ~{tumor_sample_name} \
-            -b ~{tumor_bam} \
-            -c 1 -S 2 -E 3 -g 4 ~{basename(interval_bed, ".bed")}_windows.bed \
-            -th ~{cores} | \
-        /opt/VarDictJava/build/install/VarDict/bin/teststrandbias.R | \
-        /opt/VarDictJava/build/install/VarDict/bin/var2vcf_valid.pl \
+        nProcs=~{cores}
+        nJobs="\j"
+
+        for fName in splitBed.*.bed; do
+            # Wait until nJobs < nProcs, only start nProcs jobs at most
+            echo ${nJobs@P}
+            while (( ${nJobs@P} >= nProcs )); do
+                wait -n
+            done
+
+            part=$(echo $fName | cut -d'.' -f2)
+
+            echo ${fName}
+            echo ${part}
+
+            /opt/VarDictJava/build/install/VarDict/bin/VarDict \
+                -U -G ~{reference} \
+                -X 1 \
+                -f ~{min_var_freq} \
+                -N ~{tumor_sample_name} \
+                -b ~{tumor_bam} \
+                -c 1 -S 2 -E 3 -g 4 ${fName} \
+                -th ~{cores} \
+                --deldupvar -Q 10 -F 0x700 --fisher > result.${part}.txt &
+        done;
+        # Wait for all running jobs to finish
+        wait
+
+        for fName in result.*.txt; do
+            cat ${fName} >> resultCombine.txt
+        done;
+
+        cat resultCombine.txt | /opt/VarDictJava/build/install/VarDict/bin/var2vcf_valid.pl \
             -N "~{tumor_sample_name}" \
             -E \
             -f ~{min_var_freq} > ~{output_name}.vcf
@@ -2724,29 +2705,43 @@ task vardictNormal {
         set -o errexit
 
         samtools index ~{tumor_bam}
-        how_many_lines=$(wc -l ~{interval_bed} | cut -d' ' -f1)
-        if [[ how_many_lines -lt 5 ]]; then
-            bedtools makewindows -b ~{interval_bed} -w 50150 -s 50000 > ~{basename(interval_bed, ".bed")}_windows.bed
-        else
-            cp ~{interval_bed} ~{basename(interval_bed, ".bed")}_windows.bed
-        fi
+        bedtools makewindows -b ~{interval_bed} -w 20250 -s 20000 > ~{basename(interval_bed, ".bed")}_windows.bed
+        split -d --additional-suffix .bed -n l/16 ~{basename(interval_bed, ".bed")}_windows.bed splitBed.
 
-        export VAR_DICT_OPTS='"-Xms256m" "-Xmx~{JavaXmx}g"'
-        echo ${VAR_DICT_OPTS}
-        echo ~{space_needed_gb}
+        nProcs=~{cores}
+        nJobs="\j"
 
+        for fName in splitBed.*.bed; do
+            # Wait until nJobs < nProcs, only start nProcs jobs at most
+            echo ${nJobs@P}
+            while (( ${nJobs@P} >= nProcs )); do
+                wait -n
+            done
 
-        /opt/VarDictJava/build/install/VarDict/bin/VarDict \
-            -U -G ~{reference} \
-            -X 1 \
-            -f ~{min_var_freq} \
-            -N ~{tumor_sample_name} \
-            -b "~{tumor_bam}|~{normal_bam}" \
-            -c 1 -S 2 -E 3 -g 4 ~{basename(interval_bed, ".bed")}_windows.bed \
-            -th ~{cores} | \
-        /opt/VarDictJava/build/install/VarDict/bin/testsomatic.R | \
-        /opt/VarDictJava/build/install/VarDict/bin/var2vcf_paired.pl \
-            -N "~{tumor_sample_name}|~{normal_sample_name}" \
+            part=$(echo $fName | cut -d'.' -f2)
+
+            echo ${fName}
+            echo ${part}
+
+            /opt/VarDictJava/build/install/VarDict/bin/VarDict \
+                -U -G ~{reference} \
+                -X 1 \
+                -f ~{min_var_freq} \
+                -N ~{tumor_sample_name} \
+                -b "~{tumor_bam}|~{normal_bam}" \
+                -c 1 -S 2 -E 3 -g 4 ${fName} \
+                -th ~{cores} \
+                --deldupvar -Q 10 -F 0x700 --fisher > result.${part}.txt &
+        done;
+        # Wait for all running jobs to finish
+        wait
+
+        for fName in result.*.txt; do
+            cat ${fName} >> resultCombine.txt
+        done;
+
+        cat resultCombine.txt | /opt/VarDictJava/build/install/VarDict/bin/var2vcf_valid.pl \
+            -N -b "~{tumor_bam}|~{normal_bam}" \
             -f ~{min_var_freq} > ~{output_name}.vcf
 
         /usr/bin/bgzip ~{output_name}.vcf && /usr/bin/tabix ~{output_name}.vcf.gz

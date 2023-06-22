@@ -38,16 +38,14 @@ workflow WGS {
             input:
                 chip_toolkit = chip_toolkit,
                 input_vcf = vcf.left,
-                batch_number = batch_number,
-                caller = "mutect"
+                batch_number = batch_number
         }
 
         call register_sample_variants as vardict_variants {
             input:
                 chip_toolkit = chip_toolkit,
                 input_vcf = vcf.right,
-                batch_number = batch_number,
-                caller = "vardict"
+                batch_number = batch_number
         }
     }
 
@@ -75,7 +73,6 @@ workflow WGS {
                 chip_toolkit = chip_toolkit,
                 input_vcf = vcf.left,
                 caller = "mutect",
-                db_path = db_path,
                 batch_number = batch_number,
                 status_samples = samples.status,
                 status_variants = variants.status
@@ -86,7 +83,6 @@ workflow WGS {
                 chip_toolkit = chip_toolkit,
                 input_vcf = vcf.right,
                 caller = "vardict",
-                db_path = db_path,
                 batch_number = batch_number,
                 status_samples = samples.status,
                 status_variants = variants.status
@@ -156,6 +152,7 @@ workflow WGS {
     }
 
     output {
+        String done = import_annotate_pd.status
         String variant_database = db_path + "/" + vdb_name
         String sample_database = db_path + "/" + sdb_name
         String annotation_database = db_path + "/" + adb_name
@@ -194,7 +191,6 @@ task register_sample_variants {
         String chip_toolkit
         File input_vcf
         Int batch_number
-        String caller
     }
 
     runtime {
@@ -255,6 +251,7 @@ task dump_variants {
     }
 
     command <<<
+        echo ~{status_variants}
         ~{chip_toolkit} dump-variants --vdb ~{db_path}/~{variants_db} --header-type dummy --batch-number ~{batch_number}
         for chr in {1..22} X Y; do
             ~{chip_toolkit} dump-variants --vdb ~{db_path}/~{variants_db} --header-type dummy --batch-number ~{batch_number} --chromosome chr${chr}
@@ -273,7 +270,6 @@ task import_sample_vcf {
         String chip_toolkit
         File input_vcf
         String caller
-        String db_path
         Int batch_number
         String status_samples
         String status_variants
@@ -287,6 +283,8 @@ task import_sample_vcf {
 
     String sample_name = basename(input_vcf, ".vcf.gz")
     command <<<
+        echo "Samples is: ~{status_samples}"
+        echo "Variants is: ~{status_variants}" 
         ~{chip_toolkit} import-sample-vcf --caller ~{caller} --input-vcf ~{input_vcf} --cdb ~{sample_name}.db --batch-number ~{batch_number}
     >>>
 
@@ -316,6 +314,7 @@ task merge_batch_vcfs {
     }
 
     command <<<
+        echo "Dump Variants is: ~{status_dump}"
         mkdir mutect
         mkdir vardict
         cp ~{sep=" " mutect_vcfs} mutect
@@ -337,11 +336,16 @@ task run_vep {
         File? reference_dict
     }
 
+    Float reference_size = size([reference, reference_fai, reference_dict], "GB")
+    Float data_size = size(fake_vcf, "GB")
+    Int space_needed_gb = ceil(10 + 4 * data_size + reference_size)
     Int cores = 4
     runtime {
         docker: "kboltonlab/ic_vep:latest"
         memory: "32GB"
         cpu: cores
+        bootDiskSizeGb: space_needed_gb
+        disks: "local-disk ~{space_needed_gb} SSD"
     }
 
     String chrom = basename(fake_vcf, ".vcf.gz")
@@ -412,6 +416,7 @@ task import_vep {
     }
 
     command <<<
+        echo "VCF Importing is: ~{status_import}"
         ~{chip_toolkit} import-vep --vdb ~{db_path}/~{variants_db} --adb ~{db_path}/~{annotations_db} --vep ~{vep} --batch-number ~{batch_number}
     >>>
 
@@ -436,6 +441,7 @@ task dump_annotations {
     }
 
     command <<<
+        echo "Importing of VEP is: ~{status_vep}"
         ~{chip_toolkit} dump-annotations --adb ~{db_path}/~{annotations_db} --batch-number ~{batch_number}
     >>>
 

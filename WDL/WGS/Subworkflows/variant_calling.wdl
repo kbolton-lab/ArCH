@@ -6,8 +6,7 @@ workflow variant_calling {
         File aligned_bai_file
         String tumor_sample_name
         File target_intervals               # Interval List
-        Int mem_limit_override = 6         # Some applications will require more memory depending on BAM size and BED size... (in GB)
-                                            # Need to account for these types of errors
+
         # Reference
         File reference
         File reference_fai
@@ -64,13 +63,13 @@ workflow variant_calling {
 
     scatter (bed_bam_chr in splitBedandBAM) {
         # Mutect
-        #          gnomad = normalized_gnomad_exclude,
-        #          gnomad_tbi = normalized_gnomad_exclude_tbi,
         call mutect {
           input:
           reference = reference,
           reference_fai = reference_fai,
           reference_dict = reference_dict,
+          gnomad = normalized_gnomad_exclude,
+          gnomad_tbi = normalized_gnomad_exclude_tbi,
           tumor_bam = bed_bam_chr.right.left,
           tumor_bam_bai = bed_bam_chr.right.right,
           interval_list = bed_bam_chr.left
@@ -273,7 +272,7 @@ task splitBAMToChr {
         File reference_dict
     }
 
-    Float data_size = size([interval_bed, bam_file], "GB")
+    Float data_size = size([interval_bed, bam_file, bai_file], "GB")
     Int space_needed_gb = ceil(6 * data_size)
     Int memory = 2
     Int cores = 4
@@ -598,7 +597,8 @@ task mergeVcf {
     }
 
     Float data_size = size(vcfs, "GB")
-    Int space_needed_gb = ceil(10 + 2 * data_size)
+    Float data_size_tbi = size(vcf_tbis, "GB")
+    Int space_needed_gb = ceil(10 + 2 * (data_size + data_size_tbi))
     Float memory = 1
     Int cores = 1
     Int preemptible = 1
