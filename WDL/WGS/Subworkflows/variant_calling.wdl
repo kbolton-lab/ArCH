@@ -459,7 +459,7 @@ task mutect_pass {
 
     Float data_size = size([mutect_vcf, mutect_vcf_tbi], "GB")
     Int space_needed_gb = ceil(10 + data_size)
-    Int memory = 1
+    Int memory = 6
     Int cores = 1
     Int preemptible = 1
     Int maxRetries = 0
