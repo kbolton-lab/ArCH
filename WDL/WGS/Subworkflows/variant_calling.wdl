@@ -47,32 +47,23 @@ workflow variant_calling {
             interval_bed = interval_to_bed.interval_bed
     }
 
-    # This combines the CRAMtoBAM and the SplitBAMtoChr into one step
-    call splitBAMToChr {
+    call bamIndex {
         input:
-            bam_file = aligned_bam_file,
-            bai_file = aligned_bai_file,
-            interval_bed = interval_to_bed.interval_bed,
-            sample_name = tumor_sample_name,
-            reference = reference,
-            reference_fai = reference_fai,
-            reference_dict = reference_dict
+            bam_file = aligned_bam_file
     }
 
-    Array[Pair[File, Pair[File, File]]] splitBedandBAM = zip(splitBedToChr.split_chr, splitBAMToChr.split_bam_chr)
-
-    scatter (bed_bam_chr in splitBedandBAM) {
+    scatter (bed_chr in splitBedToChr.split_chr) {
         # Mutect
         call mutect {
-          input:
-          reference = reference,
-          reference_fai = reference_fai,
-          reference_dict = reference_dict,
-          gnomad = normalized_gnomad_exclude,
-          gnomad_tbi = normalized_gnomad_exclude_tbi,
-          tumor_bam = bed_bam_chr.right.left,
-          tumor_bam_bai = bed_bam_chr.right.right,
-          interval_list = bed_bam_chr.left
+            input:
+            reference = reference,
+            reference_fai = reference_fai,
+            reference_dict = reference_dict,
+            gnomad = normalized_gnomad_exclude,
+            gnomad_tbi = normalized_gnomad_exclude_tbi,
+            tumor_bam = aligned_bam_file, 
+            tumor_bam_bai = bamIndex.bam_index, 
+            interval_list = bed_chr
         }
 
         call mutect_pass {
@@ -86,9 +77,9 @@ workflow variant_calling {
             input:
             reference = reference,
             reference_fai = reference_fai,
-            tumor_bam = bed_bam_chr.right.left,
-            tumor_bam_bai = bed_bam_chr.right.right,
-            interval_bed = bed_bam_chr.left,
+            tumor_bam = aligned_bam_file, 
+            tumor_bam_bai = bamIndex.bam_index,
+            interval_bed = bed_chr,
             min_var_freq = af_threshold,
             tumor_sample_name = tumor_sample_name,
             mutect_vcf = mutect_pass.vcf
@@ -161,8 +152,8 @@ task intervalsToBed {
         docker: "ubuntu:bionic"
         memory: cores * memory + "GB"
         cpu: cores
-        disks: "local-disk ~{space_needed_gb} SSD"
-        bootDiskSizeGb: space_needed_gb
+        disks: "local-disk ~{space_needed_gb} HDD"
+        bootDiskSizeGb: 10
         preemptible: preemptible
         maxRetries: maxRetries
     }
@@ -184,56 +175,13 @@ task intervalsToBed {
     }
 }
 
-task cramToBAM {
-    input {
-        File input_cram
-        String sample_name
-        File reference
-        File reference_fai
-        File reference_dict
-    }
-
-    Float data_size = size(input_cram, "GB")
-    Float reference_size = size([reference, reference_fai, reference_dict], "GB")
-    Int preemptible = 2
-    Int maxRetries = 2
-    Int space_needed_gb = ceil(10 + 4 * data_size + reference_size)
-    Float memory = 6
-    Int cores = 1
-
-    runtime {
-        cpu: cores
-        docker: "quay.io/biocontainers/samtools:1.16.1--h00cdaf9_2"
-        memory: cores * memory + "GB"
-        disks: "local-disk ~{space_needed_gb} SSD"
-        preemptible: preemptible
-        maxRetries: maxRetries
-    }
-
-    String bam_link = sub(basename(input_cram), basename(basename(input_cram, ".bam"), ".cram"), sample_name)
-
-    command <<<
-        ln -s ~{input_cram} ~{bam_link}
-        if [[ ~{bam_link} == *.cram ]]; then
-            /usr/local/bin/samtools view -b -T ~{reference} -o ~{sample_name}.bam ~{bam_link}
-        fi
-        /usr/local/bin/samtools index ~{sample_name}.bam
-    >>>
-
-    output {
-        File bam = "~{sample_name}.bam"
-        File bai = "~{sample_name}.bam.bai"
-        #File bai = sub(sub(bam_link, "bam$", "bam.bai"), "cram$", "cram.crai")
-    }
-}
-
 task splitBedToChr {
     input {
         File interval_bed
     }
 
     Float data_size = size(interval_bed, "GB")
-    Int space_needed_gb = ceil(10 + 2 * data_size)
+    Int space_needed_gb = ceil(10 + data_size)
     Int memory = 1
     Int cores = 1
     Int preemptible = 1
@@ -243,8 +191,8 @@ task splitBedToChr {
         cpu: cores
         memory: cores * memory + "GB"
         docker: "kboltonlab/bst:latest"
-        bootDiskSizeGb: space_needed_gb
-        disks: "local-disk ~{space_needed_gb} SSD"
+        bootDiskSizeGb: 10
+        disks: "local-disk ~{space_needed_gb} HDD"
         preemptible: preemptible
         maxRetries: maxRetries
     }
@@ -308,6 +256,42 @@ task splitBAMToChr {
     }
 }
 
+task bamIndex {
+        input {
+        File bam_file
+    }
+
+    Float data_size = size([bam_file], "GB")
+    Int space_needed_gb = ceil(10 + data_size)
+    Int memory = 4
+    Int cores = 1
+    Int preemptible = 1
+    Int maxRetries = 0
+
+    runtime {
+        cpu: cores
+        memory: cores * memory + "GB"
+        docker: "kboltonlab/bst:latest"
+        bootDiskSizeGb: 10
+        disks: "local-disk ~{space_needed_gb} SSD"
+        preemptible: preemptible
+        maxRetries: maxRetries
+    }
+
+    String bam_link = basename(bam_file)
+
+    command <<<
+        set -e -x -o pipefail
+
+        ln -s ~{bam_file} ~{bam_link}
+        samtools index ~{bam_link}
+    >>>
+
+    output {
+        File bam_index = basename(bam_file)+".crai"
+    }
+}
+
 task mutect {
     input {
         File reference
@@ -324,7 +308,7 @@ task mutect {
 
     Float reference_size = size([reference, reference_fai, reference_dict, interval_list], "GB")
     Float data_size = size([tumor_bam, tumor_bam_bai], "GB")
-    Int space_needed_gb = ceil(10 + 2 * data_size + reference_size)
+    Int space_needed_gb = ceil(10 + data_size + reference_size)
     Int memory = select_first([mem_limit_override, 4])
     Int cores = select_first([cpu_override, 1])
     Int preemptible = 3
@@ -334,8 +318,8 @@ task mutect {
         cpu: cores
         docker: "broadinstitute/gatk:4.2.0.0"
         memory: cores * memory + "GB"
-        bootDiskSizeGb: space_needed_gb
-        disks: "local-disk ~{space_needed_gb} SSD"
+        bootDiskSizeGb: 10
+        disks: "local-disk ~{space_needed_gb} HDD"
         preemptible: preemptible
         maxRetries: maxRetries
     }
@@ -343,8 +327,7 @@ task mutect {
     String output_vcf = "mutect.filtered.vcf.gz"
 
     command <<<
-        set -o pipefail
-        set -o errexit
+        set -e -x -o pipefail
 
         /gatk/gatk Mutect2 --java-options "-Xmx~{memory}g" \
         --native-pair-hmm-threads ~{cores} \
@@ -398,14 +381,15 @@ task sanitizeNormalizeFilter {
     Int maxRetries = 0
     Float data_size = size([vcf, vcf_tbi, exclude_vcf, exclude_vcf_tbi, vcf2PON, vcf2PON_tbi], "GB")
     Float reference_size = size([reference, reference_fai], "GB")
-    Int space_needed_gb = ceil(10 + 2 * data_size + reference_size)
+    Int space_needed_gb = ceil(10 + data_size + reference_size)
     Int memory = 1
     Int cores = 1
 
     runtime {
         memory: cores * memory + "GB"
         docker: "kboltonlab/bst"
-        disks: "local-disk ~{space_needed_gb} SSD"
+        disks: "local-disk ~{space_needed_gb} HDD"
+        bootDiskSizeGb: 10
         cpu: cores
         preemptible: preemptible
         maxRetries: maxRetries
@@ -459,16 +443,17 @@ task mutect_pass {
 
     Float data_size = size([mutect_vcf, mutect_vcf_tbi], "GB")
     Int space_needed_gb = ceil(10 + data_size)
-    Int memory = 6
+    Int memory = 2
     Int cores = 1
     Int preemptible = 1
     Int maxRetries = 0
 
     runtime {
+        cpu: cores
         docker: "staphb/bcftools:latest"
         memory: cores * memory + "GB"
-        disks: "local-disk ~{space_needed_gb} SSD"
-        bootDiskSizeGb: space_needed_gb
+        disks: "local-disk ~{space_needed_gb} HDD"
+        bootDiskSizeGb: 10
         preemptible: preemptible
         maxRetries: maxRetries
     }
@@ -476,7 +461,7 @@ task mutect_pass {
     command <<<
         bcftools filter -i 'FILTER="PASS" || FILTER="weak_evidence" || FILTER="strand_bias" || FILTER="weak_evidence;strand_bias"' ~{mutect_vcf} > mutect_passed.vcf
         bcftools view -r 'chr20:32434638' --no-header ~{mutect_vcf} >> mutect_passed.vcf
-        bcftools sort -m ~{memory} mutect_passed.vcf -Oz -o mutect_passed.sorted.vcf.gz
+        bcftools sort -m ~{memory}G mutect_passed.vcf -Oz -o mutect_passed.sorted.vcf.gz 
     >>>
 
     output {
@@ -501,7 +486,7 @@ task vardict {
 
     Float reference_size = size([reference, reference_fai, interval_bed], "GB")
     Float data_size = size([tumor_bam, tumor_bam_bai, mutect_vcf], "GB")
-    Int space_needed_gb = ceil(10 + 4 * data_size + reference_size)
+    Int space_needed_gb = ceil(10 + 2.5 * data_size + reference_size)
     Int preemptible = 3
     Int maxRetries = 3
     Int memory = select_first([mem_limit_override, 2])
@@ -511,8 +496,8 @@ task vardict {
         docker: "kboltonlab/vardictjava:bedtools"
         memory: cores * memory + "GB"
         cpu: cores
-        bootDiskSizeGb: space_needed_gb
-        disks: "local-disk ~{space_needed_gb} SSD"
+        bootDiskSizeGb: 10
+        disks: "local-disk ~{space_needed_gb} HDD"
         preemptible: preemptible
         maxRetries: maxRetries
     }
@@ -520,27 +505,30 @@ task vardict {
     String output_name = "vardict"
 
     command <<<
-        set -o pipefail
-        set -o errexit
+        set -e -x -o pipefail
 
         # Increase RAM
         # Drop the multithreading
 
-        #export VAR_DICT_OPTS='"-Xms256m" "-Xmx~{JavaXmx}g"'
-        #echo ${VAR_DICT_OPTS}
         echo ~{space_needed_gb}
 
         # TODO: Account for when Mutect File is "Empty"..
 
-        samtools index ~{tumor_bam}
-        #bedtools makewindows -b ~{interval_bed} -w 20250 -s 20000 > ~{basename(interval_bed, ".bed")}_windows.bed
+        # Make windows and intersect with vcf file
         bedtools makewindows -b ~{interval_bed} -w 1150 -s 1000 > ~{basename(interval_bed, ".bed")}_windows.bed
         bedtools intersect -u -wa -a ~{basename(interval_bed, ".bed")}_windows.bed -b ~{mutect_vcf} > interval_list_mutect.bed
+
+        # Merge small intervals
         bedtools merge -i interval_list_mutect.bed > interval_list_mutect_merged.bed
-        bedtools makewindows -b interval_list_mutect_merged.bed -w 1150 -s 1000 > interval_list_mutect_merged_windows.bed
+        # intersect with bed file
+        samtools view -u -b -M -L interval_list_mutect_merged.bed -T ~{reference} -t ~{reference_fai} \
+            -o intersected.bam -X ~{tumor_bam} ~{tumor_bam_bai}
+        samtools index intersected.bam
+
+        # Make windows
+        bedtools makewindows -b interval_list_mutect_merged.bed -w 10150 -s 10000 > interval_list_mutect_merged_windows.bed
 
         # Split bed file into 16 equal parts
-        #split -d --additional-suffix .bed -n l/16 ~{basename(interval_bed, ".bed")}_windows.bed splitBed.
         split -d --additional-suffix .bed -n l/16 interval_list_mutect_merged_windows.bed splitBed.
 
         nProcs=~{cores}
@@ -563,9 +551,8 @@ task vardict {
                 -X 1 \
                 -f ~{min_var_freq} \
                 -N ~{tumor_sample_name} \
-                -b ~{tumor_bam} \
+                -b intersected.bam \
                 -c 1 -S 2 -E 3 -g 4 ${fName} \
-                -th ~{cores} \
                 --deldupvar -Q 10 -F 0x700 --fisher > result.${part}.txt &
         done;
         # Wait for all running jobs to finish
@@ -607,7 +594,8 @@ task mergeVcf {
     runtime {
         docker: "kboltonlab/bst:latest"
         memory: cores * memory + "GB"
-        disks: "local-disk ~{space_needed_gb} SSD"
+        disks: "local-disk ~{space_needed_gb} HDD"
+        bootDiskSizeGb: 10
         cpu: cores
         preemptible: preemptible
         maxRetries: maxRetries
@@ -625,3 +613,4 @@ task mergeVcf {
         File merged_vcf_tbi = "~{output_file}.tbi"
     }
 }
+
