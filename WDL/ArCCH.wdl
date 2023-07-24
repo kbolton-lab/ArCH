@@ -52,7 +52,7 @@ workflow boltonlab_CH {
         Boolean bam_input = false           # Default input is FASTQ files, but unaligned BAM is preferred
         Boolean cram_input = false          # If the input is a CRAM then we have to convert it into a BAM
         File unaligned_bam = ""
-        Boolean? aligned = false            # If input is an already aligned BAM file then set this flag
+        Boolean aligned = false            # If input is an already aligned BAM file then set this flag
         File? aligned_bam_file
         File? aligned_bai_file
         Array[String] read_structure        # Used for the UMI processing see: https://github.com/fulcrumgenomics/fgbio/wiki/Read-Structures
@@ -168,7 +168,7 @@ workflow boltonlab_CH {
         File normalized_gnomad_exclude_tbi
 
         # Used for Pilot Data. Leave FALSE
-        Boolean? pilot = false
+        Boolean pilot = false
     }
 
     # If the BAM file is already aligned and consensus sequencing was done, then alignment can be skipped
@@ -601,7 +601,7 @@ workflow boltonlab_CH {
                 tumor_bam_bai = chr_bam.bai,
                 tumor_sample_name = tumor_sample_name,
                 normal_bam = normal_bam,
-                normal_bam = normal_bam_bai,
+                normal_bam_bai = normal_bam_bai,
                 interval_bed = bed_bam_chr.left,
                 min_var_freq = af_threshold
             }
@@ -1794,7 +1794,7 @@ task Metrics {
     runtime {
         memory: cores * memory + "GB"
         docker: "broadinstitute/picard:2.23.6"
-        disks: "local-disk ~{space_needed_gb} SSD"
+        disks: "local-disk ~{space_needed_gb} HDD"
         cpu: cores
         preemptible: preemptible
         maxRetries: maxRetries
@@ -1852,7 +1852,7 @@ task collectHsMetrics {
     runtime {
         memory: cores * memory + "GB"
         docker: "broadinstitute/picard:2.23.6"
-        disks: "local-disk ~{space_needed_gb} SSD"
+        disks: "local-disk ~{space_needed_gb} HDD"
         cpu: cores
         preemptible: preemptible
         maxRetries: maxRetries
@@ -1903,7 +1903,7 @@ task samtoolsFlagstat {
     runtime {
         docker: "quay.io/biocontainers/samtools:1.11--h6270b1f_0"
         memory: cores * memory + "GB"
-        disks: "local-disk ~{space_needed_gb} SSD"
+        disks: "local-disk ~{space_needed_gb} HDD"
         cpu: cores
         preemptible: preemptible
         maxRetries: maxRetries
@@ -1953,7 +1953,7 @@ task selectVariants {
     runtime {
         docker: "broadinstitute/gatk:4.2.0.0"
         memory: cores * memory + "GB"
-        disks: "local-disk ~{space_needed_gb} SSD"
+        disks: "local-disk ~{space_needed_gb} HDD"
         cpu: cores
         preemptible: preemptible
         maxRetries: maxRetries
@@ -2579,8 +2579,6 @@ task vardictTumorOnly {
         String tumor_sample_name = "TUMOR"
         File interval_bed
         Float? min_var_freq = 0.005
-        Int? mem_limit_override
-        Int? cpu_override
         Int? JavaXmx = 24
         Int? disk_size_override
         Int? mem_limit_override
@@ -2673,8 +2671,6 @@ task vardictNormal {
         String? normal_sample_name = "NORMAL"
         File interval_bed
         Float? min_var_freq = 0.005
-        Int? mem_limit_override
-        Int? cpu_override
         Int? JavaXmx = 24
         Int? disk_size_override
         Int? mem_limit_override
@@ -3546,8 +3542,8 @@ task vep {
     String annotated_path = basename(basename(vcf, ".gz"), ".vcf") + "_annotated.vcf"
     String cache_dir = basename(cache_dir_zip, ".zip")
     Int annotation_len = length(custom_annotations)
-    File spliceAI_snv = spliceAI_files.spliceAI_snv
-    File spliceAI_indel = spliceAI_files.spliceAI_indel
+    File spliceAI_snv = select_first([spliceAI_files.spliceAI_snv])
+    File spliceAI_indel = select_first([spliceAI_files.spliceAI_indel])
 
     command <<<
         if [[ ~{annotation_len} -ge 1 ]]; then
