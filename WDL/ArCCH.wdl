@@ -1189,7 +1189,6 @@ task filterArcherUMILengthAndbbmapRepair {
     command <<<
         zcat ~{fastq1} | awk -v regex="AACCGCCAGGAGT" -v umi_length="~{umi_length}" 'BEGIN {FS = "\t" ; OFS = "\n"} {header = $0 ; getline seq ; getline qheader ; getline qseq ; split(seq,a,regex); if (length(a[1]) == umi_length) {print header, seq, qheader, qseq}}' > R1_filtered.fastq
         gzip R1_filtered.fastq
-        cp ~{fastq2} R2_filtered.fastq.gz
         repair.sh -Xmx~{memory_total}g \
             repair=t \
             overwrite=true \
@@ -1198,7 +1197,7 @@ task filterArcherUMILengthAndbbmapRepair {
             out1=R1.fixed.fastq.gz \
             out2=R2.fixed.fastq.gz \
             in1=R1_filtered.fastq.gz \
-            in2=R2_filtered.fastq.gz
+            in2=~{fastq2}
     >>>
 
     output {

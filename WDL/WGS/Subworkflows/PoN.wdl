@@ -58,7 +58,7 @@ task mskGetBaseCounts {
     Float vcf_size = size(vcfs, "GB")
     Float data_size = size([normal_bam.left, normal_bam.right], "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size + vcf_size + reference_size)])
-    Float memory = select_first([mem_limit_override, ceil(data_size/4 + 5)])
+    Float memory = select_first([mem_limit_override, ceil(data_size/3 + 5)])
     Int cores = 4
     Int preemptible = 1
     Int maxRetries = 0
@@ -67,8 +67,8 @@ task mskGetBaseCounts {
       docker: "kboltonlab/msk_getbasecounts:3.0"
       cpu: cores
       memory: cores * memory + "GB"
-      disks: "local-disk ~{space_needed_gb} SSD"
-      bootDiskSizeGb: space_needed_gb
+      disks: "local-disk ~{space_needed_gb} HDD"
+      bootDiskSizeGb: 10
       preemptible: preemptible
       maxRetries: maxRetries
     }
@@ -112,7 +112,8 @@ task bcftoolsMergePileup {
     runtime {
         docker: "kboltonlab/bst:latest"
         memory: cores * memory + "GB"
-        disks: "local-disk ~{space_needed_gb} SSD"
+        disks: "local-disk ~{space_needed_gb} HDD"
+        bootDiskSizeGb: 10
         cpu: cores
         preemptible: preemptible
         maxRetries: maxRetries

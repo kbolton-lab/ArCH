@@ -144,8 +144,8 @@ task intervalsToBed {
     Int preemptible = 1
     Int maxRetries = 0
     Float data_size = size(interval_list, "GB")
-    Int space_needed_gb = ceil(10 + data_size)
-    Float memory = 2
+    Int space_needed_gb = ceil(data_size)
+    Float memory = 1
     Int cores = 1
 
     runtime {
@@ -181,7 +181,7 @@ task splitBedToChr {
     }
 
     Float data_size = size(interval_bed, "GB")
-    Int space_needed_gb = ceil(10 + data_size)
+    Int space_needed_gb = ceil(data_size)
     Int memory = 1
     Int cores = 1
     Int preemptible = 1
@@ -190,7 +190,7 @@ task splitBedToChr {
     runtime {
         cpu: cores
         memory: cores * memory + "GB"
-        docker: "kboltonlab/bst:latest"
+        docker: "ubunut:bionic"
         bootDiskSizeGb: 10
         disks: "local-disk ~{space_needed_gb} HDD"
         preemptible: preemptible
@@ -231,7 +231,7 @@ task splitBAMToChr {
         cpu: cores
         memory: cores * memory + "GB"
         docker: "kboltonlab/bst:latest"
-        bootDiskSizeGb: space_needed_gb
+        bootDiskSizeGb: 10
         disks: "local-disk ~{space_needed_gb} SSD"
         preemptible: preemptible
         maxRetries: maxRetries
