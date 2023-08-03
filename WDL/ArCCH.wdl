@@ -1172,7 +1172,7 @@ task filterArcherUMILengthAndbbmapRepair {
     Float data_size = size([fastq1, fastq2], "GB")
     Int preemptible = 1
     Int maxRetries = 0
-    Int space_needed_gb = select_first([disk_size_override, ceil(10 + 2 * data_size)])
+    Int space_needed_gb = select_first([disk_size_override, ceil(2 * data_size)])
     Float memory = select_first([mem_limit_override, ceil(data_size/3 + 10)]) # 12
     Int cores = select_first([cpu_override, if memory > 36.0 then floor(memory / 18) else 1])
     Int memory_total = floor(memory)-2
@@ -1187,8 +1187,7 @@ task filterArcherUMILengthAndbbmapRepair {
     }
 
     command <<<
-        zcat ~{fastq1} | awk -v regex="AACCGCCAGGAGT" -v umi_length="~{umi_length}" 'BEGIN {FS = "\t" ; OFS = "\n"} {header = $0 ; getline seq ; getline qheader ; getline qseq ; split(seq,a,regex); if (length(a[1]) == umi_length) {print header, seq, qheader, qseq}}' > R1_filtered.fastq
-        gzip R1_filtered.fastq
+        zcat ~{fastq1} | awk -v regex="AACCGCCAGGAGT" -v umi_length="~{umi_length}" 'BEGIN {FS = "\t" ; OFS = "\n"} {header = $0 ; getline seq ; getline qheader ; getline qseq ; split(seq,a,regex); if (length(a[1]) == umi_length) {print header, seq, qheader, qseq}}' | \
         repair.sh -Xmx~{memory_total}g \
             repair=t \
             overwrite=true \
@@ -1196,7 +1195,7 @@ task filterArcherUMILengthAndbbmapRepair {
             outs=singletons.fq \
             out1=R1.fixed.fastq.gz \
             out2=R2.fixed.fastq.gz \
-            in1=R1_filtered.fastq.gz \
+            in1=stdin \
             in2=~{fastq2}
     >>>
 

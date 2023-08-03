@@ -507,9 +507,6 @@ task vardict {
     command <<<
         set -e -x -o pipefail
 
-        # Increase RAM
-        # Drop the multithreading
-
         echo ~{space_needed_gb}
 
         # TODO: Account for when Mutect File is "Empty"..

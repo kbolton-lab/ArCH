@@ -168,7 +168,7 @@ task import_samples {
     }
 
     runtime {
-        docker: "indraniel/ch-toolkit:v2.2.1"
+        docker: "kboltonlab/ch-toolkit:v2.2.2"
         memory: "1GB"
         cpu: 1
     }
@@ -189,7 +189,7 @@ task register_sample_variants {
     }
 
     runtime {
-        docker: "indraniel/ch-toolkit:v2.2.1"
+        docker: "kboltonlab/ch-toolkit:v2.2.2"
         memory: "4GB"
         cpu: 1
     }
@@ -213,7 +213,7 @@ task merge_batch_variants {
     }
 
     runtime {
-        docker: "indraniel/ch-toolkit:v2.2.1"
+        docker: "kboltonlab/ch-toolkit:v2.2.2"
         memory: "32GB"
         cpu: 1
     }
@@ -238,7 +238,7 @@ task dump_variants {
     }
 
     runtime {
-        docker: "indraniel/ch-toolkit:v2.2.1"
+        docker: "kboltonlab/ch-toolkit:v2.2.2"
         memory: "32GB"
         cpu: 1
     }
@@ -267,7 +267,7 @@ task import_sample_vcf {
     }
 
     runtime {
-        docker: "indraniel/ch-toolkit:v2.2.1"
+        docker: "kboltonlab/ch-toolkit:v2.2.2"
         memory: "16GB"
         cpu: 1
     }
@@ -298,7 +298,7 @@ task merge_batch_vcfs {
     }
 
     runtime {
-        docker: "indraniel/ch-toolkit:v2.2.1"
+        docker: "kboltonlab/ch-toolkit:v2.2.2"
         memory: "86GB"
         cpu: 1
     }
@@ -400,7 +400,7 @@ task import_vep {
     }
 
     runtime {
-        docker: "indraniel/ch-toolkit:v2.2.1"
+        docker: "kboltonlab/ch-toolkit:v2.2.2"
         memory: "86GB"
         cpu: 1
     }
@@ -424,7 +424,7 @@ task dump_annotations {
     }
 
     runtime {
-        docker: "indraniel/ch-toolkit:v2.2.1"
+        docker: "kboltonlab/ch-toolkit:v2.2.2"
         memory: "12GB"
         cpu: 1
     }
@@ -496,7 +496,7 @@ task import_annotate_pd {
     }
 
     runtime {
-        docker: "indraniel/ch-toolkit:v2.2.1"
+        docker: "kboltonlab/ch-toolkit:v2.2.2"
         memory: "32GB"
         cpu: 1
     }

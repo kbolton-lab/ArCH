@@ -33,30 +33,16 @@ workflow ArCCH_PoN2 {
 
     scatter (bam in aligned_bam_bai) {
 
-        # This combines the CRAMtoBAM and the SplitBAMtoChr into one step
-        call splitBAMToChr {
-            input:
-                bam_file = bam.right.left,
-                bai_file = bam.right.right,
-                interval_bed = interval_to_bed.interval_bed,
-                sample_name = bam.left,
-                reference = reference,
-                reference_fai = reference_fai,
-                reference_dict = reference_dict
-        }
-
-        Array[Pair[File, Pair[File, File]]] splitBedandBAM = zip(splitBedToChr.split_chr, splitBAMToChr.split_bam_chr)
-
-        scatter (bed_bam_chr in splitBedandBAM) {
+        scatter (bed_chr in splitBedToChr.split_chr) {
             # Mutect
             call mutect {
               input:
               reference = reference,
               reference_fai = reference_fai,
               reference_dict = reference_dict,
-              tumor_bam = bed_bam_chr.right.left,
-              tumor_bam_bai = bed_bam_chr.right.right,
-              interval_list = bed_bam_chr.left
+              tumor_bam = bam.right.left,
+              tumor_bam_bai = bam.right.right,
+              interval_list = bed_chr
             }
 
             call sanitizeNormalizeFilter as mutectFilter {
@@ -73,9 +59,9 @@ workflow ArCCH_PoN2 {
                 input:
                 reference = reference,
                 reference_fai = reference_fai,
-                tumor_bam = bed_bam_chr.right.left,
-                tumor_bam_bai = bed_bam_chr.right.right,
-                interval_bed = bed_bam_chr.left,
+                tumor_bam = bam.right.left,
+                tumor_bam_bai = bam.right.right,
+                interval_bed = bed_chr,
                 tumor_sample_name = bam.left
             }
 
@@ -89,27 +75,14 @@ workflow ArCCH_PoN2 {
                     sample_name = bam.left
             }
 
-            call lofreq_indelqual {
-                input:
-                reference = reference,
-                reference_fai = reference_fai,
-                tumor_bam = bed_bam_chr.right.left,
-                tumor_bam_bai = bed_bam_chr.right.right
-            }
-
             call lofreq {
                 input:
                 reference = reference,
                 reference_fai = reference_fai,
-                tumor_bam = lofreq_indelqual.output_indel_qual_bam,
-                tumor_bam_bai = lofreq_indelqual.output_indel_qual_bai,
-                interval_bed = bed_bam_chr.left
-            }
-
-            call lofreqReformat as reformat {
-                input:
-                vcf = lofreq.vcf,
-                tumor_sample_name = bam.left
+                tumor_bam = bam.right.left,
+                tumor_bam_bai = bam.right.right,
+                tumor_sample_name = bam.left,
+                interval_bed = bed_chr
             }
 
             call sanitizeNormalizeFilter as lofreqFilter {
@@ -123,21 +96,21 @@ workflow ArCCH_PoN2 {
             }
         }
 
-        call mergeVcf as merge_mutect {
+        call bcftoolsConcat as merge_mutect {
             input:
                 vcfs = mutectFilter.filtered_vcf,
                 vcf_tbis = mutectFilter.filtered_vcf_tbi,
                 merged_vcf_basename = "mutect." + bam.left
         }
 
-        call mergeVcf as merge_vardict {
+        call bcftoolsConcat as merge_vardict {
             input:
                 vcfs = vardictFilter.filtered_vcf,
                 vcf_tbis = vardictFilter.filtered_vcf_tbi,
                 merged_vcf_basename = "vardict." + bam.left
         }
 
-        call mergeVcf as merge_lofreq {
+        call bcftoolsConcat as merge_lofreq {
             input:
                 vcfs = lofreqFilter.filtered_vcf,
                 vcf_tbis = lofreqFilter.filtered_vcf_tbi,
@@ -169,21 +142,23 @@ workflow ArCCH_PoN2 {
     call bcftoolsPoN2 as mutect_PoN2 {
         input:
             vcf = merge_mutect_pon2.merged_vcf,
+            vcf_tbi = merge_mutect_pon2.merged_vcf_tbi,
             caller = "mutect"
     }
 
     call bcftoolsPoN2 as vardict_PoN2 {
         input:
             vcf = merge_vardict_pon2.merged_vcf,
+            vcf_tbi = merge_vardict_pon2.merged_vcf_tbi,
             caller = "vardict"
     }
 
     call bcftoolsPoN2 as lofreq_PoN2 {
         input:
             vcf = merge_lofreq_pon2.merged_vcf,
+            vcf_tbi = merge_lofreq_pon2.merged_vcf_tbi,
             caller = "lofreq"
     }
-
 
     output {
         File mutect_pon2_file = mutect_PoN2.pon2_vcf
@@ -203,16 +178,16 @@ task intervalsToBed {
     Int preemptible = 1
     Int maxRetries = 0
     Float data_size = size(interval_list, "GB")
-    Int space_needed_gb = ceil(10 + data_size)
-    Float memory = 2
+    Int space_needed_gb = ceil(data_size)
+    Float memory = 1
     Int cores = 1
 
     runtime {
         docker: "ubuntu:bionic"
         memory: cores * memory + "GB"
         cpu: cores
-        disks: "local-disk ~{space_needed_gb} SSD"
-        bootDiskSizeGb: space_needed_gb
+        disks: "local-disk ~{space_needed_gb} HDD"
+        bootDiskSizeGb: 10
         preemptible: preemptible
         maxRetries: maxRetries
     }
@@ -240,7 +215,7 @@ task splitBedToChr {
     }
 
     Float data_size = size(interval_bed, "GB")
-    Int space_needed_gb = ceil(10 + 2 * data_size)
+    Int space_needed_gb = ceil(data_size)
     Int memory = 1
     Int cores = 1
     Int preemptible = 1
@@ -249,9 +224,9 @@ task splitBedToChr {
     runtime {
         cpu: cores
         memory: cores * memory + "GB"
-        docker: "kboltonlab/bst:latest"
-        bootDiskSizeGb: space_needed_gb
-        disks: "local-disk ~{space_needed_gb} SSD"
+        docker: "ubunut:bionic"
+        bootDiskSizeGb: 10
+        disks: "local-disk ~{space_needed_gb} HDD"
         preemptible: preemptible
         maxRetries: maxRetries
     }
@@ -265,53 +240,6 @@ task splitBedToChr {
 
     output {
         Array[File] split_chr = glob(basename(interval_bed, ".bed")+"_*.bed")
-    }
-}
-
-task splitBAMToChr {
-    input {
-        File bam_file
-        File bai_file
-        File interval_bed
-        String sample_name
-        File reference
-        File reference_fai
-        File reference_dict
-    }
-
-    Float data_size = size([interval_bed, bam_file], "GB")
-    Int space_needed_gb = ceil(6 * data_size)
-    Int memory = 2
-    Int cores = 4
-    Int preemptible = 2
-    Int maxRetries = 2
-
-    runtime {
-        cpu: cores
-        memory: cores * memory + "GB"
-        docker: "kboltonlab/bst:latest"
-        bootDiskSizeGb: space_needed_gb
-        disks: "local-disk ~{space_needed_gb} SSD"
-        preemptible: preemptible
-        maxRetries: maxRetries
-    }
-
-    String bam_link = sub(basename(bam_file), basename(basename(bam_file, ".bam"), ".cram"), sample_name)
-
-    command <<<
-        ln -s ~{bam_file} ~{bam_link}
-        if [[ ~{bam_link} == *.cram ]]; then
-            /usr/local/bin/samtools index ~{bam_link}
-        fi
-        intervals=$(awk '{print $1}' ~{interval_bed} | uniq)
-        for chr in ${intervals}; do
-            samtools view -@ ~{cores} --fast -b -T ~{reference} -o ~{sample_name}_${chr}.bam ~{bam_link} $chr
-            samtools index ~{sample_name}_${chr}.bam
-        done
-    >>>
-
-    output {
-        Array[Pair[File, File]] split_bam_chr = zip(glob(sample_name+"_*.bam"), glob(sample_name+"_*.bam.bai"))
     }
 }
 
@@ -331,8 +259,8 @@ task mutect {
 
     Float reference_size = size([reference, reference_fai, reference_dict, interval_list], "GB")
     Float data_size = size([tumor_bam, tumor_bam_bai], "GB")
-    Int space_needed_gb = ceil(10 + 2 * data_size + reference_size)
-    Int memory = select_first([mem_limit_override, 6])
+    Int space_needed_gb = ceil(10 + data_size + reference_size)
+    Int memory = select_first([mem_limit_override, 4])
     Int cores = select_first([cpu_override, 1])
     Int preemptible = 3
     Int maxRetries = 3
@@ -341,8 +269,8 @@ task mutect {
         cpu: cores
         docker: "broadinstitute/gatk:4.2.0.0"
         memory: cores * memory + "GB"
-        bootDiskSizeGb: space_needed_gb
-        disks: "local-disk ~{space_needed_gb} SSD"
+        bootDiskSizeGb: 10
+        disks: "local-disk ~{space_needed_gb} HDD"
         preemptible: preemptible
         maxRetries: maxRetries
     }
@@ -350,8 +278,7 @@ task mutect {
     String output_vcf = "mutect.filtered.vcf.gz"
 
     command <<<
-        set -o pipefail
-        set -o errexit
+        set -e -x -o pipefail
 
         /gatk/gatk Mutect2 --java-options "-Xmx~{memory}g" \
         --native-pair-hmm-threads ~{cores} \
@@ -386,22 +313,21 @@ task sanitizeNormalizeFilter {
         File vcf_tbi
         File reference
         File reference_fai
-        String caller = "caller"
-        String sample_name = "tumor"
     }
 
     Int preemptible = 1
     Int maxRetries = 0
-    Float data_size = size([vcf, vcf_tbi, exclude_vcf, exclude_vcf_tbi, vcf2PON, vcf2PON_tbi], "GB")
+    Float data_size = size([vcf, vcf_tbi], "GB")
     Float reference_size = size([reference, reference_fai], "GB")
-    Int space_needed_gb = ceil(10 + 2 * data_size + reference_size)
+    Int space_needed_gb = ceil(10 + data_size + reference_size)
     Int memory = 1
     Int cores = 1
 
     runtime {
         memory: cores * memory + "GB"
         docker: "kboltonlab/bst"
-        disks: "local-disk ~{space_needed_gb} SSD"
+        disks: "local-disk ~{space_needed_gb} HDD"
+        bootDiskSizeGb: 10
         cpu: cores
         preemptible: preemptible
         maxRetries: maxRetries
@@ -438,25 +364,24 @@ task vardict {
         String tumor_sample_name = "TUMOR"
         File interval_bed
         Float? min_var_freq = 0.005
-        Int? JavaXmx = 24
         Int? mem_limit_override
         Int? cpu_override
     }
 
     Float reference_size = size([reference, reference_fai, interval_bed], "GB")
     Float data_size = size([tumor_bam, tumor_bam_bai], "GB")
-    Int space_needed_gb = ceil(10 + 4 * data_size + reference_size)
+    Int space_needed_gb = ceil(10 + 2.5 * data_size + reference_size)
     Int preemptible = 3
     Int maxRetries = 3
-    Int memory = select_first([mem_limit_override, 4])
-    Int cores = select_first([cpu_override, 4])
+    Int memory = select_first([mem_limit_override, 2])
+    Int cores = select_first([cpu_override, 2])
 
     runtime {
         docker: "kboltonlab/vardictjava:bedtools"
         memory: cores * memory + "GB"
         cpu: cores
-        bootDiskSizeGb: space_needed_gb
-        disks: "local-disk ~{space_needed_gb} SSD"
+        bootDiskSizeGb: 10
+        disks: "local-disk ~{space_needed_gb} HDD"
         preemptible: preemptible
         maxRetries: maxRetries
     }
@@ -464,17 +389,10 @@ task vardict {
     String output_name = "vardict"
 
     command <<<
-        set -o pipefail
-        set -o errexit
+        set -e -x -o pipefail
 
-        # Increase RAM
-        # Drop the multithreading
-
-        #export VAR_DICT_OPTS='"-Xms256m" "-Xmx~{JavaXmx}g"'
-        #echo ${VAR_DICT_OPTS}
         echo ~{space_needed_gb}
 
-        samtools index ~{tumor_bam}
         bedtools makewindows -b ~{interval_bed} -w 20250 -s 20000 > ~{basename(interval_bed, ".bed")}_windows.bed
 
         # Split bed file into 16 equal parts
@@ -502,7 +420,6 @@ task vardict {
                 -N ~{tumor_sample_name} \
                 -b ~{tumor_bam} \
                 -c 1 -S 2 -E 3 -g 4 ${fName} \
-                -th ~{cores} \
                 --deldupvar -Q 10 -F 0x700 --fisher > result.${part}.txt &
         done;
         # Wait for all running jobs to finish
@@ -526,60 +443,24 @@ task vardict {
     }
 }
 
-task lofreq_indelqual {
-    input {
-        File reference
-        File reference_fai
-        File tumor_bam
-        File tumor_bam_bai
-    }
-
-    Int memory = 4
-    Int cores = 1
-    Float reference_size = size([reference, reference_fai], "GB")
-    Float bam_size = size([tumor_bam, tumor_bam_bai], "GB")
-    Int space_needed_gb = 10 + round(reference_size + 4*bam_size)
-    Int preemptible = 3
-    Int maxRetries = 3
-
-    runtime {
-        docker: "kboltonlab/lofreq:latest"
-        memory: cores * memory + "GB"
-        cpu: cores
-        bootDiskSizeGb: space_needed_gb
-        disks: "local-disk ~{space_needed_gb} SSD"
-        preemptible: preemptible
-        maxRetries: maxRetries
-    }
-
-    command <<<
-        /opt/lofreq/bin/lofreq indelqual --dindel -f ~{reference} -o output.indel.bam ~{tumor_bam}
-        samtools index output.indel.bam
-    >>>
-
-    output {
-        File output_indel_qual_bam = "output.indel.bam"
-        File output_indel_qual_bai = "output.indel.bam.bai"
-    }
-}
-
 task lofreq {
     input {
         File reference
         File reference_fai
         File tumor_bam
         File tumor_bam_bai
+        String tumor_sample_name
         File interval_bed
-        String? output_name = "lofreq.vcf"
+        String? output_name = "lofreq"
         Int? mem_limit_override
         Int? cpu_override
     }
 
-    Int memory = select_first([mem_limit_override, 6])
+    Int memory = select_first([mem_limit_override, 2])
     Int cores = select_first([cpu_override, 1])
     Float reference_size = size([reference, reference_fai], "GB")
     Float bam_size = size([tumor_bam, tumor_bam_bai], "GB")
-    Int space_needed_gb = 10 + round(reference_size + 2*bam_size + size(interval_bed, "GB"))
+    Int space_needed_gb = 10 + round(reference_size + bam_size + size(interval_bed, "GB"))
     Int preemptible = 3
     Int maxRetries = 3
 
@@ -587,60 +468,33 @@ task lofreq {
         docker: "kboltonlab/lofreq:latest"
         memory: cores * memory + "GB"
         cpu: cores
-        bootDiskSizeGb: space_needed_gb
-        disks: "local-disk ~{space_needed_gb} SSD"
+        bootDiskSizeGb: 10
+        disks: "local-disk ~{space_needed_gb} HDD"
         preemptible: preemptible
         maxRetries: maxRetries
     }
 
     command <<<
-        /opt/lofreq/bin/lofreq call-parallel --pp-threads ~{cores} -A -B -f ~{reference} --call-indels --bed ~{interval_bed} -o unsorted.~{output_name} ~{tumor_bam} --force-overwrite
-        cat unsorted.~{output_name} | awk '$1 ~ /^#/ {print $0;next} {print $0 | "sort -k1,1 -k2,2n"}' > ~{output_name}
-        bgzip ~{output_name} && tabix ~{output_name}.gz
-    >>>
+        # Lofreq
+        /opt/lofreq/bin/lofreq indelqual --dindel -f ~{reference} -o lofreq.indel.bam ~{tumor_bam}
+        samtools index lofreq.indel.bam
+        /opt/lofreq/bin/lofreq call-parallel --pp-threads ~{cores} -A -B -f ~{reference} --call-indels --bed ~{interval_bed} -o unsorted.lofreq.vcf lofreq.indel.bam
+        cat unsorted.lofreq.vcf | awk '$1 ~ /^#/ {print $0;next} {print $0 | "sort -k1,1 -k2,2n"}' > lofreq.vcf
 
-    output {
-        File vcf = "~{output_name}.gz"
-        File vcf_tbi = "~{output_name}.gz.tbi"
-    }
-}
-
-task lofreqReformat {
-    input {
-        File vcf
-        String tumor_sample_name
-    }
-
-    Int space_needed_gb = 10 + 2*round(size(vcf, "GB"))
-    Int memory = 1
-    Int cores = 1
-    Int preemptible = 1
-    Int maxRetries = 0
-
-    runtime {
-      cpu: cores
-      docker: "quay.io/biocontainers/samtools:1.11--h6270b1f_0"
-      memory: cores * memory + "GB"
-      bootDiskSizeGb: space_needed_gb
-      disks: "local-disk ~{space_needed_gb} SSD"
-      preemptible: preemptible
-      maxRetries: maxRetries
-    }
-
-    command <<<
-        zcat ~{vcf} | grep "##" > lofreq.reformat.vcf
+        # Reformat
+        grep "##" lofreq.vcf > lofreq.reformat.vcf
         echo -e "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">" >> lofreq.reformat.vcf;
         echo -e "##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Raw Depth\">"  >> lofreq.reformat.vcf;
         echo -e "##FORMAT=<ID=AF,Number=1,Type=Float,Description=\"Allele Frequency\">"  >> lofreq.reformat.vcf;
         echo -e "##FORMAT=<ID=SB,Number=1,Type=Integer,Description=\"Phred-scaled strand bias at this position\">"  >> lofreq.reformat.vcf;
         echo -e "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t~{tumor_sample_name}" >> lofreq.reformat.vcf;
-        zcat ~{vcf} | grep -v '#' | awk '{ n=split($8, semi, /;/); sample=""; format=""; for(i in semi){ split(semi[i], equ, /=/); if(i<=3){ if(i+1==4) sample=sample equ[2]; else sample=sample equ[2] ":"; if(i+1==4) format=format equ[1]; else format=format equ[1] ":";}}{print $0, "GT:"format, "0/1:"sample}}' OFS='\t' >> lofreq.reformat.vcf;
+        grep -v '#' lofreq.vcf | awk '{ n=split($8, semi, /;/); sample=""; format=""; for(i in semi){ split(semi[i], equ, /=/); if(i<=3){ if(i+1==4) sample=sample equ[2]; else sample=sample equ[2] ":"; if(i+1==4) format=format equ[1]; else format=format equ[1] ":";}}{print $0, "GT:"format, "0/1:"sample}}' OFS='\t' >> lofreq.reformat.vcf;
         bgzip lofreq.reformat.vcf && tabix lofreq.reformat.vcf.gz
     >>>
 
     output {
-        File reformat_vcf = "lofreq.reformat.vcf.gz"
-        File reformat_vcf_tbi = "lofreq.reformat.vcf.gz.tbi"
+        File vcf = "lofreq.reformat.vcf.gz"
+        File vcf_tbi = "lofreq.reformat.vcf.gz.tbi"
     }
 }
 
@@ -651,8 +505,8 @@ task bcftoolsMerge {
         String merged_vcf_basename = "merged"
     }
 
-    Int space_needed_gb = 10 + round(2*(size(vcfs, "GB") + size(vcf_tbis, "GB")))
-    Int memory = 8
+    Int space_needed_gb = 10 + round((size(vcfs, "GB") + size(vcf_tbis, "GB")))
+    Int memory = 1
     Int cores = 1
     Int preemptible = 1
     Int maxRetries = 2
@@ -660,7 +514,7 @@ task bcftoolsMerge {
     runtime {
         docker: "kboltonlab/bst:latest"
         memory: cores * memory + "GB"
-        disks: "local-disk ~{space_needed_gb} SSD"
+        disks: "local-disk ~{space_needed_gb} HDD"
         cpu: cores
         preemptible: preemptible
         maxRetries: maxRetries
@@ -679,7 +533,7 @@ task bcftoolsMerge {
     }
 }
 
-task mergeVcf {
+task bcftoolsConcat {
     input {
         Array[File] vcfs
         Array[File] vcf_tbis
@@ -687,7 +541,7 @@ task mergeVcf {
     }
 
     Float data_size = size(vcfs, "GB")
-    Int space_needed_gb = ceil(10 + 2 * data_size)
+    Int space_needed_gb = ceil(10 + data_size)
     Float memory = 1
     Int cores = 1
     Int preemptible = 1
@@ -696,8 +550,9 @@ task mergeVcf {
     runtime {
         docker: "kboltonlab/bst:latest"
         memory: cores * memory + "GB"
-        disks: "local-disk ~{space_needed_gb} SSD"
+        disks: "local-disk ~{space_needed_gb} HDD"
         cpu: cores
+        bootDiskSizeGb: 10
         preemptible: preemptible
         maxRetries: maxRetries
     }
@@ -718,10 +573,11 @@ task mergeVcf {
 task bcftoolsPoN2 {
     input {
         File vcf
+        File vcf_tbi
         String caller
     }
 
-    Int space_needed_gb = 10 + round(4*size(vcf, "GB"))
+    Int space_needed_gb = 10 + round(size(vcf, "GB"))
     Int memory = 12
     Int cores = 1
     Int preemptible = 1
@@ -732,12 +588,13 @@ task bcftoolsPoN2 {
         memory: cores * memory + "GB"
         disks: "local-disk ~{space_needed_gb} SSD"
         cpu: cores
+        bootDiskSizeGb: 10
         preemptible: preemptible
         maxRetries: maxRetries
     }
 
     command <<<
-        /usr/local/bin/bcftools +fill-tags -Oz -o NS.vcf.gz -- ~{vcf} -t NS
+        /usr/local/bin/bcftools +fill-tags -Oz -o NS.vcf.gz -- -t NS
         /usr/local/bin/bcftools filter -i 'INFO/NS >= 2' -Oz -o 2N.vcf.gz NS.vcf.gz
         if [[ "~{caller}" =~ "mutect" ]];then
             /usr/local/bin/bcftools +fill-tags -Oz -o ~{caller}.2N.maxVAF.vcf.gz -- 2N.vcf.gz -t 'max_VAF=max(AF)'
