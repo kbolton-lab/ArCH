@@ -506,7 +506,7 @@ task bcftoolsMerge {
     }
 
     Int space_needed_gb = 10 + round((size(vcfs, "GB") + size(vcf_tbis, "GB")))
-    Int memory = 1
+    Int memory = 6
     Int cores = 1
     Int preemptible = 1
     Int maxRetries = 2
@@ -586,7 +586,7 @@ task bcftoolsPoN2 {
     runtime {
         docker: "kboltonlab/bst:latest"
         memory: cores * memory + "GB"
-        disks: "local-disk ~{space_needed_gb} SSD"
+        disks: "local-disk ~{space_needed_gb} HDD"
         cpu: cores
         bootDiskSizeGb: 10
         preemptible: preemptible
