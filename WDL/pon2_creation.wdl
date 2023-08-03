@@ -51,8 +51,7 @@ workflow ArCCH_PoN2 {
                     vcf_tbi = mutect.vcf_tbi,
                     reference = reference,
                     reference_fai = reference_fai,
-                    caller = "mutect",
-                    sample_name = bam.left
+                    caller = "mutect"
             }
 
             call vardict {
@@ -71,8 +70,7 @@ workflow ArCCH_PoN2 {
                     vcf_tbi = vardict.vcf_tbi,
                     reference = reference,
                     reference_fai = reference_fai,
-                    caller = "vardict",
-                    sample_name = bam.left
+                    caller = "vardict"
             }
 
             call lofreq {
