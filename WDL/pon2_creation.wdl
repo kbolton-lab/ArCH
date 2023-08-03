@@ -218,7 +218,7 @@ task splitBedToChr {
     runtime {
         cpu: cores
         memory: cores * memory + "GB"
-        docker: "ubunut:bionic"
+        docker: "ubuntu:bionic"
         bootDiskSizeGb: 10
         disks: "local-disk ~{space_needed_gb} HDD"
         preemptible: preemptible
