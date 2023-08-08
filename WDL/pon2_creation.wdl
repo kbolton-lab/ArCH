@@ -581,7 +581,7 @@ task bcftoolsPoN2 {
     runtime {
         docker: "kboltonlab/bst:latest"
         memory: cores * memory + "GB"
-        disks: "local-disk ~{space_needed_gb} SSD"
+        disks: "local-disk ~{space_needed_gb} HDD"
         cpu: cores
         bootDiskSizeGb: 10
         preemptible: preemptible
