@@ -334,9 +334,10 @@ task sanitizeNormalizeFilter {
         # 1) removes lines containing non ACTGN bases, as they conflict with the VCF spec and cause GATK to choke
         # 2) removes mutect-specific format tags containing underscores, which are likewise illegal in the vcf spec
         gunzip -c ~{vcf} | perl -a -F'\t' -ne 'print $_ if $_ =~ /^#/ || $F[3] !~ /[^ACTGNactgn]/' | sed -e "s/ALT_F1R2/ALTF1R2/g;s/ALT_F2R1/ALTF2R1/g;s/REF_F1R2/REFF1R2/g;s/REF_F2R1/REFF2R1/g" > sanitized.vcf
+        bgzip sanitized.vcf && tabix sanitized.vcf.gz
 
         # Normalize Step
-        bcftools norm --check-ref w --multiallelics -any --output-type z --output norm.vcf.gz sanitized.vcf -f ~{reference}
+        bcftools norm --check-ref w --multiallelics -any --output-type z --output norm.vcf.gz sanitized.vcf.gz -f ~{reference}
         tabix norm.vcf.gz
 
         bcftools filter -i 'FILTER~"PASS" && FMT/AF >= 0.02' -Oz -o filtered.vcf.gz norm.vcf.gz
