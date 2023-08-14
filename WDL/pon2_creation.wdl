@@ -451,11 +451,11 @@ task lofreq {
         Int? cpu_override
     }
 
-    Int memory = select_first([mem_limit_override, 2])
+    Int memory = select_first([mem_limit_override, 4])
     Int cores = select_first([cpu_override, 1])
     Float reference_size = size([reference, reference_fai], "GB")
     Float bam_size = size([tumor_bam, tumor_bam_bai], "GB")
-    Int space_needed_gb = 10 + round(reference_size + bam_size + size(interval_bed, "GB"))
+    Int space_needed_gb = ceil(3 * bam_size + reference_size)
     Int preemptible = 3
     Int maxRetries = 3
 
