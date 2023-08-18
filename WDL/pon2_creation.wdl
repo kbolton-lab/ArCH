@@ -483,7 +483,21 @@ task lofreq {
         echo -e "##FORMAT=<ID=AF,Number=1,Type=Float,Description=\"Allele Frequency\">"  >> lofreq.reformat.vcf;
         echo -e "##FORMAT=<ID=SB,Number=1,Type=Integer,Description=\"Phred-scaled strand bias at this position\">"  >> lofreq.reformat.vcf;
         echo -e "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t~{tumor_sample_name}" >> lofreq.reformat.vcf;
-        grep -v '#' lofreq.vcf | awk '{ n=split($8, semi, /;/); sample=""; format=""; for(i in semi){ split(semi[i], equ, /=/); if(i<=3){ if(i+1==4) sample=sample equ[2]; else sample=sample equ[2] ":"; if(i+1==4) format=format equ[1]; else format=format equ[1] ":";}}{print $0, "GT:"format, "0/1:"sample}}' OFS='\t' >> lofreq.reformat.vcf;
+        grep -v '#' lofreq.vcf | \
+        awk '{
+            n=split($8, semi, /;/); 
+            sample=""; format=""; 
+            for(i in semi){
+                split(semi[i], equ, /=/);
+                if(equ[1]=="DP" || equ[1]=="AF" || equ[1]=="SB"){
+                    format=format equ[1] ":";
+                    sample=sample equ[2] ":";
+                }
+            }
+            format=substr(format, 1, length(format)-1);
+            sample=substr(sample, 1, length(sample)-1);
+            {print $0, "GT:"format, "0/1:"sample}
+        }' OFS='\t' >> lofreq.reformat.vcf;
         bgzip lofreq.reformat.vcf && tabix lofreq.reformat.vcf.gz
     >>>
 
