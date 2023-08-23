@@ -603,7 +603,7 @@ task bcftoolsPoN2 {
     }
 
     command <<<
-        /usr/local/bin/bcftools +fill-tags -Oz -o NS.vcf.gz -- -t NS
+        /usr/local/bin/bcftools +fill-tags -Oz -o NS.vcf.gz -- ~{vcf} -t NS
         /usr/local/bin/bcftools filter -i 'INFO/NS >= 2' -Oz -o 2N.vcf.gz NS.vcf.gz
         if [[ "~{caller}" =~ "mutect" ]];then
             /usr/local/bin/bcftools +fill-tags -Oz -o ~{caller}.2N.maxVAF.vcf.gz -- 2N.vcf.gz -t 'max_VAF=max(AF)'
