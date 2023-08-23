@@ -59,16 +59,14 @@ task mskGetBaseCounts {
         Pair[File, File] input_vcf
         Int? mapq = 5
         Int? baseq = 5
-        Int? disk_size_override
         Int? mem_limit_override
-        Int? cpu_override
     }
 
     Float reference_size = size([reference, reference_fai, reference_dict], "GB")
     Float vcf_size = size([input_vcf.left, input_vcf.right], "GB")
     Float data_size = size([normal_bam.left, normal_bam.right], "GB")
-    Int space_needed_gb = select_first([disk_size_override, ceil(2 * data_size + vcf_size + reference_size)])
-    Float memory = select_first([mem_limit_override, 6])
+    Int space_needed_gb = ceil(2 * data_size + vcf_size + reference_size)
+    Float memory = select_first([mem_limit_override, 32])
     Int cores = 1
     Int preemptible = 1
     Int maxRetries = 0
@@ -151,9 +149,6 @@ task bcftoolsMergePileup {
         Array[File] vcfs
         Array[File] vcf_tbis
         String merged_vcf_basename = "merged"
-        Int? disk_size_override
-        Int? mem_limit_override
-        Int? cpu_override
     }
 
     Float data_size = size(vcfs, "GB")
