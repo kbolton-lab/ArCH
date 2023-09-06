@@ -20,14 +20,24 @@ workflow WGS {
 
         # Information pertaining to Annotations
         String adb_name = "annotations.db"
-        Boolean vep_done = false
         File? vep_input
 
         # Reference
         File reference
         File reference_fai
         File reference_dict
+
+        #PoN
+        Array[File] hiseq_pon_bam
+        Array[File] hiseq_pon_bai
+        Array[File] novaseq_pon_bam
+        Array[File] novaseq_pon_bai
+        String hiseq_pdb_name = "hiseq_pileup.db"
+        String novaseq_pdb_name = "novaseq_pileup.db"
     }
+
+    Array[Pair[String, String]] hiseq_pon_bam_bai = zip(hiseq_pon_bam, hiseq_pon_bai)
+    Array[Pair[String, String]] novaseq_pon_bam_bai = zip(novaseq_pon_bam, novaseq_pon_bai)
 
     call import_samples as samples {
         input:
@@ -100,21 +110,67 @@ workflow WGS {
             status_dump = dump_variants.status
     }
 
-    if (!vep_done) {
-        scatter(vcf in dump_variants.chr_vcf) {
-            call run_vep {
+    scatter(vcf in dump_variants.chr_vcf) {
+        call run_vep {
+            input:
+                fake_vcf = vcf,
+                reference = reference,
+                reference_fai = reference_fai,
+                reference_dict = reference_dict
+        }
+
+        scatter (bam_bai in hiseq_pon_bam_bai) {
+            call mskGetBaseCounts as hiseq_pileup{
                 input:
-                    fake_vcf = vcf,
-                    reference = reference,
-                    reference_fai = reference_fai,
-                    reference_dict = reference_dict
+                reference = reference,
+                reference_fai = reference_fai,
+                reference_dict = reference_dict,
+                normal_bam = bam_bai,
+                input_vcf = vcf
             }
         }
 
-        call merge_vep {
-            input:
-                vep_tsv = run_vep.vep
+        scatter (bam_bai in novaseq_pon_bam_bai) {
+            call mskGetBaseCounts as novaseq_pileup {
+                input:
+                reference = reference,
+                reference_fai = reference_fai,
+                reference_dict = reference_dict,
+                normal_bam = bam_bai,
+                input_vcf = vcf
+            }
         }
+
+        # Merge the pileups for all the Normal BAMs
+        call bcftoolsMergePileup as hiseq_pileup_merge {
+            input:
+                vcfs = hiseq_pileup.pileup,
+                vcf_tbis = hiseq_pileup.pileup_tbi
+        }
+
+        call bcftoolsMergePileup as novaseq_pileup_merge {
+            input:
+                vcfs = novaseq_pileup.pileup,
+                vcf_tbis = novaseq_pileup.pileup_tbi
+        }
+    }
+
+    # Need to merge the pileups for each chromosome
+    call bcftoolsConcat as hiseq_pileup_final {
+        input:
+        vcfs = hiseq_pileup_merge.merged_vcf,
+        vcf_tbis = hiseq_pileup_merge.merged_vcf_tbi
+    }
+
+    call bcftoolsConcat as novaseq_pileup_final {
+        input:
+        vcfs = novaseq_pileup_merge.merged_vcf,
+        vcf_tbis = novaseq_pileup_merge.merged_vcf_tbi
+    }
+
+    call merge_vep {
+        input:
+            vep_tsv = run_vep.vep
     }
 
     call import_vep {
@@ -125,6 +181,26 @@ workflow WGS {
             vep = select_first([vep_input, merge_vep.vep]),
             batch_number = batch_number,
             status_import = merge_batch_vcfs.status
+    }
+
+    call import_pon_pileup as hiseq_pon {
+        input:
+            db_path = db_path,
+            variants_db = vdb_name,
+            pileup_db = hiseq_pdb_name,
+            pileup = hiseq_pileup_final.merged_vcf,
+            batch_number = batch_number,
+            status_import = import_vep.status
+    }
+
+    call import_pon_pileup as novaseq_pon {
+        input:
+            db_path = db_path,
+            variants_db = vdb_name,
+            pileup_db = novaseq_pdb_name,
+            pileup = novaseq_pileup_final.merged_vcf,
+            batch_number = batch_number,
+            status_import = hiseq_pon.status
     }
 
     call dump_annotations {
@@ -343,6 +419,7 @@ task run_vep {
 
     command <<<
         outfile=~{chrom}_VEP_annotated.tsv
+        
         /opt/vep/src/ensembl-vep/vep -i ~{fake_vcf} --tab -o ${outfile}  \
             --cache --offline --dir_cache ~{vep_dir}/VepData/ --merged --assembly GRCh38 --use_given_ref --species homo_sapiens \
             --symbol --transcript_version --everything --check_existing \
@@ -510,3 +587,168 @@ task import_annotate_pd {
     }
 }
 
+task mskGetBaseCounts {
+    input {
+        File reference
+        File reference_fai
+        File reference_dict
+        Pair[File, File] normal_bam
+        File input_vcf
+        Int? mapq = 5
+        Int? baseq = 5
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
+    }
+
+    Float reference_size = size([reference, reference_fai, reference_dict], "GB")
+    Float vcf_size = size([input_vcf], "GB")
+    Float data_size = size([normal_bam.left, normal_bam.right], "GB")
+    Int space_needed_gb = select_first([disk_size_override, ceil(2 * data_size + vcf_size + reference_size)])
+    Float memory = select_first([mem_limit_override, 6])
+    Int cores = 4
+    Int preemptible = 1
+    Int maxRetries = 0
+
+    runtime {
+      docker: "kboltonlab/msk_getbasecounts:3.0"
+      cpu: cores
+      memory: cores * memory + "GB"
+      disks: "local-disk ~{space_needed_gb} HDD"
+      bootDiskSizeGb: 10
+      preemptible: preemptible
+      maxRetries: maxRetries
+    }
+
+    command <<<
+        sample_name=$(samtools view -H ~{normal_bam.left} | grep '^@RG' | sed "s/.*SM:\([^\t]*\).*/\1/g" | uniq)
+
+        # We need to pull the chromosome name from the VCF
+        chr=$(zgrep -v '#' ~{input_vcf} | awk '{print $1}' | sort | uniq)
+
+        # Split the BAM into the specific chromosome
+        samtools view -@ ~{cores} --fast -b -T ~{reference} -o ${sample_name}_${chr}.bam ~{normal_bam.left} ${chr}
+        samtools index ${sample_name}_${chr}.bam
+
+        # Run the tool
+        bgzip -c -d ~{input_vcf} > ~{basename(input_vcf, ".gz")}
+        /opt/GetBaseCountsMultiSample/GetBaseCountsMultiSample --fasta ~{reference} \
+            --bam ${sample_name}:${sample_name}_${chr}.bam \
+            --vcf ~{basename(input_vcf, ".gz")} \
+            --output pon.pileup.vcf \
+            --maq ~{mapq} --baq ~{baseq}
+        bgzip pon.pileup.vcf && tabix pon.pileup.vcf.gz
+
+        # Delete the BAM (Save Space)
+        rm ${sample_name}_${chr}.bam
+    >>>
+
+    output {
+        File pileup = "pon.pileup.vcf.gz"
+        File pileup_tbi = "pon.pileup.vcf.gz.tbi"
+    }
+}
+
+task bcftoolsConcat {
+    input {
+        Array[File] vcfs
+        Array[File] vcf_tbis
+        String merged_vcf_basename = "merged"
+    }
+
+    Float data_size = size(vcfs, "GB")
+    Int space_needed_gb = ceil(2*data_size)
+    Float memory = 1
+    Int cores = 1
+    Int preemptible = 1
+    Int maxRetries = 0
+
+    runtime {
+        docker: "kboltonlab/bst:latest"
+        memory: cores * memory + "GB"
+        disks: "local-disk ~{space_needed_gb} HDD"
+        cpu: cores
+        bootDiskSizeGb: 10
+        preemptible: preemptible
+        maxRetries: maxRetries
+    }
+
+    String output_file = merged_vcf_basename + ".vcf.gz"
+
+    command <<<
+        /usr/local/bin/bcftools concat --allow-overlaps --remove-duplicates --output-type z -o ~{output_file} ~{sep=" " vcfs}
+        /usr/local/bin/tabix ~{output_file}
+    >>>
+
+    output {
+        File merged_vcf = output_file
+        File merged_vcf_tbi = "~{output_file}.tbi"
+    }
+}
+
+task bcftoolsMergePileup {
+    input {
+        Array[File] vcfs
+        Array[File] vcf_tbis
+        String merged_vcf_basename = "merged"
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
+    }
+
+    Float data_size = size(vcfs, "GB")
+    Int space_needed_gb = ceil(2*data_size)
+    Float memory = 1
+    Int cores = 1
+    Int preemptible = 1
+    Int maxRetries = 0
+
+    runtime {
+        docker: "kboltonlab/bst:latest"
+        memory: cores * memory + "GB"
+        disks: "local-disk ~{space_needed_gb} HDD"
+        bootDiskSizeGb: 10
+        cpu: cores
+        preemptible: preemptible
+        maxRetries: maxRetries
+    }
+
+    String output_file = merged_vcf_basename + ".vcf.gz"
+
+    command <<<
+        /usr/local/bin/bcftools merge --output-type z -o merged.vcf.gz ~{sep=" " vcfs}
+        /usr/local/bin/tabix merged.vcf.gz
+        /usr/local/bin/bcftools +fill-tags -Oz -o RD.vcf.gz ~{output_file} -- -t "PON_RefDepth=sum(RD)"
+        /usr/local/bin/bcftools +fill-tags -Oz -o pon_pileup.vcf.gz RD.vcf.gz -- -t "PON_AltDepth=sum(AD)" && tabix pon_pileup.vcf.gz
+    >>>
+
+    output {
+        File merged_vcf = "pon_pileup.vcf.gz"
+        File merged_vcf_tbi = "pon_pileup.vcf.gz.tbi"
+    }
+}
+
+task import_pon_pileup {
+    input {
+        String db_path
+        String variants_db
+        String pileup_db
+        File pileup
+        Int batch_number
+        String status_import
+    }
+
+        runtime {
+        docker: "kboltonlab/ch-toolkit:v2.2.2"
+        memory: "86GB"
+        cpu: 1
+    }
+
+    command <<<
+        ch-toolkit import-pon-pileup --vdb ~{db_path}/~{variants_db} --pdb ~{db_path}/~{pileup_db} --pon-pileup ~{pileup} --batch-number ~{batch_number}
+    >>>
+
+    output {
+        String status = "Finished."
+    }
+}
