@@ -636,7 +636,7 @@ task filterArcherUMILengthAndbbmapRepair {
     }
 
     Float data_size = size(input_file, "GB")
-    Int space_needed_gb = ceil(3 * data_size)                   # We need at least 2 because if it's FASTQ, R1 and R2
+    Int space_needed_gb = ceil(6 * data_size)                   # We need at least 2*3*Data because if it's FASTQ, R1 and R2, then 3 for two steps
     Float memory = select_first([mem_limit_override, 8])
     Int cores = 1
     Int java_mem = floor(memory)
