@@ -577,7 +577,6 @@ task mskGetBaseCounts {
         File reference
         File reference_fai
         File reference_dict
-        #Pair[File, File] normal_bam
         File bam_fof
         File input_vcf
         Int? mapq = 5
@@ -589,7 +588,7 @@ task mskGetBaseCounts {
 
     Float reference_size = size([reference, reference_fai, reference_dict], "GB")
     Float vcf_size = size([input_vcf], "GB")
-    Float data_size = size([normal_bam.left, normal_bam.right], "GB")
+    Float data_size = size([bam_fof], "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(2 * data_size + vcf_size + reference_size)])
     Float memory = select_first([mem_limit_override, 6])
     Int cores = 4
@@ -607,19 +606,9 @@ task mskGetBaseCounts {
     }
 
     command <<<
-        #sample_name=$(samtools view -H ~{normal_bam.left} | grep '^@RG' | sed "s/.*SM:\([^\t]*\).*/\1/g" | uniq)
-
-        # We need to pull the chromosome name from the VCF
-        #chr=$(zgrep -v '#' ~{input_vcf} | awk '{print $1}' | sort | uniq)
-
-        # Split the BAM into the specific chromosome
-        #samtools view -@ ~{cores} --fast -b -T ~{reference} -o ${sample_name}_${chr}.bam ~{normal_bam.left} ${chr}
-        #samtools index ${sample_name}_${chr}.bam
-
         # Run the tool
         bgzip -c -d ~{input_vcf} > ~{basename(input_vcf, ".gz")}
         /opt/GetBaseCountsMultiSample/GetBaseCountsMultiSample --fasta ~{reference} \
-            #--bam ${sample_name}:${sample_name}_${chr}.bam \
             --bam_fof ~{bam_fof} \
             --vcf ~{basename(input_vcf, ".gz")} \
             --output pon.pileup.vcf \
