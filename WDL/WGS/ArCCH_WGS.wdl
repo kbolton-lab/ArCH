@@ -28,16 +28,18 @@ workflow WGS {
         File reference_dict
 
         #PoN
-        Array[File] hiseq_pon_bam
-        Array[File] hiseq_pon_bai
-        Array[File] novaseq_pon_bam
-        Array[File] novaseq_pon_bai
+        #Array[File] hiseq_pon_bam
+        #Array[File] hiseq_pon_bai
+        #Array[File] novaseq_pon_bam
+        #Array[File] novaseq_pon_bai
+        File hiseq_bam_fof
+        File novaseq_bam_fof
         String hiseq_pdb_name = "hiseq_pileup.db"
         String novaseq_pdb_name = "novaseq_pileup.db"
     }
 
-    Array[Pair[String, String]] hiseq_pon_bam_bai = zip(hiseq_pon_bam, hiseq_pon_bai)
-    Array[Pair[String, String]] novaseq_pon_bam_bai = zip(novaseq_pon_bam, novaseq_pon_bai)
+    #Array[Pair[String, String]] hiseq_pon_bam_bai = zip(hiseq_pon_bam, hiseq_pon_bai)
+    #Array[Pair[String, String]] novaseq_pon_bam_bai = zip(novaseq_pon_bam, novaseq_pon_bai)
 
     call import_samples as samples {
         input:
@@ -119,53 +121,36 @@ workflow WGS {
                 reference_dict = reference_dict
         }
 
-        scatter (bam_bai in hiseq_pon_bam_bai) {
-            call mskGetBaseCounts as hiseq_pileup{
-                input:
-                reference = reference,
-                reference_fai = reference_fai,
-                reference_dict = reference_dict,
-                normal_bam = bam_bai,
-                input_vcf = vcf
-            }
-        }
-
-        scatter (bam_bai in novaseq_pon_bam_bai) {
-            call mskGetBaseCounts as novaseq_pileup {
-                input:
-                reference = reference,
-                reference_fai = reference_fai,
-                reference_dict = reference_dict,
-                normal_bam = bam_bai,
-                input_vcf = vcf
-            }
-        }
-
-        # Merge the pileups for all the Normal BAMs
-        call bcftoolsMergePileup as hiseq_pileup_merge {
+        call mskGetBaseCounts as hiseq_pileup{
             input:
-                vcfs = hiseq_pileup.pileup,
-                vcf_tbis = hiseq_pileup.pileup_tbi
+            reference = reference,
+            reference_fai = reference_fai,
+            reference_dict = reference_dict,
+            bam_fof = hiseq_bam_fof,
+            input_vcf = vcf
         }
 
-        call bcftoolsMergePileup as novaseq_pileup_merge {
+        call mskGetBaseCounts as novaseq_pileup {
             input:
-                vcfs = novaseq_pileup.pileup,
-                vcf_tbis = novaseq_pileup.pileup_tbi
+            reference = reference,
+            reference_fai = reference_fai,
+            reference_dict = reference_dict,
+            bam_fof = novaseq_bam_fof,
+            input_vcf = vcf
         }
     }
 
     # Need to merge the pileups for each chromosome
-    call bcftoolsConcat as hiseq_pileup_final {
+    call bcftoolsConcat as merge_hiseq_pileup {
         input:
-        vcfs = hiseq_pileup_merge.merged_vcf,
-        vcf_tbis = hiseq_pileup_merge.merged_vcf_tbi
+        vcfs = hiseq_pileup.pileup,
+        vcf_tbis = hiseq_pileup.pileup_tbi
     }
 
-    call bcftoolsConcat as novaseq_pileup_final {
+    call bcftoolsConcat as merge_novaseq_pileup {
         input:
-        vcfs = novaseq_pileup_merge.merged_vcf,
-        vcf_tbis = novaseq_pileup_merge.merged_vcf_tbi
+        vcfs = novaseq_pileup.pileup,
+        vcf_tbis = novaseq_pileup.pileup_tbi
     }
 
     call merge_vep {
@@ -188,7 +173,7 @@ workflow WGS {
             db_path = db_path,
             variants_db = vdb_name,
             pileup_db = hiseq_pdb_name,
-            pileup = hiseq_pileup_final.merged_vcf,
+            pileup = merge_hiseq_pileup.merged_vcf,
             batch_number = batch_number,
             status_import = import_vep.status
     }
@@ -198,7 +183,7 @@ workflow WGS {
             db_path = db_path,
             variants_db = vdb_name,
             pileup_db = novaseq_pdb_name,
-            pileup = novaseq_pileup_final.merged_vcf,
+            pileup = merge_novaseq_pileup.merged_vcf,
             batch_number = batch_number,
             status_import = hiseq_pon.status
     }
@@ -592,7 +577,8 @@ task mskGetBaseCounts {
         File reference
         File reference_fai
         File reference_dict
-        Pair[File, File] normal_bam
+        #Pair[File, File] normal_bam
+        File bam_fof
         File input_vcf
         Int? mapq = 5
         Int? baseq = 5
@@ -621,26 +607,27 @@ task mskGetBaseCounts {
     }
 
     command <<<
-        sample_name=$(samtools view -H ~{normal_bam.left} | grep '^@RG' | sed "s/.*SM:\([^\t]*\).*/\1/g" | uniq)
+        #sample_name=$(samtools view -H ~{normal_bam.left} | grep '^@RG' | sed "s/.*SM:\([^\t]*\).*/\1/g" | uniq)
 
         # We need to pull the chromosome name from the VCF
-        chr=$(zgrep -v '#' ~{input_vcf} | awk '{print $1}' | sort | uniq)
+        #chr=$(zgrep -v '#' ~{input_vcf} | awk '{print $1}' | sort | uniq)
 
         # Split the BAM into the specific chromosome
-        samtools view -@ ~{cores} --fast -b -T ~{reference} -o ${sample_name}_${chr}.bam ~{normal_bam.left} ${chr}
-        samtools index ${sample_name}_${chr}.bam
+        #samtools view -@ ~{cores} --fast -b -T ~{reference} -o ${sample_name}_${chr}.bam ~{normal_bam.left} ${chr}
+        #samtools index ${sample_name}_${chr}.bam
 
         # Run the tool
         bgzip -c -d ~{input_vcf} > ~{basename(input_vcf, ".gz")}
         /opt/GetBaseCountsMultiSample/GetBaseCountsMultiSample --fasta ~{reference} \
-            --bam ${sample_name}:${sample_name}_${chr}.bam \
+            #--bam ${sample_name}:${sample_name}_${chr}.bam \
+            --bam_fof ~{bam_fof} \
             --vcf ~{basename(input_vcf, ".gz")} \
             --output pon.pileup.vcf \
             --maq ~{mapq} --baq ~{baseq}
         bgzip pon.pileup.vcf && tabix pon.pileup.vcf.gz
 
         # Delete the BAM (Save Space)
-        rm ${sample_name}_${chr}.bam
+        #rm ${sample_name}_${chr}.bam
     >>>
 
     output {
