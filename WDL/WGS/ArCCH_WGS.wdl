@@ -652,8 +652,11 @@ task bcftoolsConcat {
     String output_file = merged_vcf_basename + ".vcf.gz"
 
     command <<<
-        /usr/local/bin/bcftools concat --allow-overlaps --remove-duplicates --output-type z -o ~{output_file} ~{sep=" " vcfs}
-        /usr/local/bin/tabix ~{output_file}
+        /usr/local/bin/bcftools concat --allow-overlaps --remove-duplicates --output-type z -o merged.vcf.gz ~{sep=" " vcfs}
+        /usr/local/bin/tabix merged.vcf.gz
+        /usr/local/bin/bcftools +fill-tags -Ov merged.vcf.gz -- -t "PON_RefDepth=sum(RD)" | \
+        /usr/local/bin/bcftools +fill-tags -Oz -o pon_pileup.vcf.gz -- -t "PON_AltDepth=sum(AD)"
+        /usr/local/bin/tabix pon_pileup.vcf.gz
     >>>
 
     output {
