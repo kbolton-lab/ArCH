@@ -814,6 +814,7 @@ task umiAlign {
         File reference_pac
         File reference_sa
         Boolean realign = false
+        Int? mem_limit_override
     }
 
     Float data_size = size(bam, "GB")
