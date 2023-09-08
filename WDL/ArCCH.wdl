@@ -866,7 +866,7 @@ task groupReadsAndConsensus {
 
     Float data_size = size(bam, "GB")
     Int space_needed_gb = ceil(8 * data_size)
-    Float memory = 2
+    Float memory = 4
     Int cores = 1
     Int java_mem = floor(memory)
     Int preemptible = 1
