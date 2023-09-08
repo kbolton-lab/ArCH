@@ -819,7 +819,7 @@ task umiAlign {
     Float data_size = size(bam, "GB")
     Float reference_size = size([reference, reference_amb, reference_ann, reference_bwt, reference_pac, reference_sa], "GB")
     Int space_needed_gb = ceil(8 * data_size + reference_size)      # 4 Cores means multiple streams going from /dev/stdin to /dev/stdout
-    Float memory = 3                # No Memory required, everything is streamed straight to output
+    Float memory = select_first([mem_limit_override, 3])                # No Memory required, everything is streamed straight to output
     Int cores = 4                   # CPU only affects reading in the SAMtoFASTQ for BWA
     Int preemptible = 1
     Int maxRetries = 2
@@ -864,7 +864,7 @@ task groupReadsAndConsensus {
     }
 
     Float data_size = size(bam, "GB")
-    Int space_needed_gb = ceil(4 * data_size)
+    Int space_needed_gb = ceil(8 * data_size)
     Float memory = 2
     Int cores = 1
     Int java_mem = floor(memory)
@@ -914,7 +914,7 @@ task filterAndClip {
 
     Float data_size = size(bam, "GB")
     Float reference_size = size([reference, reference_fai, reference_dict], "GB")
-    Int space_needed_gb = ceil(2 * data_size + reference_size)
+    Int space_needed_gb = ceil(4 * data_size + reference_size)
     Float memory = 4                # FilterConsesusReads reads the entire Reference into Memory
     Int cores = 1
     Int java_mem = floor(memory)
@@ -987,7 +987,7 @@ task processAlignedBAM {
     Float data_size = size(bam, "GB")
     Float vcf_size = size(known_sites, "GB")
     Float reference_size = size([reference, reference_fai, reference_dict], "GB")
-    Int space_needed_gb = ceil(3 * data_size + reference_size + vcf_size)
+    Int space_needed_gb = ceil(6 * data_size + reference_size + vcf_size)
     Float memory = 2
     Int cores = 2
     Int java_mem = floor(memory)
