@@ -660,48 +660,6 @@ task bcftoolsConcat {
     >>>
 
     output {
-        File merged_vcf = output_file
-        File merged_vcf_tbi = "~{output_file}.tbi"
-    }
-}
-
-task bcftoolsMergePileup {
-    input {
-        Array[File] vcfs
-        Array[File] vcf_tbis
-        String merged_vcf_basename = "merged"
-        Int? disk_size_override
-        Int? mem_limit_override
-        Int? cpu_override
-    }
-
-    Float data_size = size(vcfs, "GB")
-    Int space_needed_gb = ceil(2*data_size)
-    Float memory = 1
-    Int cores = 1
-    Int preemptible = 1
-    Int maxRetries = 0
-
-    runtime {
-        docker: "kboltonlab/bst:latest"
-        memory: cores * memory + "GB"
-        disks: "local-disk ~{space_needed_gb} HDD"
-        bootDiskSizeGb: 10
-        cpu: cores
-        preemptible: preemptible
-        maxRetries: maxRetries
-    }
-
-    String output_file = merged_vcf_basename + ".vcf.gz"
-
-    command <<<
-        /usr/local/bin/bcftools merge --output-type z -o merged.vcf.gz ~{sep=" " vcfs}
-        /usr/local/bin/tabix merged.vcf.gz
-        /usr/local/bin/bcftools +fill-tags -Oz -o RD.vcf.gz ~{output_file} -- -t "PON_RefDepth=sum(RD)"
-        /usr/local/bin/bcftools +fill-tags -Oz -o pon_pileup.vcf.gz RD.vcf.gz -- -t "PON_AltDepth=sum(AD)" && tabix pon_pileup.vcf.gz
-    >>>
-
-    output {
         File merged_vcf = "pon_pileup.vcf.gz"
         File merged_vcf_tbi = "pon_pileup.vcf.gz.tbi"
     }
