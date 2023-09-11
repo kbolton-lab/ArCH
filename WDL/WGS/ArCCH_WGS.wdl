@@ -229,7 +229,7 @@ task import_samples {
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.2.2"
+        docker: "kboltonlab/ch-toolkit:v2.3.1"
         memory: "1GB"
         cpu: 1
     }
@@ -250,7 +250,7 @@ task register_sample_variants {
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.2.2"
+        docker: "kboltonlab/ch-toolkit:v2.3.1"
         memory: "4GB"
         cpu: 1
     }
@@ -274,7 +274,7 @@ task merge_batch_variants {
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.2.2"
+        docker: "kboltonlab/ch-toolkit:v2.3.1"
         memory: "32GB"
         cpu: 1
     }
@@ -299,7 +299,7 @@ task dump_variants {
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.2.2"
+        docker: "kboltonlab/ch-toolkit:v2.3.1"
         memory: "32GB"
         cpu: 1
     }
@@ -328,7 +328,7 @@ task import_sample_vcf {
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.2.2"
+        docker: "kboltonlab/ch-toolkit:v2.3.1"
         memory: "16GB"
         cpu: 1
     }
@@ -359,7 +359,7 @@ task merge_batch_vcfs {
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.2.2"
+        docker: "kboltonlab/ch-toolkit:v2.3.1"
         memory: "86GB"
         cpu: 1
     }
@@ -462,7 +462,7 @@ task import_vep {
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.2.2"
+        docker: "kboltonlab/ch-toolkit:v2.3.1"
         memory: "86GB"
         cpu: 1
     }
@@ -486,7 +486,7 @@ task dump_annotations {
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.2.2"
+        docker: "kboltonlab/ch-toolkit:v2.3.1"
         memory: "12GB"
         cpu: 1
     }
@@ -532,7 +532,7 @@ task run_annotatePD {
                 wait -n
             done
 
-            /opt/bolton-lab/R-4.2.3/bin/Rscript /storage1/fs1/bolton/Active/Projects/chip-toolkit/scripts/run_annotePD.R ${file} $(basename $file .csv).results.csv &
+            /opt/bolton-lab/R-4.2.3/bin/Rscript /storage1/fs1/bolton/Active/Users/IrenaeusChan/ch-toolkit/ch/resources/annotate_pd/run_annotePD.R ${file} $(basename $file .csv).results.csv &
         done;
         wait
 
@@ -558,7 +558,7 @@ task import_annotate_pd {
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.2.2"
+        docker: "kboltonlab/ch-toolkit:v2.3.1"
         memory: "32GB"
         cpu: 1
     }
@@ -676,7 +676,7 @@ task import_pon_pileup {
     }
 
         runtime {
-        docker: "kboltonlab/ch-toolkit:v2.2.2"
+        docker: "kboltonlab/ch-toolkit:v2.3.1"
         memory: "86GB"
         cpu: 1
     }
