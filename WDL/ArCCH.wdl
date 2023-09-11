@@ -916,7 +916,7 @@ task filterAndClip {
     Float data_size = size(bam, "GB")
     Float reference_size = size([reference, reference_fai, reference_dict], "GB")
     Int space_needed_gb = ceil(4 * data_size + reference_size)
-    Float memory = reference_size + 2.0                # FilterConsesusReads reads the entire Reference into Memory
+    Float memory = reference_size + 4.0                # FilterConsesusReads reads the entire Reference into Memory
     Int cores = 1
     Int java_mem = floor(memory)
     Int preemptible = 1
