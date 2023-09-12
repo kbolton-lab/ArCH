@@ -1158,7 +1158,7 @@ task somalier {
     Int preemptible = 1
     Int maxRetries = 0
     Float data_size = size([somalier_vcf, reference, bam, bai], "GB")
-    Int space_needed_gb = ceil(3*data_size)
+    Int space_needed_gb = ceil(3 * data_size)
     Float memory = 2
     Int cores = 1
 
@@ -1824,7 +1824,7 @@ task fpFilter {
 
     Float data_size = size(vcf, "GB")
     Float reference_size = size([reference, reference_fai, bam], "GB")
-    Int space_needed_gb = ceil(2 * data_size + reference_size)
+    Int space_needed_gb = ceil(2 * (data_size + reference_size))
     Float memory = 1
     Int cores = 4
     Int preemptible = 1
@@ -1895,7 +1895,7 @@ task mskGetBaseCounts {
 
     Float reference_size = size([reference, reference_fai], "GB")
     Float data_size = size([normal_bam.left, normal_bam.right, vcf], "GB")
-    Int space_needed_gb = ceil(2 * data_size + reference_size)
+    Int space_needed_gb = ceil(2 * (data_size + reference_size))
     Float memory = select_first([mem_limit_override, 3])
     Int cores = 4
     Int preemptible = 1
