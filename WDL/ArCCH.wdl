@@ -1158,7 +1158,7 @@ task somalier {
     Int preemptible = 1
     Int maxRetries = 0
     Float data_size = size([somalier_vcf, reference, bam, bai], "GB")
-    Int space_needed_gb = ceil(data_size)
+    Int space_needed_gb = ceil(3*data_size)
     Float memory = 2
     Int cores = 1
 
