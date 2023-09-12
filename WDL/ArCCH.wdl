@@ -1896,7 +1896,7 @@ task mskGetBaseCounts {
     Float reference_size = size([reference, reference_fai], "GB")
     Float data_size = size([normal_bam.left, normal_bam.right, vcf], "GB")
     Int space_needed_gb = ceil(2 * (data_size + reference_size))
-    Float memory = select_first([mem_limit_override, 3])
+    Float memory = select_first([mem_limit_override, 4])
     Int cores = 4
     Int preemptible = 1
     Int maxRetries = 0
