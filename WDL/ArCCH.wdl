@@ -2280,7 +2280,7 @@ task annotatePD {
       maxRetries: maxRetries
     }
 
-    String cosmic_dir = basename(cosmic_dir_zip, ".zip")
+    String cosmic_dir = basename(cosmic_dir_zip, ".zip") + "/"
 
     command <<<
         set -eou pipefail
