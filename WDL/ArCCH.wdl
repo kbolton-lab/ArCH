@@ -2263,9 +2263,9 @@ task annotatePD {
 
     Float caller_size = size([mutect_vcf, lofreq_vcf, vardict_vcf], "GB")
     Float file_size = size([bolton_bick_vars, mut2_bick, mut2_kelly, matches2, truncating, gene_list, oncokb_genes], "GB")
-    Float cosmic_size = 3*size(cosmic_dir_zip, "GB") 
-    Int space_needed_gb = ceil(caller_size + file_size + cosmic_size)
-    Float memory = 6
+    Float cosmic_size = 6*size(cosmic_dir_zip, "GB")        #cosmic_zip.zip is 194MB, but unzipped is 895MB
+    Int space_needed_gb = ceil(10 + caller_size + file_size + cosmic_size)
+    Float memory = 4
     Int cores = 1
     Int preemptible = 1
     Int maxRetries = 0
