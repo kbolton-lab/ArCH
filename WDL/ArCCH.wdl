@@ -2263,9 +2263,9 @@ task annotatePD {
 
     Float caller_size = size([mutect_vcf, lofreq_vcf, vardict_vcf], "GB")
     Float file_size = size([bolton_bick_vars, mut2_bick, mut2_kelly, matches2, truncating, gene_list, oncokb_genes], "GB")
-    Float cosmic_size = 5*size(cosmic_dir_zip, "GB") # Using 3x made it to Chr8 before running out of space
+    Float cosmic_size = 3*size(cosmic_dir_zip, "GB") 
     Int space_needed_gb = ceil(caller_size + file_size + cosmic_size)
-    Float memory = 4
+    Float memory = 6
     Int cores = 1
     Int preemptible = 1
     Int maxRetries = 0
