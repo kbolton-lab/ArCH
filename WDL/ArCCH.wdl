@@ -1903,7 +1903,7 @@ task mskGetBaseCounts {
     Int maxRetries = 2              # This task is prone to failing due to memory issues, so we allow for retries
 
     runtime {
-      docker: "kboltonlab/msk_getbasecounts:3.0"        #duct/getbasecount:latest
+      docker: "duct/getbasecount:latest"
       cpu: cores
       memory: cores * memory + "GB"
       disks: "local-disk ~{space_needed_gb} HDD"
