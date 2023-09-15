@@ -468,7 +468,8 @@ workflow ArCH {
         input:
             vcfs = mskGetBaseCounts.pileup,
             vcf_tbis = mskGetBaseCounts.pileup_tbi,
-            merged_vcf_basename = tumor_sample_name + ".pon.total.counts"
+            merged_vcf_basename = tumor_sample_name + ".pon.total.counts",
+            RD_AD = true
     }
 
     # Using the fake VCF of all the variants calls, perform VEP on all the variants
@@ -607,7 +608,7 @@ workflow ArCH {
         # Pindel
         File pindel_vcf = pindel_filter.annotated_vcf                                   # Raw Pindel Ouput
 
-        File pon_total_counts = pileup_merge.merged_vcf                                 # PoN Pileup Results
+        File? pon_total_counts = pileup_merge.pileup_vcf                                 # PoN Pileup Results
         File fpfilter_results = fpFilter.filtered_vcf                                   # FPFilters Results
         File vep_results = vep.annotated_vcf                                            # VEP Results
 
@@ -1240,7 +1241,7 @@ task mutect {
     Float reference_size = size([reference, reference_fai, reference_dict, interval_list], "GB")
     Float data_size = size([tumor_bam, tumor_bai, normal_bam, normal_bai], "GB")
     Int space_needed_gb = ceil(2 * data_size + reference_size)
-    Int memory = select_first([mem_limit_override, 4])
+    Int memory = select_first([mem_limit_override, 6])
     Int cores = select_first([cpu_override, 1])
     Int java_mem = floor(memory)
     Int preemptible = 3
@@ -1902,7 +1903,7 @@ task mskGetBaseCounts {
     Int maxRetries = 2              # This task is prone to failing due to memory issues, so we allow for retries
 
     runtime {
-      docker: "duct/getbasecount:latest"
+      docker: "kboltonlab/msk_getbasecounts:3.0"        #duct/getbasecount:latest
       cpu: cores
       memory: cores * memory + "GB"
       disks: "local-disk ~{space_needed_gb} HDD"
@@ -1919,35 +1920,32 @@ task mskGetBaseCounts {
         sample_name=$(samtools view -H ~{normal_bam.left} | grep '^@RG' | sed "s/.*SM:\([^\t]*\).*/\1/g" | uniq)
         if [[ $(zgrep -v '#' ~{vcf} | wc -l) -lt 1 ]]; then
             echo "PRINT: ~{vcf}"
-            printf "##fileformat=VCFv4.2\n" > pileup.vcf
-            printf "##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Total depth\">\n" >> pileup.vcf
-            printf "##FORMAT=<ID=RD,Number=1,Type=Integer,Description=\"Depth matching reference (REF) allele\">\n" >> pileup.vcf
-            printf "##FORMAT=<ID=AD,Number=1,Type=Integer,Description=\"Depth matching alternate (ALT) allele\">\n" >> pileup.vcf
-            printf "##FORMAT=<ID=VF,Number=1,Type=Float,Description=\"Variant frequence (AD/DP)\">\n" >> pileup.vcf
-            printf "##FORMAT=<ID=DPP,Number=1,Type=Integer,Description=\"Depth on postitive strand\">\n" >> pileup.vcf
-            printf "##FORMAT=<ID=DPN,Number=1,Type=Integer,Description=\"Depth on negative strand\">\n" >> pileup.vcf
-            printf "##FORMAT=<ID=RDP,Number=1,Type=Integer,Description=\"Reference depth on postitive strand\">\n" >> pileup.vcf
-            printf "##FORMAT=<ID=RDN,Number=1,Type=Integer,Description=\"Reference depth on negative strand\">\n" >> pileup.vcf
-            printf "##FORMAT=<ID=ADP,Number=1,Type=Integer,Description=\"Alternate depth on postitive strand\">\n" >> pileup.vcf
-            printf "##FORMAT=<ID=ADN,Number=1,Type=Integer,Description=\"Alternate depth on negative strand\">\n" >> pileup.vcf
-            printf "##FORMAT=<ID=DPF,Number=1,Type=Integer,Description=\"Total fragment depth\">\n" >> pileup.vcf
-            printf "##FORMAT=<ID=RDF,Number=1,Type=Float,Description=\"Fragment depth matching reference (REF) allele\">\n" >> pileup.vcf
-            printf "##FORMAT=<ID=ADF,Number=1,Type=Float,Description=\"Fragment depth matching alternate (ALT) allele\">\n" >> pileup.vcf
-            printf "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t${sample_name}\n" >> pileup.vcf
+            printf "##fileformat=VCFv4.2\n" > ~{pon_final_name}.vcf
+            printf "##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Total depth\">\n" >> ~{pon_final_name}.vcf
+            printf "##FORMAT=<ID=RD,Number=1,Type=Integer,Description=\"Depth matching reference (REF) allele\">\n" >> ~{pon_final_name}.vcf
+            printf "##FORMAT=<ID=AD,Number=1,Type=Integer,Description=\"Depth matching alternate (ALT) allele\">\n" >> ~{pon_final_name}.vcf
+            printf "##FORMAT=<ID=VF,Number=1,Type=Float,Description=\"Variant frequence (AD/DP)\">\n" >> ~{pon_final_name}.vcf
+            printf "##FORMAT=<ID=DPP,Number=1,Type=Integer,Description=\"Depth on postitive strand\">\n" >> ~{pon_final_name}.vcf
+            printf "##FORMAT=<ID=DPN,Number=1,Type=Integer,Description=\"Depth on negative strand\">\n" >> ~{pon_final_name}.vcf
+            printf "##FORMAT=<ID=RDP,Number=1,Type=Integer,Description=\"Reference depth on postitive strand\">\n" >> ~{pon_final_name}.vcf
+            printf "##FORMAT=<ID=RDN,Number=1,Type=Integer,Description=\"Reference depth on negative strand\">\n" >> ~{pon_final_name}.vcf
+            printf "##FORMAT=<ID=ADP,Number=1,Type=Integer,Description=\"Alternate depth on postitive strand\">\n" >> ~{pon_final_name}.vcf
+            printf "##FORMAT=<ID=ADN,Number=1,Type=Integer,Description=\"Alternate depth on negative strand\">\n" >> ~{pon_final_name}.vcf
+            printf "##FORMAT=<ID=DPF,Number=1,Type=Integer,Description=\"Total fragment depth\">\n" >> ~{pon_final_name}.vcf
+            printf "##FORMAT=<ID=RDF,Number=1,Type=Float,Description=\"Fragment depth matching reference (REF) allele\">\n" >> ~{pon_final_name}.vcf
+            printf "##FORMAT=<ID=ADF,Number=1,Type=Float,Description=\"Fragment depth matching alternate (ALT) allele\">\n" >> ~{pon_final_name}.vcf
+            printf "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t${sample_name}\n" >> ~{pon_final_name}.vcf
         else
             echo "SCRIPT: ~{normal_bam.left}"
             if [[ ~{vcf} == *.vcf.gz ]]; then
                 bgzip -d ~{vcf}
                 vcf_file=~{vcf}
-                /opt/GetBaseCountsMultiSample/GetBaseCountsMultiSample --fasta ~{reference} --bam ${sample_name}:~{normal_bam.left} --vcf "${vcf_file%.*}" --output pileup.vcf --maq ~{mapq} --baq ~{baseq} --thread ~{cores} --max_block_dist 10000
+                /opt/GetBaseCountsMultiSample/GetBaseCountsMultiSample --fasta ~{reference} --bam ${sample_name}:~{normal_bam.left} --vcf "${vcf_file%.*}" --output ~{pon_final_name}.vcf --maq ~{mapq} --baq ~{baseq} --thread ~{cores} --max_block_dist 10000
             else
-                /opt/GetBaseCountsMultiSample/GetBaseCountsMultiSample --fasta ~{reference} --bam ${sample_name}:~{normal_bam.left} --vcf ~{vcf} --output pileup.vcf --maq ~{mapq} --baq ~{baseq} --thread ~{cores} --max_block_dist 10000
+                /opt/GetBaseCountsMultiSample/GetBaseCountsMultiSample --fasta ~{reference} --bam ${sample_name}:~{normal_bam.left} --vcf ~{vcf} --output ~{pon_final_name}.vcf --maq ~{mapq} --baq ~{baseq} --thread ~{cores} --max_block_dist 10000
             fi
         fi
-        bgzip pileup.vcf && tabix pileup.vcf.gz
-        bcftools +fill-tags -Ov pileup.vcf.gz -- -t "PON_RefDepth=sum(RD)" | \
-        bcftools +fill-tags -Oz -o ~{pon_final_name}.vcf.gz - -- -t "PON_AltDepth=sum(AD)" && tabix ~{pon_final_name}.vcf.gz
-        #bgzip ~{pon_final_name}.vcf && tabix ~{pon_final_name}.vcf.gz
+        bgzip ~{pon_final_name}.vcf && tabix ~{pon_final_name}.vcf.gz
     >>>
 
     output {
@@ -1961,6 +1959,7 @@ task bcftoolsMerge {
         Array[File] vcfs
         Array[File] vcf_tbis
         String merged_vcf_basename = "merged"
+        Boolean RD_AD = false
     }
 
     Float data_size = size(vcfs, "GB")
@@ -1985,11 +1984,18 @@ task bcftoolsMerge {
     command <<<
         /usr/local/bin/bcftools merge --output-type z -o ~{output_file} ~{sep=" " vcfs}
         /usr/local/bin/tabix ~{output_file}
+
+        if ~{if RD_AD then "true" else "false"}; do
+            bcftools +fill-tags -Ov ~{output_file} -- -t "PON_RefDepth=sum(RD)" | \
+            bcftools +fill-tags -Oz -o pileup.vcf.gz - -- -t "PON_AltDepth=sum(AD)" && tabix pileup.vcf.gz
+        fi
     >>>
 
     output {
         File merged_vcf = output_file
         File merged_vcf_tbi = "~{output_file}.tbi"
+        File? pileup_vcf = "pileup.vcf.gz"
+        File? pileup_vcf_tbi = "pileup.vcf.gz.tbi"
     }
 }
 
