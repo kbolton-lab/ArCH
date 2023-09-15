@@ -490,8 +490,8 @@ workflow ArCH {
     call normalFisher as mutect_call_R_fisher {
         input:
         vcf = mutect_filter.annotated_vcf,
-        pon = pileup_merge.merged_vcf,
-        pon_tbi = pileup_merge.merged_vcf_tbi,
+        pon = select_first([pileup_merge.pileup_vcf,pileup_merge.merged_vcf]),
+        pon_tbi = select_first([pileup_merge.pileup_vcf_tbi, pileup_merge.merged_vcf_tbi]),
         p_value = pon_pvalue,
         caller = "mutect"
     }
@@ -510,8 +510,8 @@ workflow ArCH {
     call normalFisher as vardict_call_R_fisher {
         input:
         vcf = vardict_filter.annotated_vcf,
-        pon = pileup_merge.merged_vcf,
-        pon_tbi = pileup_merge.merged_vcf_tbi,
+        pon = select_first([pileup_merge.pileup_vcf,pileup_merge.merged_vcf]),
+        pon_tbi = select_first([pileup_merge.pileup_vcf_tbi, pileup_merge.merged_vcf_tbi]),
         p_value = pon_pvalue,
         caller = "vardict"
     }
@@ -530,8 +530,8 @@ workflow ArCH {
     call normalFisher as lofreq_call_R_fisher {
         input:
         vcf = lofreq_filter.annotated_vcf,
-        pon = pileup_merge.merged_vcf,
-        pon_tbi = pileup_merge.merged_vcf_tbi,
+        pon = select_first([pileup_merge.pileup_vcf,pileup_merge.merged_vcf]),
+        pon_tbi = select_first([pileup_merge.pileup_vcf_tbi, pileup_merge.merged_vcf_tbi]),
         p_value = pon_pvalue,
         caller = "lofreq"
     }
