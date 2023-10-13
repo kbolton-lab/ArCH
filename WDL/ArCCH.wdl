@@ -487,71 +487,50 @@ workflow ArCH {
     }
 
     # Using the "pileup", perform a Fisher's Exact Test with the Variants in each Caller
-    call normalFisher as mutect_call_R_fisher {
+    call annotateVcf as mutect_annotate_vcf {
         input:
         vcf = mutect_filter.annotated_vcf,
         pon = select_first([pileup_merge.pileup_vcf,pileup_merge.merged_vcf]),
         pon_tbi = select_first([pileup_merge.pileup_vcf_tbi, pileup_merge.merged_vcf_tbi]),
-        p_value = pon_pvalue,
-        caller = "mutect"
-    }
-    call annotateVcf as mutect_annotate_vcf {
-        input:
-        vcf = mutect_call_R_fisher.pon_filtered_vcf,
-        vcf_tbi = mutect_call_R_fisher.pon_filtered_vcf_tbi,
         fp_filter = fpFilter.filtered_vcf,
         fp_filter_tbi = fpFilter.filtered_vcf_tbi,
         vep = vep.annotated_vcf,
         vep_tbi = vep.annotated_vcf_tbi,
-        caller_prefix = "mutect",
-        sample_name = tumor_sample_name
+        p_value = pon_pvalue,
+        caller = "mutect"
     }
 
-    call normalFisher as vardict_call_R_fisher {
+    call annotateVcf as vardict_annotate_vcf {
         input:
         vcf = vardict_filter.annotated_vcf,
         pon = select_first([pileup_merge.pileup_vcf,pileup_merge.merged_vcf]),
         pon_tbi = select_first([pileup_merge.pileup_vcf_tbi, pileup_merge.merged_vcf_tbi]),
-        p_value = pon_pvalue,
-        caller = "vardict"
-    }
-    call annotateVcf as vardict_annotate_vcf {
-        input:
-        vcf = vardict_call_R_fisher.pon_filtered_vcf,
-        vcf_tbi = vardict_call_R_fisher.pon_filtered_vcf_tbi,
         fp_filter = fpFilter.filtered_vcf,
         fp_filter_tbi = fpFilter.filtered_vcf_tbi,
         vep = vep.annotated_vcf,
         vep_tbi = vep.annotated_vcf_tbi,
-        caller_prefix = "vardict",
-        sample_name = tumor_sample_name
+        p_value = pon_pvalue,
+        caller = "vardict"
     }
 
-    call normalFisher as lofreq_call_R_fisher {
+    call annotateVcf as lofreq_annotate_vcf {
         input:
         vcf = lofreq_filter.annotated_vcf,
         pon = select_first([pileup_merge.pileup_vcf,pileup_merge.merged_vcf]),
         pon_tbi = select_first([pileup_merge.pileup_vcf_tbi, pileup_merge.merged_vcf_tbi]),
-        p_value = pon_pvalue,
-        caller = "lofreq"
-    }
-    call annotateVcf as lofreq_annotate_vcf {
-        input:
-        vcf = lofreq_call_R_fisher.pon_filtered_vcf,
-        vcf_tbi = lofreq_call_R_fisher.pon_filtered_vcf_tbi,
         fp_filter = fpFilter.filtered_vcf,
         fp_filter_tbi = fpFilter.filtered_vcf_tbi,
         vep = vep.annotated_vcf,
         vep_tbi = vep.annotated_vcf_tbi,
-        caller_prefix = "lofreq",
-        sample_name = tumor_sample_name
+        p_value = pon_pvalue,
+        caller = "lofreq"
     }
 
     call annotatePD {
         input:
-            mutect_vcf = mutect_annotate_vcf.final_annotated_vcf,
-            lofreq_vcf = lofreq_annotate_vcf.final_annotated_vcf,
-            vardict_vcf = vardict_annotate_vcf.final_annotated_vcf,
+            mutect_vcf = mutect_annotate_vcf.annotated_filtered_vcf,
+            lofreq_vcf = lofreq_annotate_vcf.annotated_filtered_vcf,
+            vardict_vcf = vardict_annotate_vcf.annotated_filtered_vcf,
             bolton_bick_vars = bolton_bick_vars,
             mut2_bick = mut2_bick,
             mut2_kelly = mut2_kelly,
@@ -585,32 +564,26 @@ workflow ArCH {
         File somalier_out = somalier.somalier_out
 
         # Mutect
-        File mutect_vcf = mutect_filter.annotated_vcf                                   # Raw Mutect Ouput (gnomAD Filtered + PoN2 Annotated)
-        File mutect_pon_annotated_vcf = mutect_call_R_fisher.pon_vcf                    # PoN Pileup Annotated
-        File mutect_pon_filtered_vcf = mutect_call_R_fisher.pon_filtered_vcf            # PoN Pileup Filtered
-        File mutect_fpfilter_vcf = mutect_annotate_vcf.fpfilter_annotated_vcf           # PoN Filtered + FPFilter
-        File mutect_vep_annotated_vcf = mutect_annotate_vcf.final_annotated_vcf         # PoN Filtered + FPFilter + VEP Annotation
+        File mutect_vcf = mutect_filter.annotated_vcf                                       # Raw Mutect Ouput (gnomAD Filtered + PoN2 Annotated)
+        File mutect_annotated_vcf = mutect_annotate_vcf.annotated_vcf                       # PoN Pileup + FPFilter + VEP Annotated
+        File mutect_annotated_filtered_vcf = mutect_annotate_vcf.annotated_filtered_vcf     # PoN Pileup Filtered + FPFilter + VEP Annotated
 
         # Lofreq
-        File lofreq_vcf = lofreq_filter.annotated_vcf                                   # Raw Mutect Ouput (gnomAD Filtered + PoN2 Annotated)
-        File lofreq_pon_annotated_vcf = lofreq_call_R_fisher.pon_vcf                    # PoN Pileup Annotated
-        File lofreq_pon_filtered_vcf = lofreq_call_R_fisher.pon_filtered_vcf            # PoN Pileup Filtered
-        File lofreq_fpfilter_vcf = lofreq_annotate_vcf.fpfilter_annotated_vcf           # PoN Filtered + FPFilter
-        File lofreq_vep_annotated_vcf = lofreq_annotate_vcf.final_annotated_vcf         # PoN Filtered + FPFilter + VEP Annotation
+        File lofreq_vcf = lofreq_filter.annotated_vcf                                       # Raw Lofreq Ouput (gnomAD Filtered + PoN2 Annotated)
+        File lofreq_annotated_vcf = lofreq_annotate_vcf.annotated_vcf                       # PoN Pileup + FPFilter + VEP Annotated
+        File lofreq_annotated_filtered_vcf = lofreq_annotate_vcf.annotated_filtered_vcf     # PoN Pileup Filtered + FPFilter + VEP Annotated
 
         # Vardict
-        File vardict_vcf = vardict_filter.annotated_vcf                                 # Raw Mutect Ouput (gnomAD Filtered + PoN2 Annotated)
-        File vardict_pon_annotated_vcf = vardict_call_R_fisher.pon_vcf                  # PoN Pileup Annotated
-        File vardict_pon_filtered_vcf = vardict_call_R_fisher.pon_filtered_vcf          # PoN Pileup Filtered
-        File vardict_fpfilter_vcf = vardict_annotate_vcf.fpfilter_annotated_vcf         # PoN Filtered + FPFilter
-        File vardict_vep_annotated_vcf = vardict_annotate_vcf.final_annotated_vcf       # PoN Filtered + FPFilter + VEP Annotation
+        File vardict_vcf = vardict_filter.annotated_vcf                                     # Raw Vardict Ouput (gnomAD Filtered + PoN2 Annotated)
+        File vardict_annotated_vcf = vardict_annotate_vcf.annotated_vcf                     # PoN Pileup + FPFilter + VEP Annotated
+        File vardict_annotated_filtered_vcf = vardict_annotate_vcf.annotated_filtered_vcf   # PoN Pileup Filtered + FPFilter + VEP Annotated
 
         # Pindel
-        File pindel_vcf = pindel_filter.annotated_vcf                                   # Raw Pindel Ouput
+        File pindel_vcf = pindel_filter.annotated_vcf                                       # Raw Pindel Ouput
 
-        File? pon_total_counts = pileup_merge.pileup_vcf                                 # PoN Pileup Results
-        File fpfilter_results = fpFilter.filtered_vcf                                   # FPFilters Results
-        File vep_results = vep.annotated_vcf                                            # VEP Results
+        File? pon_total_counts = pileup_merge.pileup_vcf                                    # PoN Pileup Results
+        File fpfilter_results = fpFilter.filtered_vcf                                       # FPFilters Results
+        File vep_results = vep.annotated_vcf                                                # VEP Results
 
         # R Things
         File mutect_annotate_pd = annotatePD.mutect_vcf_annotate_pd
@@ -2067,17 +2040,22 @@ task vep {
     }
 }
 
-task normalFisher {
+# Combining FisherNormal + AnnotateVCF (They do the same thing)
+task annotateVcf {
     input {
         File vcf
         File pon
         File pon_tbi
+        File fp_filter
+        File fp_filter_tbi
+        File vep
+        File vep_tbi
         String caller = "caller"
         String? p_value = "0.05"
     }
 
 
-    Float data_size = size([vcf, pon, pon_tbi], "GB")
+    Float data_size = size([vcf, pon, pon_tbi, fp_filter, fp_filter_tbi, vep, vep_tbi], "GB")
     Int space_needed_gb = ceil(data_size)
     Float memory = 2
     Int cores = 1
@@ -2175,57 +2153,7 @@ task normalFisher {
         fi
         chmod u+x fisherTestInput.R
 
-        # Depending on how we split, we might have caller_vcf that doesn't have any variants called
-        if [ -s $name.fisher.input ]; then
-            LC_ALL=C.UTF-8 Rscript --vanilla ./fisherTestInput.R $name.fisher.input $name.fisher.output
-            bgzip -f $name.fisher.output
-            tabix -f -s1 -b2 -e2 $name.fisher.output.gz
-            bcftools annotate -a $name.fisher.output.gz -h fisher.header -c CHROM,POS,REF,ALT,-,-,-,-,PON_FISHER $name.sample.pileup.vcf.gz -Oz -o $name.pileup.fisherPON.vcf.gz && tabix $name.pileup.fisherPON.vcf.gz
-            bcftools filter -i "INFO/PON_FISHER<=~{p_value}" $name.pileup.fisherPON.vcf.gz -Oz -o $name.filtered.pileup.fisherPON.vcf.gz && tabix $name.filtered.pileup.fisherPON.vcf.gz
-        else
-            bcftools annotate -h fisher.header $name.sample.pileup.vcf.gz -Oz -o $name.pileup.fisherPON.vcf.gz && tabix $name.pileup.fisherPON.vcf.gz
-            bcftools filter -i "INFO/PON_FISHER<=~{p_value}" $name.pileup.fisherPON.vcf.gz -Oz -o $name.filtered.pileup.fisherPON.vcf.gz && tabix $name.filtered.pileup.fisherPON.vcf.gz
-        fi
-    >>>
-
-    output {
-        File pon_vcf = select_first([basename(vcf, ".vcf.gz") + ".pileup.fisherPON.vcf.gz",basename(vcf, ".vcf") + ".pileup.fisherPON.vcf.gz"])
-        File pon_vcf_tbi = select_first([basename(vcf, ".vcf.gz") + ".pileup.fisherPON.vcf.gz.tbi",basename(vcf, ".vcf") + ".pileup.fisherPON.vcf.gz.tbi"])
-        File pon_filtered_vcf = select_first([basename(vcf, ".vcf.gz") + ".filtered.pileup.fisherPON.vcf.gz",basename(vcf, ".vcf") + ".filtered.pileup.fisherPON.vcf.gz"])
-        File pon_filtered_vcf_tbi = select_first([basename(vcf, ".vcf.gz") + ".filtered.pileup.fisherPON.vcf.gz.tbi",basename(vcf, ".vcf") + ".filtered.pileup.fisherPON.vcf.gz.tbi"])
-    }
-}
-
-task annotateVcf {
-    input {
-        File vcf
-        File vcf_tbi
-        File fp_filter
-        File fp_filter_tbi
-        File vep
-        File vep_tbi
-        String caller_prefix
-        String sample_name
-    }
-
-    Float data_size = size([vcf, vcf_tbi, fp_filter, fp_filter_tbi, vep], "GB")
-    Int space_needed_gb = ceil(3 * data_size)
-    Float memory = 1
-    Int cores = 1
-    Int preemptible = 1
-    Int maxRetries = 0
-
-    runtime {
-      memory: cores * memory + "GB"
-      docker: "kboltonlab/bst"
-      disks: "local-disk ~{space_needed_gb} HDD"
-      bootDiskSizeGb: 10
-      cpu: cores
-      preemptible: preemptible
-      maxRetries: maxRetries
-    }
-
-    command <<<
+        # Preparing fp_filter and VEP for annotation
         #zcat ~{fp_filter} | grep '##' | tail -n +4  > fp_filter.header;
         zcat ~{fp_filter} | grep '##FILTER' > fp_filter.header;
         zcat ~{fp_filter} | grep -v '#' > fp_filter.results;
@@ -2237,17 +2165,36 @@ task annotateVcf {
         bgzip -f fp_filter.results
         tabix -f -s1 -b2 -e2 fp_filter.results.gz
 
-        bcftools annotate -a fp_filter.results.gz -h fp_filter.header -c CHROM,POS,ID,REF,ALT,-,FP_filter ~{vcf} -Oz -o ~{caller_prefix}.~{sample_name}.fp_filter.annotated.vcf.gz
-        tabix ~{caller_prefix}.~{sample_name}.fp_filter.annotated.vcf.gz
-        bcftools annotate -a ~{vep} -h vep.header -c CSQ ~{caller_prefix}.~{sample_name}.fp_filter.annotated.vcf.gz -Oz -o ~{caller_prefix}.~{sample_name}.final.annotated.vcf.gz
-        tabix ~{caller_prefix}.~{sample_name}.final.annotated.vcf.gz
+        # Depending on how we split, we might have caller_vcf that doesn't have any variants called
+        if [ -s $name.fisher.input ]; then
+            LC_ALL=C.UTF-8 Rscript --vanilla ./fisherTestInput.R $name.fisher.input $name.fisher.output
+            bgzip -f $name.fisher.output
+            tabix -f -s1 -b2 -e2 $name.fisher.output.gz
+            # Annotate with PoN Fisher Test
+            bcftools annotate -a $name.fisher.output.gz -h fisher.header -c CHROM,POS,REF,ALT,-,-,-,-,PON_FISHER $name.sample.pileup.vcf.gz -Oz -o $name.pileup.fisherPON.vcf.gz && tabix $name.pileup.fisherPON.vcf.gz
+            # Annotate with fp_filter
+            bcftools annotate -a fp_filter.results.gz -h fp_filter.header -c CHROM,POS,ID,REF,ALT,-,FP_filter $name.pileup.fisherPON.vcf.gz -Oz -o $name.pileup.fisherPON.fp_filter.vcf.gz && tabix $name.pileup.fisherPON.fp_filter.vcf.gz
+            # Annotate with VEP
+            bcftools annotate -a ~{vep} -h vep.header -c CSQ $name.pileup.fisherPON.fp_filter.vcf.gz -Oz -o $name.pileup.fisherPON.fp_filter.VEP.vcf.gz && tabix $name.pileup.fisherPON.fp_filter.VEP.vcf.gz
+            # Filter based on the PoN
+            bcftools filter -i "INFO/PON_FISHER<=~{p_value}" $name.pileup.fisherPON.fp_filter.VEP.vcf.gz -Oz -o $name.pileup.fisherPON.filtered.fp_filter.VEP.vcf.gz && tabix $name.pileup.fisherPON.filtered.fp_filter.VEP.vcf.gz
+        else
+            # Annotate with PoN Fisher Test
+            bcftools annotate -a $name.fisher.output.gz -h fisher.header -c CHROM,POS,REF,ALT,-,-,-,-,PON_FISHER $name.sample.pileup.vcf.gz -Oz -o $name.pileup.fisherPON.vcf.gz && tabix $name.pileup.fisherPON.vcf.gz
+            # Annotate with fp_filter
+            bcftools annotate -a fp_filter.results.gz -h fp_filter.header -c CHROM,POS,ID,REF,ALT,-,FP_filter $name.pileup.fisherPON.vcf.gz -Oz -o $name.pileup.fisherPON.fp_filter.vcf.gz && tabix $name.pileup.fisherPON.fp_filter.vcf.gz
+            # Annotate with VEP
+            bcftools annotate -a ~{vep} -h vep.header -c CSQ $name.pileup.fisherPON.fp_filter.vcf.gz -Oz -o $name.pileup.fisherPON.fp_filter.VEP.vcf.gz && tabix $name.pileup.fisherPON.fp_filter.VEP.vcf.gz
+            # Filter based on the PoN
+            bcftools filter -i "INFO/PON_FISHER<=~{p_value}" $name.pileup.fisherPON.fp_filter.VEP.vcf.gz -Oz -o $name.pileup.fisherPON.filtered.fp_filter.VEP.vcf.gz && tabix $name.pileup.fisherPON.filtered.fp_filter.VEP.vcf.gz
+        fi
     >>>
 
     output {
-        File final_annotated_vcf = "~{caller_prefix}.~{sample_name}.final.annotated.vcf.gz"
-        File final_annotated_vcf_tbi = "~{caller_prefix}.~{sample_name}.final.annotated.vcf.gz.tbi"
-        File fpfilter_annotated_vcf = "~{caller_prefix}.~{sample_name}.fp_filter.annotated.vcf.gz"
-        File fpfilter_annotated_vcf_tbi = "~{caller_prefix}.~{sample_name}.fp_filter.annotated.vcf.gz.tbi"
+        File annotated_vcf = select_first([basename(vcf, ".vcf.gz") + ".pileup.fisherPON.fp_filter.VEP.vcf.gz", basename(vcf, ".vcf") + ".pileup.fisherPON.fp_filter.VEP.vcf.gz"])
+        File annotated_vcf_tbi = select_first([basename(vcf, ".vcf.gz") + ".pileup.fisherPON.fp_filter.VEP.vcf.gz.tbi", basename(vcf, ".vcf") + ".pileup.fisherPON.fp_filter.VEP.vcf.gz.tbi"])
+        File annotated_filtered_vcf = select_first([basename(vcf, ".vcf.gz") + ".pileup.fisherPON.filtered.fp_filter.VEP.vcf.gz", basename(vcf, ".vcf") + ".pileup.fisherPON.filtered.fp_filter.VEP.vcf.gz"])
+        File annotated_filtered_vcf_tbi = select_first([basename(vcf, ".vcf.gz") + ".pileup.fisherPON.filtered.fp_filter.VEP.vcf.gz.tbi",basename(vcf, ".vcf") + ".pileup.fisherPON.filtered.fp_filter.VEP.vcf.gz.tbi"])
     }
 }
 
