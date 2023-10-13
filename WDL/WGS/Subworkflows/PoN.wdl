@@ -72,7 +72,7 @@ task mskGetBaseCounts {
     Int maxRetries = 0
 
     runtime {
-      docker: "kboltonlab/msk_getbasecounts:3.0"
+      docker: "duct/getbasecount:latest"
       cpu: cores
       memory: cores * memory + "GB"
       disks: "local-disk ~{space_needed_gb} HDD"

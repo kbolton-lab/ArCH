@@ -20,14 +20,26 @@ workflow WGS {
 
         # Information pertaining to Annotations
         String adb_name = "annotations.db"
-        Boolean vep_done = false
         File? vep_input
 
         # Reference
         File reference
         File reference_fai
         File reference_dict
+
+        #PoN
+        #Array[File] hiseq_pon_bam
+        #Array[File] hiseq_pon_bai
+        #Array[File] novaseq_pon_bam
+        #Array[File] novaseq_pon_bai
+        File hiseq_bam_fof
+        File novaseq_bam_fof
+        String hiseq_pdb_name = "hiseq_pileup.db"
+        String novaseq_pdb_name = "novaseq_pileup.db"
     }
+
+    #Array[Pair[String, String]] hiseq_pon_bam_bai = zip(hiseq_pon_bam, hiseq_pon_bai)
+    #Array[Pair[String, String]] novaseq_pon_bam_bai = zip(novaseq_pon_bam, novaseq_pon_bai)
 
     call import_samples as samples {
         input:
@@ -100,21 +112,50 @@ workflow WGS {
             status_dump = dump_variants.status
     }
 
-    if (!vep_done) {
-        scatter(vcf in dump_variants.chr_vcf) {
-            call run_vep {
-                input:
-                    fake_vcf = vcf,
-                    reference = reference,
-                    reference_fai = reference_fai,
-                    reference_dict = reference_dict
-            }
+    scatter(vcf in dump_variants.chr_vcf) {
+        call run_vep {
+            input:
+                fake_vcf = vcf,
+                reference = reference,
+                reference_fai = reference_fai,
+                reference_dict = reference_dict
         }
 
-        call merge_vep {
+        call mskGetBaseCounts as hiseq_pileup{
             input:
-                vep_tsv = run_vep.vep
+            reference = reference,
+            reference_fai = reference_fai,
+            reference_dict = reference_dict,
+            bam_fof = hiseq_bam_fof,
+            input_vcf = vcf
         }
+
+        call mskGetBaseCounts as novaseq_pileup {
+            input:
+            reference = reference,
+            reference_fai = reference_fai,
+            reference_dict = reference_dict,
+            bam_fof = novaseq_bam_fof,
+            input_vcf = vcf
+        }
+    }
+
+    # Need to merge the pileups for each chromosome
+    call bcftoolsConcat as merge_hiseq_pileup {
+        input:
+        vcfs = hiseq_pileup.pileup,
+        vcf_tbis = hiseq_pileup.pileup_tbi
+    }
+
+    call bcftoolsConcat as merge_novaseq_pileup {
+        input:
+        vcfs = novaseq_pileup.pileup,
+        vcf_tbis = novaseq_pileup.pileup_tbi
+    }
+
+    call merge_vep {
+        input:
+            vep_tsv = run_vep.vep
     }
 
     call import_vep {
@@ -125,6 +166,26 @@ workflow WGS {
             vep = select_first([vep_input, merge_vep.vep]),
             batch_number = batch_number,
             status_import = merge_batch_vcfs.status
+    }
+
+    call import_pon_pileup as hiseq_pon {
+        input:
+            db_path = db_path,
+            variants_db = vdb_name,
+            pileup_db = hiseq_pdb_name,
+            pileup = merge_hiseq_pileup.merged_vcf,
+            batch_number = batch_number,
+            status_import = import_vep.status
+    }
+
+    call import_pon_pileup as novaseq_pon {
+        input:
+            db_path = db_path,
+            variants_db = vdb_name,
+            pileup_db = novaseq_pdb_name,
+            pileup = merge_novaseq_pileup.merged_vcf,
+            batch_number = batch_number,
+            status_import = hiseq_pon.status
     }
 
     call dump_annotations {
@@ -168,7 +229,7 @@ task import_samples {
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.2.2"
+        docker: "kboltonlab/ch-toolkit:v2.3.1"
         memory: "1GB"
         cpu: 1
     }
@@ -189,7 +250,7 @@ task register_sample_variants {
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.2.2"
+        docker: "kboltonlab/ch-toolkit:v2.3.1"
         memory: "4GB"
         cpu: 1
     }
@@ -213,7 +274,7 @@ task merge_batch_variants {
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.2.2"
+        docker: "kboltonlab/ch-toolkit:v2.3.1"
         memory: "32GB"
         cpu: 1
     }
@@ -238,7 +299,7 @@ task dump_variants {
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.2.2"
+        docker: "kboltonlab/ch-toolkit:v2.3.1"
         memory: "32GB"
         cpu: 1
     }
@@ -267,7 +328,7 @@ task import_sample_vcf {
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.2.2"
+        docker: "kboltonlab/ch-toolkit:v2.3.1"
         memory: "16GB"
         cpu: 1
     }
@@ -298,7 +359,7 @@ task merge_batch_vcfs {
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.2.2"
+        docker: "kboltonlab/ch-toolkit:v2.3.1"
         memory: "86GB"
         cpu: 1
     }
@@ -343,6 +404,7 @@ task run_vep {
 
     command <<<
         outfile=~{chrom}_VEP_annotated.tsv
+        
         /opt/vep/src/ensembl-vep/vep -i ~{fake_vcf} --tab -o ${outfile}  \
             --cache --offline --dir_cache ~{vep_dir}/VepData/ --merged --assembly GRCh38 --use_given_ref --species homo_sapiens \
             --symbol --transcript_version --everything --check_existing \
@@ -400,7 +462,7 @@ task import_vep {
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.2.2"
+        docker: "kboltonlab/ch-toolkit:v2.3.1"
         memory: "86GB"
         cpu: 1
     }
@@ -424,7 +486,7 @@ task dump_annotations {
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.2.2"
+        docker: "kboltonlab/ch-toolkit:v2.3.1"
         memory: "12GB"
         cpu: 1
     }
@@ -470,7 +532,7 @@ task run_annotatePD {
                 wait -n
             done
 
-            /opt/bolton-lab/R-4.2.3/bin/Rscript /storage1/fs1/bolton/Active/Projects/chip-toolkit/scripts/run_annotePD.R ${file} $(basename $file .csv).results.csv &
+            /opt/bolton-lab/R-4.2.3/bin/Rscript /storage1/fs1/bolton/Active/Users/IrenaeusChan/ch-toolkit/ch/resources/annotate_pd/run_annotePD.R ${file} $(basename $file .csv).results.csv &
         done;
         wait
 
@@ -496,7 +558,7 @@ task import_annotate_pd {
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.2.2"
+        docker: "kboltonlab/ch-toolkit:v2.3.1"
         memory: "32GB"
         cpu: 1
     }
@@ -510,3 +572,120 @@ task import_annotate_pd {
     }
 }
 
+task mskGetBaseCounts {
+    input {
+        File reference
+        File reference_fai
+        File reference_dict
+        File bam_fof
+        File input_vcf
+        Int? mapq = 5
+        Int? baseq = 5
+        Int? disk_size_override
+        Int? mem_limit_override
+        Int? cpu_override
+    }
+
+    Float reference_size = size([reference, reference_fai, reference_dict], "GB")
+    Float vcf_size = size([input_vcf], "GB")
+    Float data_size = size([bam_fof], "GB")
+    Int space_needed_gb = select_first([disk_size_override, ceil(2 * data_size + vcf_size + reference_size)])
+    Float memory = select_first([mem_limit_override, 6])
+    Int cores = 4
+    Int preemptible = 1
+    Int maxRetries = 0
+
+    runtime {
+      docker: "duct/getbasecount:latest"
+      cpu: cores
+      memory: cores * memory + "GB"
+      disks: "local-disk ~{space_needed_gb} HDD"
+      bootDiskSizeGb: 10
+      preemptible: preemptible
+      maxRetries: maxRetries
+    }
+
+    command <<<
+        # Run the tool
+        bgzip -c -d ~{input_vcf} > ~{basename(input_vcf, ".gz")}
+        /opt/GetBaseCountsMultiSample/GetBaseCountsMultiSample --fasta ~{reference} \
+            --bam_fof ~{bam_fof} \
+            --vcf ~{basename(input_vcf, ".gz")} \
+            --output pon.pileup.vcf \
+            --maq ~{mapq} --baq ~{baseq}
+        bgzip pon.pileup.vcf && tabix pon.pileup.vcf.gz
+
+        # Delete the BAM (Save Space)
+        #rm ${sample_name}_${chr}.bam
+    >>>
+
+    output {
+        File pileup = "pon.pileup.vcf.gz"
+        File pileup_tbi = "pon.pileup.vcf.gz.tbi"
+    }
+}
+
+task bcftoolsConcat {
+    input {
+        Array[File] vcfs
+        Array[File] vcf_tbis
+        String merged_vcf_basename = "merged"
+    }
+
+    Float data_size = size(vcfs, "GB")
+    Int space_needed_gb = ceil(2*data_size)
+    Float memory = 1
+    Int cores = 1
+    Int preemptible = 1
+    Int maxRetries = 0
+
+    runtime {
+        docker: "kboltonlab/bst:latest"
+        memory: cores * memory + "GB"
+        disks: "local-disk ~{space_needed_gb} HDD"
+        cpu: cores
+        bootDiskSizeGb: 10
+        preemptible: preemptible
+        maxRetries: maxRetries
+    }
+
+    String output_file = merged_vcf_basename + ".vcf.gz"
+
+    command <<<
+        /usr/local/bin/bcftools concat --allow-overlaps --remove-duplicates --output-type z -o merged.vcf.gz ~{sep=" " vcfs}
+        /usr/local/bin/tabix merged.vcf.gz
+        /usr/local/bin/bcftools +fill-tags -Ov merged.vcf.gz -- -t "PON_RefDepth=sum(RD)" | \
+        /usr/local/bin/bcftools +fill-tags -Oz -o pon_pileup.vcf.gz -- -t "PON_AltDepth=sum(AD)"
+        /usr/local/bin/tabix pon_pileup.vcf.gz
+    >>>
+
+    output {
+        File merged_vcf = "pon_pileup.vcf.gz"
+        File merged_vcf_tbi = "pon_pileup.vcf.gz.tbi"
+    }
+}
+
+task import_pon_pileup {
+    input {
+        String db_path
+        String variants_db
+        String pileup_db
+        File pileup
+        Int batch_number
+        String status_import
+    }
+
+        runtime {
+        docker: "kboltonlab/ch-toolkit:v2.3.1"
+        memory: "86GB"
+        cpu: 1
+    }
+
+    command <<<
+        ch-toolkit import-pon-pileup --vdb ~{db_path}/~{variants_db} --pdb ~{db_path}/~{pileup_db} --pon-pileup ~{pileup} --batch-number ~{batch_number}
+    >>>
+
+    output {
+        String status = "Finished."
+    }
+}
