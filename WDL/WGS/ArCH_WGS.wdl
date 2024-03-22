@@ -234,7 +234,7 @@ task import_samples {
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.5.0"
+        docker: "kboltonlab/ch-toolkit:v2.6.1"
         memory: "1GB"
         cpu: 1
     }
@@ -357,7 +357,7 @@ task register_sample_variants {
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.5.0"
+        docker: "kboltonlab/ch-toolkit:v2.6.1"
         memory: "256GB"
         cpu: cores
     }
@@ -394,7 +394,7 @@ task merge_batch_variants {
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.5.0"
+        docker: "kboltonlab/ch-toolkit:v2.6.1"
         memory: "256GB"
         cpu: 1
     }
@@ -421,7 +421,7 @@ task dump_variants {
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.5.0"
+        docker: "kboltonlab/ch-toolkit:v2.6.1"
         memory: "256GB"
         cpu: 1
     }
@@ -449,7 +449,7 @@ task import_sample_vcf {
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.5.0"
+        docker: "kboltonlab/ch-toolkit:v2.6.1"
         memory: "256GB"
         cpu: cores
     }
@@ -467,7 +467,7 @@ task import_sample_vcf {
             done
             sample_name=$(basename ${vcf} .vcf.gz)
             echo ${sample_name}
-            /storage1/fs1/bolton/Active/Users/IrenaeusChan/ch-toolkit/venv/bin/ch-toolkit import-sample-vcf --caller ~{caller} --input-vcf ${vcf} --cdb ${sample_name}.db --batch-number ~{batch_number} &
+            ch-toolkit import-sample-vcf --caller ~{caller} --input-vcf ${vcf} --cdb ${sample_name}.db --batch-number ~{batch_number} &
         done;
         wait
     >>>
@@ -491,7 +491,7 @@ task merge_batch_vcfs {
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.5.0"
+        docker: "kboltonlab/ch-toolkit:v2.6.1"
         memory: "256GB"
         cpu: cores
     }
@@ -592,7 +592,7 @@ task import_vep {
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.5.0"
+        docker: "kboltonlab/ch-toolkit:v2.6.1"
         memory: "256GB"
         cpu: 1
     }
@@ -615,7 +615,7 @@ task dump_annotations {
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.5.0"
+        docker: "kboltonlab/ch-toolkit:v2.6.1"
         memory: "256GB"
         cpu: 1
     }
@@ -688,7 +688,7 @@ task import_annotate_pd {
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.5.0"
+        docker: "kboltonlab/ch-toolkit:v2.6.1"
         memory: "256GB"
         cpu: 1
     }
@@ -802,13 +802,13 @@ task import_pon_pileup {
     }
 
         runtime {
-        docker: "kboltonlab/ch-toolkit:v2.5.0"
+        docker: "kboltonlab/ch-toolkit:v2.6.1"
         memory: "256GB"
         cpu: 1
     }
 
     command <<<
-        /storage1/fs1/bolton/Active/Users/IrenaeusChan/ch-toolkit/venv/bin/ch-toolkit import-pon-pileup --vdb ~{db_path}/~{variants_db} --pdb ~{db_path}/~{pileup_db} --pon-pileup ~{pileup} --batch-number ~{batch_number}
+        ch-toolkit import-pon-pileup --vdb ~{db_path}/~{variants_db} --pdb ~{db_path}/~{pileup_db} --pon-pileup ~{pileup} --batch-number ~{batch_number}
     >>>
 
     output {
