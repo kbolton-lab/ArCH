@@ -16,7 +16,9 @@ workflow WGS {
         # Information pertaining to Callers
         String mutect_cdb_name = "mutect.db"
         String vardict_cdb_name = "vardict.db"
-        Array[Pair[File, File]] vcfs
+        #Array[Pair[File, File]] vcfs
+        Array[File] mutect_vcfs
+        Array[File] vardict_vcfs
 
         # Information pertaining to Annotations
         String adb_name = "annotations.db"
@@ -28,18 +30,13 @@ workflow WGS {
         File reference_dict
 
         #PoN
-        #Array[File] hiseq_pon_bam
-        #Array[File] hiseq_pon_bai
-        #Array[File] novaseq_pon_bam
-        #Array[File] novaseq_pon_bai
         File hiseq_bam_fof
         File novaseq_bam_fof
         String hiseq_pdb_name = "hiseq_pileup.db"
         String novaseq_pdb_name = "novaseq_pileup.db"
     }
 
-    #Array[Pair[String, String]] hiseq_pon_bam_bai = zip(hiseq_pon_bam, hiseq_pon_bai)
-    #Array[Pair[String, String]] novaseq_pon_bam_bai = zip(novaseq_pon_bam, novaseq_pon_bai)
+    # Array[Pair[File, File]] vcfs = zip(mutect_vcfs, vardict_vcfs)
 
     call import_samples as samples {
         input:
@@ -49,23 +46,28 @@ workflow WGS {
             batch_number = batch_number
     }
 
-    scatter (vcf in vcfs) {
-        call register_sample_variants as mutect_variants {
-            input:
-                input_vcf = vcf.left,
-                batch_number = batch_number
-        }
+    call create_sample_blocks {
+        input:
+            mutect_vcfs = mutect_vcfs,
+            vardict_vcfs = vardict_vcfs,
+            batch_number = batch_number
+    }
 
-        call register_sample_variants as vardict_variants {
-            input:
-                input_vcf = vcf.right,
-                batch_number = batch_number
-        }
+    call register_sample_variants as mutect_variants {
+        input:
+            input_vcfs = create_sample_blocks.mutect_blocks,
+            batch_number = batch_number
+    }
+
+    call register_sample_variants as vardict_variants {
+        input:
+            input_vcfs = create_sample_blocks.vardict_blocks,
+            batch_number = batch_number
     }
 
     call merge_batch_variants as variants {
         input:
-            sample_variants = flatten([mutect_variants.sample_vdb, vardict_variants.sample_vdb]),
+            sample_variants = flatten([mutect_variants.sample_vdbs, vardict_variants.sample_vdbs]),
             variants_db = vdb_name,
             batch_number = batch_number,
             db_path = db_path
@@ -79,37 +81,43 @@ workflow WGS {
             status_variants = variants.status
     }
 
-    scatter(vcf in vcfs) {
-        call import_sample_vcf as mutect_vcfs {
-            input:
-                input_vcf = vcf.left,
-                caller = "mutect",
-                batch_number = batch_number,
-                status_samples = samples.status,
-                status_variants = variants.status
-        }
-
-        call import_sample_vcf as vardict_vcfs {
-            input:
-                input_vcf = vcf.right,
-                caller = "vardict",
-                batch_number = batch_number,
-                status_samples = samples.status,
-                status_variants = variants.status
-        }
+    call import_sample_vcf as mutect_sample_vcfs {
+        input:
+            input_vcfs = create_sample_blocks.mutect_blocks,
+            caller = "mutect",
+            batch_number = batch_number,
+            cores = 4
     }
 
-    call merge_batch_vcfs {
+    call import_sample_vcf as vardict_sample_vcfs {
         input:
-            mutect_vcfs = mutect_vcfs.sample_cdb,
-            vardict_vcfs = vardict_vcfs.sample_cdb,
+            input_vcfs = create_sample_blocks.vardict_blocks,
+            caller = "vardict",
+            batch_number = batch_number
+    }
+
+    call merge_batch_vcfs as merge_mutect_vcfs {
+        input:
+            vcfs = mutect_sample_vcfs.sample_cdbs,
             db_path = db_path,
-            mutect_db = mutect_cdb_name,
-            vardict_db = vardict_cdb_name,
+            caller_db = mutect_cdb_name,
+            caller = "mutect",
             variants_db = vdb_name,
             samples_db = sdb_name,
             batch_number = batch_number,
-            status_dump = dump_variants.status
+            status_variants = variants.status
+    }
+
+    call merge_batch_vcfs as merge_vardict_vcfs {
+        input:
+            vcfs = vardict_sample_vcfs.sample_cdbs,
+            db_path = db_path,
+            caller_db = vardict_cdb_name,
+            caller = "vardict",
+            variants_db = vdb_name,
+            samples_db = sdb_name,
+            batch_number = batch_number,
+            status_variants = variants.status
     }
 
     scatter(vcf in dump_variants.chr_vcf) {
@@ -164,8 +172,7 @@ workflow WGS {
             variants_db = vdb_name,
             annotations_db = adb_name,
             vep = select_first([vep_input, merge_vep.vep]),
-            batch_number = batch_number,
-            status_import = merge_batch_vcfs.status
+            batch_number = batch_number
     }
 
     call import_pon_pileup as hiseq_pon {
@@ -174,8 +181,7 @@ workflow WGS {
             variants_db = vdb_name,
             pileup_db = hiseq_pdb_name,
             pileup = merge_hiseq_pileup.merged_vcf,
-            batch_number = batch_number,
-            status_import = import_vep.status
+            batch_number = batch_number
     }
 
     call import_pon_pileup as novaseq_pon {
@@ -184,8 +190,7 @@ workflow WGS {
             variants_db = vdb_name,
             pileup_db = novaseq_pdb_name,
             pileup = merge_novaseq_pileup.merged_vcf,
-            batch_number = batch_number,
-            status_import = hiseq_pon.status
+            batch_number = batch_number
     }
 
     call dump_annotations {
@@ -229,7 +234,7 @@ task import_samples {
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.3.1"
+        docker: "kboltonlab/ch-toolkit:v2.5.0"
         memory: "1GB"
         cpu: 1
     }
@@ -243,25 +248,140 @@ task import_samples {
     }
 }
 
-task register_sample_variants {
+task create_sample_blocks {
     input {
-        File input_vcf
+        Array[File] mutect_vcfs
+        Array[File] vardict_vcfs
         Int batch_number
+        Int cores = 32
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.3.1"
-        memory: "4GB"
-        cpu: 1
+        docker: "kboltonlab/bst:latest"
+        memory: "256GB"
+        cpu: cores
     }
 
     command <<<
-        sample_name=~{basename(input_vcf, ".vcf.gz")}.db
-        ch-toolkit import-sample-variants --input-vcf ~{input_vcf} --vdb ${sample_name} --batch-number ~{batch_number}
+        # For Mutect we need to create a SAMPLE variable
+        zcat ~{select_first(mutect_vcfs)} | grep "##" > mutect_sample.header
+        echo -e "##INFO=<ID=SAMPLE,Number=1,Type=String,Description=\"Sample name (with whitespace translated to underscores)\">" >> mutect_sample.header
+        echo -e "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE" >> mutect_sample.header
+        
+        cp /storage1/fs1/bolton/Active/Users/IrenaeusChan/WGS/add_SAMPLE_to_mutect_info_tag.sh add_SAMPLE_to_mutect_info_tag.sh
+        cp /storage1/fs1/bolton/Active/Users/IrenaeusChan/WGS/change_sample_name_to_SAMPLE_vardict.sh change_sample_name_to_SAMPLE_vardict.sh
+
+        nProcs=$((~{cores}-1))
+        nJobs="\j"
+        # Parallelize the creation of the Mutect VCFs
+        for vcf in ~{sep=" " mutect_vcfs}; do
+            echo ${vcf}
+            echo ${nJobs@P}
+            while (( ${nJobs@P} >= nProcs )); do
+                wait -n
+            done
+            bash add_SAMPLE_to_mutect_info_tag.sh ${vcf} &
+        done;
+
+        # Do the same for Vardict
+        for vcf in ~{sep=" " vardict_vcfs}; do
+            echo ${vcf}
+            echo ${nJobs@P}
+            while (( ${nJobs@P} >= nProcs )); do
+                wait -n
+            done
+            bash change_sample_name_to_SAMPLE_vardict.sh ${vcf} &
+        done;
+        wait
+        
+        # Here we have SAMPLE in both Vardict and Mutect, so we can just concatenate them into 1Gb blocks
+        group=(); group_size=0; group_num=1
+        for vcf in mutect.*.wSAMPLE.vcf.gz; do
+            echo ${vcf}
+            echo ${nJobs@P}
+            while (( ${nJobs@P} >= nProcs )); do
+                wait -n
+            done
+            file_size=$(du -b "$vcf" | cut -f1)
+            if (( group_size + file_size > 1073741824 )); then
+                /usr/local/bin/bcftools concat --allow-overlaps -Oz -o mutect.block_${group_num}.vcf.gz "${group[@]}" &
+                group=("$vcf")
+                group_size=$file_size
+                group_num=$((group_num + 1))
+            else
+                group+=("$vcf")
+                group_size=$((group_size + file_size))
+            fi
+        done;
+        # Concatenate the last group
+        /usr/local/bin/bcftools concat --allow-overlaps -Oz -o mutect.block_${group_num}.vcf.gz "${group[@]}" &
+
+        group=()
+        group_size=0
+        group_num=1
+        for vcf in vardict.*.wSAMPLE.vcf.gz; do
+            echo ${vcf}
+            echo ${nJobs@P}
+            while (( ${nJobs@P} >= nProcs )); do
+                wait -n
+            done
+            file_size=$(du -b "$vcf" | cut -f1)
+            if (( group_size + file_size > 1073741824 )); then
+                /usr/local/bin/bcftools concat --allow-overlaps -Oz -o vardict.block_${group_num}.vcf.gz "${group[@]}" &
+                group=("$vcf")
+                group_size=$file_size
+                group_num=$((group_num + 1))
+            else
+                group+=("$vcf")
+                group_size=$((group_size + file_size))
+            fi
+        done;
+        # Concatenate the last group
+        /usr/local/bin/bcftools concat --allow-overlaps -Oz -o vardict.block_${group_num}.vcf.gz "${group[@]}" &
+        wait
+
+        find . -type f -name "*.wSAMPLE.vcf.gz*" -delete
     >>>
 
     output {
-        File sample_vdb = basename(input_vcf, ".vcf.gz") + ".db"
+        Array[File] mutect_blocks = glob("mutect.block_*.vcf.gz")
+        Array[File] vardict_blocks = glob("vardict.block_*.vcf.gz")
+    }
+}
+
+task register_sample_variants {
+    input {
+        Array[File] input_vcfs
+        Int batch_number
+        Int cores = 32
+    }
+
+    runtime {
+        docker: "kboltonlab/ch-toolkit:v2.5.0"
+        memory: "256GB"
+        cpu: cores
+    }
+
+    command <<<
+        nProcs=$((~{cores}-1))
+        nJobs="\j"
+        #nJobs=$(jobs -p | wc -l)
+
+        for vcf in ~{sep=" " input_vcfs}; do
+            echo ${vcf}
+            echo ${nJobs@P}
+            while (( ${nJobs@P} >= nProcs )); do
+                wait -n
+            done
+            sample_name=$(basename ${vcf} .vcf.gz)
+            echo ${sample_name}
+            ch-toolkit import-sample-variants --input-vcf ${vcf} --vdb ${sample_name}.db --batch-number ~{batch_number} &
+        done;
+        wait
+    >>>
+
+    output {
+        Array[File] sample_vdbs = glob("*.db")
     }
 }
 
@@ -274,14 +394,16 @@ task merge_batch_variants {
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.3.1"
-        memory: "32GB"
+        docker: "kboltonlab/ch-toolkit:v2.5.0"
+        memory: "256GB"
         cpu: 1
     }
 
     command <<<
         mkdir variants
-        cp ~{sep=" " sample_variants} variants
+        for variant_db in ~{sep=" " sample_variants}; do
+            cp ${variant_db} variants
+        done;
         ch-toolkit merge-batch-variants --db-path variants --vdb ~{db_path}/~{variants_db} --batch-number ~{batch_number}
     >>>
 
@@ -299,8 +421,8 @@ task dump_variants {
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.3.1"
-        memory: "32GB"
+        docker: "kboltonlab/ch-toolkit:v2.5.0"
+        memory: "256GB"
         cpu: 1
     }
 
@@ -320,58 +442,66 @@ task dump_variants {
 
 task import_sample_vcf {
     input {
-        File input_vcf
+        Array[File] input_vcfs
         String caller
         Int batch_number
-        String status_samples
-        String status_variants
+        Int cores = 6
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.3.1"
-        memory: "16GB"
-        cpu: 1
+        docker: "kboltonlab/ch-toolkit:v2.5.0"
+        memory: "256GB"
+        cpu: cores
     }
 
-    String sample_name = basename(input_vcf, ".vcf.gz")
     command <<<
-        echo "Samples is: ~{status_samples}"
-        echo "Variants is: ~{status_variants}" 
-        ch-toolkit import-sample-vcf --caller ~{caller} --input-vcf ~{input_vcf} --cdb ~{sample_name}.db --batch-number ~{batch_number}
+        nProcs=$((~{cores}-1))
+        nJobs="\j"
+        #nJobs=$(jobs -p | wc -l)
+
+        for vcf in ~{sep=" " input_vcfs}; do
+            echo ${vcf}
+            echo ${nJobs@P}
+            while (( ${nJobs@P} >= nProcs )); do
+                wait -n
+            done
+            sample_name=$(basename ${vcf} .vcf.gz)
+            echo ${sample_name}
+            /storage1/fs1/bolton/Active/Users/IrenaeusChan/ch-toolkit/venv/bin/ch-toolkit import-sample-vcf --caller ~{caller} --input-vcf ${vcf} --cdb ${sample_name}.db --batch-number ~{batch_number} &
+        done;
+        wait
     >>>
 
     output {
-        File sample_cdb = sample_name + ".db"
+        Array[File] sample_cdbs = glob("*.db")
     }
 }
 
 task merge_batch_vcfs {
     input {
-        Array[File] mutect_vcfs
-        Array[File] vardict_vcfs
+        Array[File] vcfs
         String db_path
-        String mutect_db
-        String vardict_db
+        String caller_db
+        String caller
         String samples_db
         String variants_db
         Int batch_number
-        String status_dump
+        String status_variants
+        Int cores = 8
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.3.1"
-        memory: "86GB"
-        cpu: 1
+        docker: "kboltonlab/ch-toolkit:v2.5.0"
+        memory: "256GB"
+        cpu: cores
     }
 
     command <<<
-        echo "Dump Variants is: ~{status_dump}"
-        mkdir mutect
-        mkdir vardict
-        cp ~{sep=" " mutect_vcfs} mutect
-        cp ~{sep=" " vardict_vcfs} vardict
-        ch-toolkit merge-batch-vcf --db-path mutect --cdb ~{db_path}/~{mutect_db} --caller mutect --vdb ~{db_path}/~{variants_db} --sdb ~{db_path}/~{samples_db} --batch-number ~{batch_number}
-        ch-toolkit merge-batch-vcf --db-path vardict --cdb ~{db_path}/~{vardict_db} --caller vardict --vdb ~{db_path}/~{variants_db} --sdb ~{db_path}/~{samples_db} --batch-number ~{batch_number}
+        echo "Dump Variants is: ~{status_variants}"
+
+        mkdir ~{caller}
+        cp ~{sep=" " vcfs} ~{caller}
+        ch-toolkit merge-batch-vcf --db-path ~{caller} --cdb ~{db_path}/~{caller_db} --caller ~{caller} --vdb ~{db_path}/~{variants_db} --sdb ~{db_path}/~{samples_db} --batch-number ~{batch_number} --threads ~{cores}
     >>>
 
     output {
@@ -385,16 +515,17 @@ task run_vep {
         File? reference
         File? reference_fai
         File? reference_dict
-        String vep_dir = "/storage1/fs1/bolton/Active/Users/DucTran/VEP/"
+        #String vep_dir = "/storage1/fs1/bolton/Active/Users/DucTran/VEP/"
+        String vep_dir = "/storage1/fs1/bolton/Active/Users/IrenaeusChan/VEP_cache/"
     }
 
     Float reference_size = size([reference, reference_fai, reference_dict], "GB")
     Float data_size = size(fake_vcf, "GB")
     Int space_needed_gb = ceil(10 + 4 * data_size + reference_size)
-    Int cores = 4
+    Int cores = 16
     runtime {
         docker: "ensemblorg/ensembl-vep:release_109.3"
-        memory: "32GB"
+        memory: "64GB"
         cpu: cores
         bootDiskSizeGb: space_needed_gb
         disks: "local-disk ~{space_needed_gb} SSD"
@@ -418,7 +549,7 @@ task run_vep {
             --plugin Frameshift --plugin Wildtype \
             --plugin CADD,~{vep_dir}/CADD/whole_genome_SNVs.tsv.gz,~{vep_dir}/CADD/gnomad.genomes.r3.0.indel.tsv.gz \
             --plugin REVEL,~{vep_dir}/REVEL/new_tabbed_revel_grch38.tsv.gz \
-            --plugin SpliceAI,snv=/storage1/fs1/bolton/Active/Protected/Data/hg38/vcf/spliceai_scores.raw.snv.hg38.vcf.gz,indel=/storage1/fs1/bolton/Active/Protected/Data/hg38/vcf/spliceai_scores.raw.indel.hg38.vcf.gz \
+            --plugin SpliceAI,snv=~{vep_dir}/spliceAI/spliceai_scores.raw.snv.hg38.vcf.gz,indel=~{vep_dir}/spliceAI/spliceai_scores.raw.indel.hg38.vcf.gz \
             --plugin pLI,~{vep_dir}/pLI/plI_gene.txt
     >>>
             
@@ -435,7 +566,7 @@ task merge_vep {
 
     runtime {
         docker: "ubuntu:latest"
-        memory: "8GB"
+        memory: "32GB"
         cpu: 1
     }
 
@@ -458,17 +589,15 @@ task import_vep {
         String annotations_db
         File vep
         Int batch_number
-        String status_import
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.3.1"
-        memory: "86GB"
+        docker: "kboltonlab/ch-toolkit:v2.5.0"
+        memory: "256GB"
         cpu: 1
     }
 
     command <<<
-        echo "VCF Importing is: ~{status_import}"
         ch-toolkit import-vep --vdb ~{db_path}/~{variants_db} --adb ~{db_path}/~{annotations_db} --vep ~{vep} --batch-number ~{batch_number}
     >>>
 
@@ -486,8 +615,8 @@ task dump_annotations {
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.3.1"
-        memory: "12GB"
+        docker: "kboltonlab/ch-toolkit:v2.5.0"
+        memory: "256GB"
         cpu: 1
     }
 
@@ -505,12 +634,13 @@ task dump_annotations {
 task run_annotatePD {
     input {
         File csv_input
+        Int cores = 4
     }
 
     runtime {
         docker: "indraniel/chip-pipeline-annotation:v1"
-        memory: "32GB"
-        cpu: 2
+        memory: "256GB"
+        cpu: cores
     }
 
     command <<<
@@ -522,7 +652,7 @@ task run_annotatePD {
             mv -f tmp_file "$file"
         done
 
-        nProcs=2
+        nProcs=$((~{cores}-1))
         nJobs="\j"
 
         for file in forAnnotatePD.*; do
@@ -558,8 +688,8 @@ task import_annotate_pd {
     }
 
     runtime {
-        docker: "kboltonlab/ch-toolkit:v2.3.1"
-        memory: "32GB"
+        docker: "kboltonlab/ch-toolkit:v2.5.0"
+        memory: "256GB"
         cpu: 1
     }
 
@@ -590,8 +720,8 @@ task mskGetBaseCounts {
     Float vcf_size = size([input_vcf], "GB")
     Float data_size = size([bam_fof], "GB")
     Int space_needed_gb = select_first([disk_size_override, ceil(2 * data_size + vcf_size + reference_size)])
-    Float memory = select_first([mem_limit_override, 6])
-    Int cores = 4
+    Float memory = select_first([mem_limit_override, 32])
+    Int cores = select_first([cpu_override, 8])
     Int preemptible = 1
     Int maxRetries = 0
 
@@ -614,9 +744,6 @@ task mskGetBaseCounts {
             --output pon.pileup.vcf \
             --maq ~{mapq} --baq ~{baseq}
         bgzip pon.pileup.vcf && tabix pon.pileup.vcf.gz
-
-        # Delete the BAM (Save Space)
-        #rm ${sample_name}_${chr}.bam
     >>>
 
     output {
@@ -672,17 +799,16 @@ task import_pon_pileup {
         String pileup_db
         File pileup
         Int batch_number
-        String status_import
     }
 
         runtime {
-        docker: "kboltonlab/ch-toolkit:v2.3.1"
-        memory: "86GB"
+        docker: "kboltonlab/ch-toolkit:v2.5.0"
+        memory: "256GB"
         cpu: 1
     }
 
     command <<<
-        ch-toolkit import-pon-pileup --vdb ~{db_path}/~{variants_db} --pdb ~{db_path}/~{pileup_db} --pon-pileup ~{pileup} --batch-number ~{batch_number}
+        /storage1/fs1/bolton/Active/Users/IrenaeusChan/ch-toolkit/venv/bin/ch-toolkit import-pon-pileup --vdb ~{db_path}/~{variants_db} --pdb ~{db_path}/~{pileup_db} --pon-pileup ~{pileup} --batch-number ~{batch_number}
     >>>
 
     output {

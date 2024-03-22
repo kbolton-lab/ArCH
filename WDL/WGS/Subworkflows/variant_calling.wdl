@@ -288,7 +288,7 @@ task bamIndex {
     >>>
 
     output {
-        File bam_index = basename(bam_file)+".crai"
+        File bam_index = sub(sub(bam_link, "bam$", "bam.bai"), "cram$", "cram.crai")
     }
 }
 

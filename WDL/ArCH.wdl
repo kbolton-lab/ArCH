@@ -1370,7 +1370,8 @@ task vardict {
             /usr/bin/bcftools view -h \
                 -s ~{tumor_sample_name} \
                 --threads ~{cores} vardict.vcf.gz \
-                -Oz -o vardict.vcf.gz
+                -Oz -o vardict.out.vcf.gz
+            mv vardict.out.vcf.gz vardict.vcf.gz
             /usr/bin/tabix vardict.vcf.gz
         fi
     >>>
@@ -1842,7 +1843,7 @@ task fpFilter {
         done;
         wait
 
-        zgrep '#' ~{vcf} > ~{output_vcf}
+        grep '#' fpfilter.00.vcf > ~{output_vcf}
         for vcf in fpfilter.*.vcf; do
             zgrep -v '#' ${vcf} >> ~{output_vcf}
         done
@@ -1957,7 +1958,7 @@ task bcftoolsMerge {
     command <<<
         /usr/local/bin/bcftools merge --output-type z -o ~{output_file} ~{sep=" " vcfs}
         /usr/local/bin/tabix ~{output_file}
-
+        
         if ~{if RD_AD then "true" else "false"}; then
             bcftools +fill-tags -Ov ~{output_file} -- -t "PON_RefDepth=sum(RD)" | \
             bcftools +fill-tags -Oz -o pileup.vcf.gz - -- -t "PON_AltDepth=sum(AD)" && tabix pileup.vcf.gz

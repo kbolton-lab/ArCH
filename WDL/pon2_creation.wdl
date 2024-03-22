@@ -1,12 +1,12 @@
 version 1.0
 
-# ArCCH BQSR Aligned BAM Creation
+# ArCH PoN2 Creation Workflow
 # -------------------------------
 # Created by: Irenaeus Chan
 # Contact: chani@wustl.edu
 # Date: 11/10/2022
 
-workflow ArCCH_PoN2 {
+workflow ArCH_PoN2 {
     input {
         Array[File] aligned_bam
         Array[File] aligned_bai
@@ -25,111 +25,81 @@ workflow ArCCH_PoN2 {
         input: interval_list = interval_list
     }
 
-    # In order to parallelize as much as the workflow as possible, we analyze by chromosome
-    call splitBedToChr {
-        input:
-            interval_bed = interval_to_bed.interval_bed
-    }
-
     scatter (bam in aligned_bam_bai) {
-
-        scatter (bed_chr in splitBedToChr.split_chr) {
-            # Mutect
-            call mutect {
-              input:
-              reference = reference,
-              reference_fai = reference_fai,
-              reference_dict = reference_dict,
-              tumor_bam = bam.right.left,
-              tumor_bam_bai = bam.right.right,
-              interval_list = bed_chr
-            }
-
-            call sanitizeNormalizeFilter as mutectFilter {
-                input:
-                    vcf = mutect.vcf,
-                    vcf_tbi = mutect.vcf_tbi,
-                    reference = reference,
-                    reference_fai = reference_fai
-            }
-
-            call vardict {
-                input:
-                reference = reference,
-                reference_fai = reference_fai,
-                tumor_bam = bam.right.left,
-                tumor_bam_bai = bam.right.right,
-                interval_bed = bed_chr,
-                tumor_sample_name = bam.left
-            }
-
-            call sanitizeNormalizeFilter as vardictFilter {
-                input:
-                    vcf = vardict.vcf,
-                    vcf_tbi = vardict.vcf_tbi,
-                    reference = reference,
-                    reference_fai = reference_fai
-            }
-
-            call lofreq {
-                input:
-                reference = reference,
-                reference_fai = reference_fai,
-                tumor_bam = bam.right.left,
-                tumor_bam_bai = bam.right.right,
-                tumor_sample_name = bam.left,
-                interval_bed = bed_chr
-            }
-
-            call sanitizeNormalizeFilter as lofreqFilter {
-                input:
-                    vcf = lofreq.vcf,
-                    vcf_tbi = lofreq.vcf_tbi,
-                    reference = reference,
-                    reference_fai = reference_fai
-            }
+        # Mutect
+        call mutect {
+            input:
+            reference = reference,
+            reference_fai = reference_fai,
+            reference_dict = reference_dict,
+            tumor_bam = bam.right.left,
+            tumor_bam_bai = bam.right.right,
+            interval_list = interval_to_bed.interval_bed
         }
 
-        call bcftoolsConcat as merge_mutect {
+        call sanitizeNormalizeFilter as mutectFilter {
             input:
-                vcfs = mutectFilter.filtered_vcf,
-                vcf_tbis = mutectFilter.filtered_vcf_tbi,
-                merged_vcf_basename = "mutect." + bam.left
+            vcf = mutect.vcf,
+            vcf_tbi = mutect.vcf_tbi,
+            reference = reference,
+            reference_fai = reference_fai
         }
 
-        call bcftoolsConcat as merge_vardict {
+        call vardict {
             input:
-                vcfs = vardictFilter.filtered_vcf,
-                vcf_tbis = vardictFilter.filtered_vcf_tbi,
-                merged_vcf_basename = "vardict." + bam.left
+            reference = reference,
+            reference_fai = reference_fai,
+            tumor_bam = bam.right.left,
+            tumor_bam_bai = bam.right.right,
+            interval_bed = interval_to_bed.interval_bed,
+            tumor_sample_name = bam.left
         }
 
-        call bcftoolsConcat as merge_lofreq {
+        call sanitizeNormalizeFilter as vardictFilter {
             input:
-                vcfs = lofreqFilter.filtered_vcf,
-                vcf_tbis = lofreqFilter.filtered_vcf_tbi,
-                merged_vcf_basename = "lofreq." + bam.left
+            vcf = vardict.vcf,
+            vcf_tbi = vardict.vcf_tbi,
+            reference = reference,
+            reference_fai = reference_fai
+        }
+
+        call lofreq {
+            input:
+            reference = reference,
+            reference_fai = reference_fai,
+            tumor_bam = bam.right.left,
+            tumor_bam_bai = bam.right.right,
+            tumor_sample_name = bam.left,
+            interval_bed = interval_to_bed.interval_bed
+        }
+
+        call sanitizeNormalizeFilter as lofreqFilter {
+            input:
+            vcf = lofreq.vcf,
+            vcf_tbi = lofreq.vcf_tbi,
+            reference = reference,
+            reference_fai = reference_fai
         }
     }
 
     call bcftoolsMerge as merge_mutect_pon2 {
         input:
-            vcfs = merge_mutect.merged_vcf,
-            vcf_tbis = merge_mutect.merged_vcf_tbi,
+            vcfs = mutectFilter.filtered_vcf,
+            vcf_tbis = mutectFilter.filtered_vcf_tbi,
             merged_vcf_basename = "mutect_pon2"
     }
 
     call bcftoolsMerge as merge_vardict_pon2 {
         input:
-            vcfs = merge_vardict.merged_vcf,
-            vcf_tbis = merge_vardict.merged_vcf_tbi,
+            vcfs = vardictFilter.filtered_vcf,
+            vcf_tbis = vardictFilter.filtered_vcf_tbi,
             merged_vcf_basename = "vardict_pon2"
     }
 
     call bcftoolsMerge as merge_lofreq_pon2 {
         input:
-            vcfs = merge_lofreq.merged_vcf,
-            vcf_tbis = merge_lofreq.merged_vcf_tbi,
+            vcfs = lofreqFilter.filtered_vcf,
+            vcf_tbis = lofreqFilter.filtered_vcf_tbi,
             merged_vcf_basename = "lofreq_pon2"
     }
 
