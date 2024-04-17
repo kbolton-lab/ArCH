@@ -159,6 +159,7 @@ task filterArcherUMILengthAndbbmapRepair {
         File input_file                     # This can be an unaligned BAM or FASTQ
         File? input_file_two                # If unaligned BAM... we don't need this. If FASTQ, this is R2
         Int? umi_length = 8
+        String? archer_adapter_sequence = "AACCGCCAGGAGT"
         String input_type = "FASTQ"         # FASTQ, BAM, or CRAM
         String sample_name
         String library_name
@@ -189,7 +190,7 @@ task filterArcherUMILengthAndbbmapRepair {
         # If it's ArcherDX Sequencing, we can either have a BAM input or FASTQ input. Either way, we need to filter out the 13 bp Adapter Issue
         if [[ "~{platform}" == "ArcherDX" ]]; then
             if [ "~{input_type}" == "BAM" ]; then
-                samtools view --no-header ~{input_file} | awk -v regex="AACCGCCAGGAGT" -v umi_length="~{umi_length}" -F'\t' '{if ($2 == "77") { split($10,a,regex); if(length(a[1]) == umi_length){print$0}} else {print $0}}' > filtered.sam
+                samtools view --no-header ~{input_file} | awk -v regex="~{archer_adapter_sequence}" -v umi_length="~{umi_length}" -F'\t' '{if ($2 == "77") { split($10,a,regex); if(length(a[1]) == umi_length){print$0}} else {print $0}}' > filtered.sam
                 repair.sh -Xmx~{java_mem}g \
                 repair=t \
                 overwrite=true \
@@ -198,7 +199,7 @@ task filterArcherUMILengthAndbbmapRepair {
                 out1=R1.fixed.fastq.gz \
                 out2=R2.fixed.fastq.gz
             elif [ "~{input_type}" == "FASTQ" ]; then
-                zcat ~{input_file} | awk -v regex="AACCGCCAGGAGT" -v umi_length="~{umi_length}" 'BEGIN {FS = "\t" ; OFS = "\n"} {header = $0 ; getline seq ; getline qheader ; getline qseq ; split(seq,a,regex); if (length(a[1]) == umi_length) {print header, seq, qheader, qseq}}' | \
+                zcat ~{input_file} | awk -v regex="~{archer_adapter_sequence}" -v umi_length="~{umi_length}" 'BEGIN {FS = "\t" ; OFS = "\n"} {header = $0 ; getline seq ; getline qheader ; getline qseq ; split(seq,a,regex); if (length(a[1]) == umi_length) {print header, seq, qheader, qseq}}' | \
                 repair.sh -Xmx~{java_mem}g \
                 repair=t \
                 overwrite=true \
