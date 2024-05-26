@@ -1,4 +1,5 @@
-# BoltonLab (Ar)tifact Filtering (C)lonal (H)ematapoiesis Variant Calling Pipeline
+# BoltonLab 
+# ArCH - (Ar)tifact Filtering (C)lonal (H)ematapoiesis Variant Calling Pipeline
 ArCH is a somatic variant calling pipeline designed to detect low variant allele fraction (VAF) clonal hematopoiesjsonsis (CH) variants. Starting from either unaligned FASTQ/BAM/CRAM files or aligned BAM/CRAM files, ArCH utilizes four variant callers (Mutect2, VarDictJava, LoFreq2, and Pindel) to detect somatic variants. These variants are then filtered using a variety of false positive filters and detection methods (false positive filters, panel of normal, etc.). The pipeline also generates VEP style annotations for all called variants as well as additional putative driver annotations generated from various database sources (TOPMed, MSK-IMPACT, COSMIC, OncoKB, etc.).
 
 If you end up using this tool in your publication, please cite this paper:
@@ -166,6 +167,8 @@ For basic usage, please use the following [JSON](https://github.com/kbolton-lab/
 |min_reads|Array[Int]|Minimum number of reads that constitutes a "read family" (Default: 1)|
 
 ### Consensus Building
+| Variable | Type | Definition |
+| --- | --- | --- |
 |min_base_quality|Integer|During consensus building, any base with a QUAL less than this value is masked with an N (Default: 1)|
 |max_base_error_rate|Float|During consensus building, if this percent of the bases within a "read family" do not match, the base is masked with an N (Default: 0.1)|
 |max_read_error_rate|Float|During consensus building, if this percent of the reads within a "read family" do not match, the entire family is removed (Default: 0.05)|
@@ -242,7 +245,6 @@ According to BCBIO, VarDict has multiple false positive calls at regions of low 
 |variant_caller.sample.pileup.fisherPON.filtered.fp_filter.VEP.vcf.gz|Variant calls after being annotated with the PoN, FP filters, VEP and filtered by the Bonferroni corrected p-value|
 |all_callers.sample.fpfilter.vcf.gz|Results from Varscan's FP Filter on ALL of the variants found for every variant caller in VCF Format|
 |sample.pon.total.counts.vcf.gz|Results from the PoN Pileup. Contains information regarding the reference depth, alternate depth, depth for strand, etc.|
-|all_callers.sample.VEP_annotated.vcf.gz|
 |variant_caller.sample.pileup.fisherPON.filtered.fp_filter.VEP.tsv|Variant calls after being annotated with our putative driver annotation script|
 |sample.final.annotated.tsv|The FINAL output file that contains all merged information from the pipeline|
 
@@ -267,7 +269,7 @@ for dir in $(ls -d */); do
   zcat $dir/${sample_name}.final.annotated.tsv | tail -n+2 | awk -F'\t' '{if($170=="TRUE")print $0}' >> final.combined.FPpass.tsv; 
 done
 
-# Now the resulting final.combined.FPpass.tsv can be used as an input into our ArCHPostPipeline.R 
+# Now the resulting final.combined.FPpass.tsv can be used as an input into our ArCHPostPipeline.R which can be run from this docker: kboltonlab/r_docker_ichan:latest
 LC_ALL=C.UTF-8 Rscript --vanilla ArCHPostPipeline.R --tsv final.combined.FPpass.tsv --bolton_bick_vars AnnotatePD_Files/bick.bolton.vars3.txt --gene_list AnnotatePD_Files/oncoKB_CGC_pd_table_disparity_KB_BW.csv --cosmic AnnotatePD_Files/COSMIC.heme.myeloid.hotspot.w_truncating_counts.tsv --pd_table AnnotatePD_Files/pd_table_kbreview_bick_trunc4_oncoKB_SAFE.filtered_genes_oncoKB_CGC.tsv
 ```
 The output from ArCHPostPipeline.R will produce three output files:
