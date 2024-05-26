@@ -1,4 +1,3 @@
-# BoltonLab 
 # ArCH - (Ar)tifact Filtering (C)lonal (H)ematapoiesis Variant Calling Pipeline
 ArCH is a somatic variant calling pipeline designed to detect low variant allele fraction (VAF) clonal hematopoiesjsonsis (CH) variants. Starting from either unaligned FASTQ/BAM/CRAM files or aligned BAM/CRAM files, ArCH utilizes four variant callers (Mutect2, VarDictJava, LoFreq2, and Pindel) to detect somatic variants. These variants are then filtered using a variety of false positive filters and detection methods (false positive filters, panel of normal, etc.). The pipeline also generates VEP style annotations for all called variants as well as additional putative driver annotations generated from various database sources (TOPMed, MSK-IMPACT, COSMIC, OncoKB, etc.).
 
@@ -46,7 +45,7 @@ This pipeline will generate 3 files:
 - lofreq.2N.maxVAF.vcf.gz
 - vardict.2N.maxVAF.vcf.gz
 
-### gnomAD resource:
+### gnomAD Resource
 ```sh
 for chr in {1..22} X Y; do
   bcftools view -f PASS -i 'INFO/AF>=0.005' -Ou gnomad.exomes.v4.1.sites.chr${chr}.vcf.bgz | bcftools annotate -x ^INFO/AC,INFO/AF -Ou - | bcftools norm --multiallelics -any -Oz -o gnomad.exomes.v4.1.sites.chr${chr}.AF_only.exclude_0.005.normalized.vcf.gz -  
@@ -54,7 +53,7 @@ done
 bcftools concat -Oz -o gnomad.exomes.v4.1.AF_only.exclude_0.005.normalized.vcf.gz gnomad.exomes.v4.1.sites.chr*.AF_only.exclude_0.005.normalized.vcf.gz
 ```
 
-### VEP Cache:
+### VEP Cache
 This Pipeline's annotation step has been configured to use VEP cache files, which can be downloaded from the [Ensembl FTP - Homo sapiens v109](ftp://ftp.ensembl.org/pub/release-109/variation/indexed_vep_cache/homo_sapiens_merged_vep_109_GRCh38.tar.gz). The cache files should be downloaded along with all necessary plugin files and zipped into a single file for the pipeline to use.
 
 Create the VepData which will contain the VEP v109 Cache
