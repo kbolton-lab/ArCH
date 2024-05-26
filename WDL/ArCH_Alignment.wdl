@@ -18,9 +18,9 @@ workflow ArCH_Alignment {
         Boolean aligned = false             # If input is an already aligned BAM file then set this flag
     
         # Sequence Information
-        String platform = "Illumina"
-        String platform_unit = "ArcherDX"
-        String library = "LIBRARY"
+        String platform = "NovaSeq6000"                     # Platform refers to Illumina, PacBio, ElementBio, etc...
+        String platform_unit = "FlowCellID_LaneX"           # Platform Unit refers to the specific machine used
+        String library = "ArcherDX"                         # Library refers to the specific library kit used e.g. ArcherDX VariantPlex, MGI
 
         File target_intervals               # Interval List
 
@@ -60,7 +60,7 @@ workflow ArCH_Alignment {
         input_file_two = input_file_two,
         input_type = input_type,
         sample_name = sample_name,
-        library_name = library,
+        library = library,
         platform_unit = platform_unit,
         platform = platform
     }
@@ -162,7 +162,7 @@ task filterArcherUMILengthAndbbmapRepair {
         String? archer_adapter_sequence = "AACCGCCAGGAGT"
         String input_type = "FASTQ"         # FASTQ, BAM, or CRAM
         String sample_name
-        String library_name
+        String library
         String platform_unit
         String platform
         Float? mem_limit_override
@@ -188,7 +188,7 @@ task filterArcherUMILengthAndbbmapRepair {
 
     command <<<
         # If it's ArcherDX Sequencing, we can either have a BAM input or FASTQ input. Either way, we need to filter out the 13 bp Adapter Issue
-        if [[ "~{platform}" == "ArcherDX" ]]; then
+        if [[ "~{library}" == "ArcherDX" ]]; then
             if [ "~{input_type}" == "BAM" ]; then
                 samtools view --no-header ~{input_file} | awk -v regex="~{archer_adapter_sequence}" -v umi_length="~{umi_length}" -F'\t' '{if ($2 == "77") { split($10,a,regex); if(length(a[1]) == umi_length){print$0}} else {print $0}}' > filtered.sam
                 repair.sh -Xmx~{java_mem}g \
@@ -214,7 +214,7 @@ task filterArcherUMILengthAndbbmapRepair {
             -2 R2.fixed.fastq.gz \
             -O BAM \
             -o unaligned.bam \
-            -r ID:A -r SM:~{sample_name} -r LB:~{library_name} -r PL:~{platform} -r PU:~{platform_unit}
+            -r ID:A -r SM:~{sample_name} -r LB:~{library} -r PL:~{platform} -r PU:~{platform_unit}
         else
             # For any other type of sequencing, we either leave it as a BAM input or we convert FASTQ to BAM
             if [ "~{input_type}" == "BAM" ]; then
@@ -225,7 +225,7 @@ task filterArcherUMILengthAndbbmapRepair {
                 -2 ~{input_file_two} \
                 -O BAM \
                 -o unaligned.bam \
-                -r ID:A -r SM:~{sample_name} -r LB:~{library_name} -r PL:~{platform} -r PU:~{platform_unit}
+                -r ID:A -r SM:~{sample_name} -r LB:~{library} -r PL:~{platform} -r PU:~{platform_unit}
             fi
         fi
         

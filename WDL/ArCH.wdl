@@ -50,9 +50,9 @@ workflow ArCH {
         Boolean aligned = false             # If input is an already aligned BAM file then set this flag
     
         # Sequence Information
-        String platform = "Illumina"
-        String platform_unit = "ArcherDX"
-        String library = "LIBRARY"
+        String platform = "NovaSeq6000"                     # Platform refers to Illumina, PacBio, ElementBio, etc...
+        String platform_unit = "FlowCellID_LaneX"           # Platform Unit refers to the specific machine used
+        String library = "ArcherDX"                         # Library refers to the specific library kit used e.g. ArcherDX VariantPlex, MGI
 
         File target_intervals               # Interval List
 
@@ -90,7 +90,6 @@ workflow ArCH {
         File normalized_gnomad_exclude_tbi
 
         # Somalier
-        File chrom_sizes
         File af_only_snp_only_vcf
 
         # Variant Calling
@@ -98,7 +97,7 @@ workflow ArCH {
         Float? af_threshold = 0.0001                # Minimum VAF Cut-Off
         String? pon_pvalue = "2.114164905e-6"       # Bonferroni Corrected P-Value for Significance - (Default: Archer Panel)
 
-        # See: https://github.com/bcbio/bcbio_validations/blob/master/somatic-lowfreq/README.md
+        # See: https://github.com/bcbio/bcbio-nextgen/blob/master/bcbio/variation/vardict.py#L251
         # Parameters MQ, NM, DP, and QUAL are calculated using a small subset then identifying the cut-off for 2% of the left side samples
         String bcbio_filter_string = "((FMT/AF * FMT/DP < 6) && ((INFO/MQ < 55.0 && INFO/NM > 1.0) || (INFO/MQ < 60.0 && INFO/NM > 3.0) || (FMT/DP < 6500) || (INFO/QUAL < 27)))"
 
@@ -146,7 +145,7 @@ workflow ArCH {
             input_file_two = input_file_two,
             input_type = input_type,
             sample_name = tumor_sample_name,
-            library_name = library,
+            library = library,
             platform_unit = platform_unit,
             platform = platform
         }
@@ -250,9 +249,9 @@ workflow ArCH {
     call createSomalierVcf {
         input:
         interval_bed = interval_to_bed.interval_bed,
-        chrom_sizes = chrom_sizes,
         af_only_snp_only_vcf = af_only_snp_only_vcf,
-        reference = reference
+        reference = reference,
+        reference_fai = reference_fai
     }
 
     call somalier {
@@ -604,7 +603,7 @@ task filterArcherUMILengthAndbbmapRepair {
         String? archer_adapter_sequence = "AACCGCCAGGAGT"
         String input_type = "FASTQ"         # FASTQ, BAM, or CRAM
         String sample_name
-        String library_name
+        String library
         String platform_unit
         String platform
         Float? mem_limit_override
@@ -630,7 +629,7 @@ task filterArcherUMILengthAndbbmapRepair {
 
     command <<<
         # If it's ArcherDX Sequencing, we can either have a BAM input or FASTQ input. Either way, we need to filter out the 13 bp Adapter Issue
-        if [[ "~{platform}" == "ArcherDX" ]]; then
+        if [[ "~{library}" == "ArcherDX" ]]; then
             if [ "~{input_type}" == "BAM" ]; then
                 samtools view --no-header ~{input_file} | awk -v regex="~{archer_adapter_sequence}" -v umi_length="~{umi_length}" -F'\t' '{if ($2 == "77") { split($10,a,regex); if(length(a[1]) == umi_length){print$0}} else {print $0}}' > filtered.sam
                 repair.sh -Xmx~{java_mem}g \
@@ -656,7 +655,7 @@ task filterArcherUMILengthAndbbmapRepair {
             -2 R2.fixed.fastq.gz \
             -O BAM \
             -o unaligned.bam \
-            -r ID:A -r SM:~{sample_name} -r LB:~{library_name} -r PL:~{platform} -r PU:~{platform_unit}
+            -r ID:A -r SM:~{sample_name} -r LB:~{library} -r PL:~{platform} -r PU:~{platform_unit}
         else
             # For any other type of sequencing, we either leave it as a BAM input or we convert FASTQ to BAM
             if [ "~{input_type}" == "BAM" ]; then
@@ -667,7 +666,7 @@ task filterArcherUMILengthAndbbmapRepair {
                 -2 ~{input_file_two} \
                 -O BAM \
                 -o unaligned.bam \
-                -r ID:A -r SM:~{sample_name} -r LB:~{library_name} -r PL:~{platform} -r PU:~{platform_unit}
+                -r ID:A -r SM:~{sample_name} -r LB:~{library} -r PL:~{platform} -r PU:~{platform_unit}
             fi
         fi
         
@@ -1083,14 +1082,14 @@ task intervalsToBed {
 task createSomalierVcf {
     input {
         File interval_bed
-        File chrom_sizes
         File af_only_snp_only_vcf
         File reference
+        File reference_fai
     }
 
     Int preemptible = 1
     Int maxRetries = 0
-    Float data_size = size([interval_bed, chrom_sizes, af_only_snp_only_vcf, reference], "GB")
+    Float data_size = size([interval_bed, af_only_snp_only_vcf, reference, reference_fai], "GB")
     Int space_needed_gb = ceil(2 * data_size)
     Float memory = 1
     Int cores = 1
@@ -1110,7 +1109,8 @@ task createSomalierVcf {
         if (( ${bed_size} > 2*65535 )); then
             cp ~{interval_bed} somalier.bed
         else
-            bedtools slop -i ~{interval_bed} -g ~{chrom_sizes} -b 100 > somalier.bed
+            cut -f1,2 reference_fai > chrom.sizes
+            bedtools slop -i ~{interval_bed} -g chrom.sizes -b 100 > somalier.bed
         fi
         bedtools intersect -a ~{af_only_snp_only_vcf} -b somalier.bed -header > somalier.vcf
         bcftools norm --multiallelics -any -Oz -o somalier.norm.vcf.gz -f ~{reference} somalier.vcf
@@ -1138,7 +1138,7 @@ task somalier {
     Int cores = 1
 
     runtime {
-        docker: "brentp/somalier:latest"
+        docker: "brentp/somalier:v0.2.15"
         memory: cores * memory + "GB"
         cpu: cores
         disks: "local-disk ~{space_needed_gb} HDD"
