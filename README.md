@@ -99,7 +99,11 @@ awk '{print $2, $20}' pLI/fordist_cleaned_exac_r03_march16_z_pli_rec_null_data.t
 
 # REVEL
 mkdir REVEL
-curl -O https://www.google.com/url?q=https%3A%2F%2Frothsj06.dmz.hpc.mssm.edu%2Frevel-v1.3_all_chromosomes.zip&sa=D&sntz=1&usg=AOvVaw2DS2TWUYl__0vqijzzxp5M
+curl -o REVEL/revel-v1.3_all_chromosomes.zip https://rothsj06.dmz.hpc.mssm.edu/revel-v1.3_all_chromosomes.zip
+cd REVEL/
+unzip revel-v1.3_all_chromosomes.zip
+tr ',' '\t' < revel_with_transcript_ids > revel_with_transcript_ids.tsv
+gzip revel_with_transcript_ids.tsv && tabix gzip revel_with_transcript_ids.tsv.gz
 
 # SpliceAI
 mkdir spliceAI
@@ -203,7 +207,7 @@ For basic usage, please use the following [JSON](https://github.com/kbolton-lab/
 ### Filtering Parameters
 |Variable|Type|Definition|
 |---|---|---|
-|pon_bams|Array[Pair[File, File]]|The Panel of Normal BAMs and their associated index files|
+|pon_bams|Array[Pair[File, File]]|The Panel of Normal Aligned BAMs generated in the Panel of Normals step and their associated index files|
 |pon_pvalue|Float|Minimum Bonferroni corrected p-value for Fisher's Exact Test of the Panel of Normals (Default: 2.114164905e-6)|
 |normalized_gnomad_exclude|File|Filtered gnomAD VCF with VAFs higher than 0.5%
 |normalized_gnomad_exclude_tbi|File|Filtered gnomAD VCF index|
@@ -214,13 +218,28 @@ For basic usage, please use the following [JSON](https://github.com/kbolton-lab/
 |vardict_pon2_file|File|VarDictJava called variants from PoN BAMs that are found in two or more samples above 2% VAF|
 |vardict_pon2_file_tbi|File|VarDictJava called variants from PoN BAMs index|
 
-### Annotation Parameters
+### VEP Annotation Parameters
 |Variable|Type|Definition|
 |---|---|---|
 |vep_cache_dir_zip|File|The VEP cache directory in ZIP format|
 |vep_plugins|Array[String]|List of plugins to be used in VEP (Default: "Frameshift", "Wildtype")|
 |synonyms_file|File|File of chromosome synonyms|
 |annotate_coding_only|Boolean|Set TRUE if VEP should return consequences that fall within the coding only regions of the transcript, FALSE if all consequences should be returned|
+|clinvar_vcf|File|Clinvar VCF file|
+|clinvar_vcf_tbi|File|Clinvar VCF index|
+
+### Putative Driver Annotation Parameters
+|Variable|Type|Definition|
+|---|---|---|
+|bolton_bick_vars|File|Pathogenic CH Variants found in Bolton et al. (2020) Nature Genetics and Bick et al. (2020) Nature|
+|mut2_bick|File|Subset of bolton_bick_vars containing VEP type annotations from Bick et al. (2020) Nature|
+|mut2_kelly|File|Subset of bolton_bick_vars containing VEP type annotations from Bolton et al. (2020) Nature Genetics|
+|matches2|File|Intersection of mut2_bick and mut2_kelly variants containing VEP type annotations|
+|truncating|File|Subset of bolton_bick_vars containing all truncating mutations|
+|gene_list|File|List of genes that are considered putative drivers|
+|oncokb_genes|File|List of genes that are considered putative drivers from OncoKB|
+|oncokb_api_key|String|API Key for OncoKB: https://www.oncokb.org/account/settings|
+|cosmic_dir_zip|File|COSMIC Counts Files in ZIP format|
 
 ### BCBio Filter Parameters
 According to BCBIO, VarDict has multiple false positive calls at regions of low depth and allelic fractions. These are the [default](https://github.com/bcbio/bcbio-nextgen/blob/master/bcbio/variation/vardict.py#L251) parameters recommended by BCBIO. However, we have found that these parameters are too stringent for our purposes and have modified them to the following:

@@ -63,143 +63,28 @@
     "ArCH.truncating": "AnnotatePD_Files/BB.truncating.more.than.1.tsv",
     "ArCH.gene_list": "AnnotatePD_Files/oncoKB_CGC_pd_table_disparity_KB_BW.csv",
     "ArCH.oncokb_genes": "AnnotatePD_Files/oncoKbCancerGeneList.tsv",
+    "ArCH.oncokb_api_key" : "Go to: https://www.oncokb.org/account/settings",
     "ArCH.cosmic_dir_zip": "AnnotatePD_Files/cosmic/cosmic_zip.zip",
     "ArCH.pon_bams": [
         {
-            "Left": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/1834750a_1.bam",
-            "Right": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/1834750a_1.bam.bai"
+            "Left": "panel_of_normal_sample1.bam",
+            "Right": "panel_of_normal_sample1.bam.bai"
         },
         {
-            "Left": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/1833553a_2.bam",
-            "Right": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/1833553a_2.bam.bai"
+            "Left": "panel_of_normal_sample2.bam",
+            "Right": "panel_of_normal_sample2.bam.bai"
         },
         {
-            "Left": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/1832893a_2.bam",
-            "Right": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/1832893a_2.bam.bai"
+            "Left": "panel_of_normal_sample3.bam",
+            "Right": "panel_of_normal_sample3.bam.bai"
         },
         {
-            "Left": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0315-1-B_4.bam",
-            "Right": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0315-1-B_4.bam.bai"
+            "Left": "panel_of_normal_sample4.bam",
+            "Right": "panel_of_normal_sample4.bam.bai"
         },
         {
-            "Left": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/1834713a_2.bam",
-            "Right": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/1834713a_2.bam.bai"
-        },
-        {
-            "Left": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/1832828a_2.bam",
-            "Right": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/1832828a_2.bam.bai"
-        },
-        {
-            "Left": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/1834748a_1.bam",
-            "Right": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/1834748a_1.bam.bai"
-        },
-        {
-            "Left": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0315-1-B_10.bam",
-            "Right": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0315-1-B_10.bam.bai"
-        },
-        {
-            "Left": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/1834594a_2.bam",
-            "Right": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/1834594a_2.bam.bai"
-        },
-        {
-            "Left": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0315-1-B_8.bam",
-            "Right": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0315-1-B_8.bam.bai"
-        },
-        {
-            "Left": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0315-1-B_7.bam",
-            "Right": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0315-1-B_7.bam.bai"
-        },
-        {
-            "Left": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/1834711a_2.bam",
-            "Right": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/1834711a_2.bam.bai"
-        },
-        {
-            "Left": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/1833560a_2.bam",
-            "Right": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/1833560a_2.bam.bai"
-        },
-        {
-            "Left": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0315-1-B_1.bam",
-            "Right": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0315-1-B_1.bam.bai"
-        },
-        {
-            "Left": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/1831620a_1.bam",
-            "Right": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/1831620a_1.bam.bai"
-        },
-        {
-            "Left": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/1787108a_2.bam",
-            "Right": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/1787108a_2.bam.bai"
-        },
-        {
-            "Left": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0315-1-B_3.bam",
-            "Right": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0315-1-B_3.bam.bai"
-        },
-        {
-            "Left": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0278-1-B_6.bam",
-            "Right": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0278-1-B_6.bam.bai"
-        },
-        {
-            "Left": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/1831622a_2.bam",
-            "Right": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/1831622a_2.bam.bai"
-        },
-        {
-            "Left": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0315-1-B_2.bam",
-            "Right": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0315-1-B_2.bam.bai"
-        },
-        {
-            "Left": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/1831618a_1.bam",
-            "Right": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/1831618a_1.bam.bai"
-        },
-        {
-            "Left": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0278-1-B_8.bam",
-            "Right": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0278-1-B_8.bam.bai"
-        },
-        {
-            "Left": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0278-1-B_4.bam",
-            "Right": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0278-1-B_4.bam.bai"
-        },
-        {
-            "Left": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0278-1-B_2.bam",
-            "Right": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0278-1-B_2.bam.bai"
-        },
-        {
-            "Left": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0278-1-B_9.bam",
-            "Right": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0278-1-B_9.bam.bai"
-        },
-        {
-            "Left": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0315-1-B_5.bam",
-            "Right": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0315-1-B_5.bam.bai"
-        },
-        {
-            "Left": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0278-1-B_7.bam",
-            "Right": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0278-1-B_7.bam.bai"
-        },
-        {
-            "Left": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/1833564a_1.bam",
-            "Right": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/1833564a_1.bam.bai"
-        },
-        {
-            "Left": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/1832891a_1.bam",
-            "Right": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/1832891a_1.bam.bai"
-        },
-        {
-            "Left": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0315-1-B_9.bam",
-            "Right": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0315-1-B_9.bam.bai"
-        },
-        {
-            "Left": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0315-1-B_6.bam",
-            "Right": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0315-1-B_6.bam.bai"
-        },
-        {
-            "Left": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0278-1-B_1.bam",
-            "Right": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0278-1-B_1.bam.bai"
-        },
-        {
-            "Left": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0278-1-B_5.bam",
-            "Right": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0278-1-B_5.bam.bai"
-        },
-        {
-            "Left": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0278-1-B_3.bam",
-            "Right": "/storage1/fs1/bolton/Active/Projects/MGI_Archer_ExtraSamples/Normal_BAMs/MCIA0278-1-B_3.bam.bai"
+            "Left": "panel_of_normal_sample5.bam",
+            "Right": "panel_of_normal_sample5.bam.bai"
         }
     ]
 }

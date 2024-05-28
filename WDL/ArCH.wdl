@@ -124,6 +124,7 @@ workflow ArCH {
         File gene_list
         File oncokb_genes
         File cosmic_dir_zip
+        File oncokb_api_key
 
         # VEP Parameters
         File vep_cache_dir_zip                      # WDL does not have a Directory Variable, so the entire cache needs to be ZIP
@@ -538,7 +539,8 @@ workflow ArCH {
             gene_list = gene_list,
             oncokb_genes = oncokb_genes,
             cosmic_dir_zip = cosmic_dir_zip,
-            pon_pvalue = pon_pvalue
+            pon_pvalue = pon_pvalue,
+            oncokb_api_key = oncokb_api_key
     }
 
     call combine_all {
@@ -2214,6 +2216,7 @@ task annotatePD {
         File oncokb_genes
         File cosmic_dir_zip
         String? pon_pvalue = "2.114164905e-6"
+        String oncokb_api_key
     }
 
     Float caller_size = size([mutect_vcf, lofreq_vcf, vardict_vcf], "GB")
@@ -2256,6 +2259,7 @@ task annotatePD {
         --oncokb_genes ~{oncokb_genes} \
         --cosmic_dir ~{cosmic_dir} \
         --p_value ~{pon_pvalue} \
+        --api_key ~{oncokb_api_key} \
         --csq_string ${CSQ_string}
         echo "Mutect AnnotatePD Finished..."
 
@@ -2269,6 +2273,7 @@ task annotatePD {
         --oncokb_genes ~{oncokb_genes} \
         --cosmic_dir ~{cosmic_dir} \
         --p_value ~{pon_pvalue} \
+        --api_key ~{oncokb_api_key} \
         --csq_string ${CSQ_string}
         echo "Lofreq AnnotatePD Finished..."
 
@@ -2282,6 +2287,7 @@ task annotatePD {
         --oncokb_genes ~{oncokb_genes} \
         --cosmic_dir ~{cosmic_dir} \
         --p_value ~{pon_pvalue} \
+        --api_key ~{oncokb_api_key} \
         --csq_string ${CSQ_string}
         echo "Vardict AnnotatePD Finished..."
     >>>

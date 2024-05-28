@@ -37,6 +37,8 @@ option_list = list(
               help="The directory path where the 'oncoKB available genes' data for annotate_PD is stored. [default_path = %default]", metavar="character"),
   make_option("--cosmic_dir", type="character", default="/storage1/fs1/bolton/Active/Protected/Annotation_Files/cosmic/",
               help="The directory path where the 'cosmic' files are stored for cosmic function.", metavar="character"),
+  make_option("--api_key", type="char", default="https://www.oncokb.org/account/settings",
+              help="OncoKB API Key [default = %default]", metavar="double"),
   make_option("--p_value", type="double", default=2.114164905e-6,
               help="The Bonferroni Corrected P-Value [default = %default]", metavar="double"),
   make_option("--csq_string", type="character", default="Allele|Consequence|IMPACT|SYMBOL|Gene|Feature_type|Feature|BIOTYPE|EXON|INTRON|HGVSc|HGVSp|cDNA_position|CDS_position|Protein_position|Amino_acids|Codons|Existing_variation|DISTANCE|STRAND|FLAGS|VARIANT_CLASS|SYMBOL_SOURCE|HGNC_ID|CANONICAL|MANE_SELECT|MANE_PLUS_CLINICAL|TSL|APPRIS|CCDS|ENSP|SWISSPROT|TREMBL|UNIPARC|UNIPROT_ISOFORM|REFSEQ_MATCH|SOURCE|REFSEQ_OFFSET|GENE_PHENO|SIFT|PolyPhen|DOMAINS|miRNA|HGVS_OFFSET|AF|AFR_AF|AMR_AF|EAS_AF|EUR_AF|SAS_AF|gnomADe_AF|gnomADe_AFR_AF|gnomADe_AMR_AF|gnomADe_ASJ_AF|gnomADe_EAS_AF|gnomADe_FIN_AF|gnomADe_NFE_AF|gnomADe_OTH_AF|gnomADe_SAS_AF|gnomADg_AF|gnomADg_AFR_AF|gnomADg_AMI_AF|gnomADg_AMR_AF|gnomADg_ASJ_AF|gnomADg_EAS_AF|gnomADg_FIN_AF|gnomADg_MID_AF|gnomADg_NFE_AF|gnomADg_OTH_AF|gnomADg_SAS_AF|MAX_AF|MAX_AF_POPS|CLIN_SIG|SOMATIC|PHENO|PUBMED|MOTIF_NAME|MOTIF_POS|HIGH_INF_POS|MOTIF_SCORE_CHANGE|TRANSCRIPTION_FACTORS|FrameshiftSequence|WildtypeProtein|CADD_PHRED|CADD_RAW|REVEL|SpliceAI_pred_DP_AG|SpliceAI_pred_DP_AL|SpliceAI_pred_DP_DG|SpliceAI_pred_DP_DL|SpliceAI_pred_DS_AG|SpliceAI_pred_DS_AL|SpliceAI_pred_DS_DG|SpliceAI_pred_DS_DL|SpliceAI_pred_SYMBOL|pLI_gene_value|clinvar|clinvar_ID|clinvar_AF_ESP|clinvar_AF_EXAC|clinvar_AF_TGP|clinvar_CLNSIG|clinvar_CLNSIGCONF|clinvar_CLNDN|clinvar_ORIGIN",
@@ -195,6 +197,7 @@ message("Loading support files...")
     unique() %>%
     .[. != ""]
   supportData[["oncoKbAvailGene"]] <- tmp
+  supportData[["oncoKbApiKey"]] <- opt$api_key
 }
 message("Done loading support files.")
 

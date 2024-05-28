@@ -621,7 +621,7 @@ annotateOncoKb <- function(MUTS, supportData) {
       try(
         resp <- httr::POST(
           url = "https://www.oncokb.org/api/v1/annotate/mutations/byProteinChange",
-          httr::add_headers(c("Content-Type" = "application/json", "Authorization" = "Bearer a83627cd-47e4-4be0-82dd-8f4cc9e4d6d0")),
+          httr::add_headers(c("Content-Type" = "application/json", "Authorization" = paste0("Bearer ", supportData[["oncoKbApiKey"]]))),
           body = jsonlite::toJSON(unname(allJsonQuery), auto_unbox = TRUE)
         )
       )
