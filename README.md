@@ -46,6 +46,7 @@ This pipeline will generate 3 files:
 - vardict.2N.maxVAF.vcf.gz
 
 ### gnomAD Resource
+Please go to the [official gnomAD download repository](https://gnomad.broadinstitute.org/downloads#summary) to download the latest version of gnomAD (v4.1.0 - as of 05/30/2024)
 ```sh
 for chr in {1..22} X Y; do
   bcftools view -f PASS -i 'INFO/AF>=0.005' -Ou gnomad.exomes.v4.1.sites.chr${chr}.vcf.bgz | bcftools annotate -x ^INFO/AC,INFO/AF -Ou - | bcftools norm --multiallelics -any -Oz -o gnomad.exomes.v4.1.sites.chr${chr}.AF_only.exclude_0.005.normalized.vcf.gz -  
