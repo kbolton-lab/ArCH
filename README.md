@@ -26,7 +26,7 @@ Two separate filters are generated from the PoN:
 2. Potential Germline Variants: These are non-hotspot variants that are found in 2 or more of the PoN samples at a 2% VAF or higher. These variants are then used to filter out any variants found in the tumor samples as possible germline variants.
 
 To generate the PoN, the following steps are required:
-1. Run the (ArCH Alignment WDL Workflow)[https://github.com/kbolton-lab/ArCH/blob/main/WDL/ArCH_Alignment.wdl] - This will create UMI consensus aligned BAM files for all the PoN samples.
+1. Run the [ArCH Alignment WDL Workflow](https://github.com/kbolton-lab/ArCH/blob/main/WDL/ArCH_Alignment.wdl) - This will create UMI consensus aligned BAM files for all the PoN samples.
 2. Check the PoN Files for potential CH hotspots and remove them from the PoN samples.
 ```sh
 # Using this Docker: duct/getbasecount:latest
