@@ -46,6 +46,7 @@ This pipeline will generate 3 files:
 - vardict.2N.maxVAF.vcf.gz
 
 ### gnomAD Resource
+Due to the size of gnomAD. The database is split into individual chromosomes. They will all have to be downloaded individually before merging them into a singular VCF file.
 ```sh
 for chr in {1..22} X Y; do
   bcftools view -f PASS -i 'INFO/AF>=0.005' -Ou gnomad.exomes.v4.1.sites.chr${chr}.vcf.bgz | bcftools annotate -x ^INFO/AC,INFO/AF -Ou - | bcftools norm --multiallelics -any -Oz -o gnomad.exomes.v4.1.sites.chr${chr}.AF_only.exclude_0.005.normalized.vcf.gz -  
@@ -107,7 +108,7 @@ gzip revel_with_transcript_ids.tsv && tabix gzip revel_with_transcript_ids.tsv.g
 
 # SpliceAI
 mkdir spliceAI
-# Files for spliceAI can be downloaded from: https://basespace.illumina.com/s/otSPW8hnhaZR
+# Files for spliceAI can be downloaded from Illumina basespace: https://basespace.illumina.com/analyses/194103939/files 
 # You will need:
 # - spliceai_scores.raw.indel.hg38.vcf.gz
 # - spliceai_scores.raw.indel.hg38.vcf.gz.tbi
@@ -150,9 +151,9 @@ For basic usage, please use the following [JSON](https://github.com/kbolton-lab/
 |input_file|File|This will be the first input file. It can be a R1 FASTQ, BAM, or CRAM|
 |input_file_two|File|This will be the second input file. It can be R2 FASTQ, BAI, or CRAI|
 |tumor_sample_name|String|Name of the tumor sample|
-|normal_bam|File|Optional matched normal sample BAM for variant calling|
-|normal_bai|File|Optional matched normal sample BAM index for variant calling|
-|normal_sample_name|String|Name of the normal sample|
+|normal_bam|File?|Optional matched normal sample BAM for variant calling|
+|normal_bai|File?|Optional matched normal sample BAM index for variant calling|
+|normal_sample_name|String?|Optional name of the normal sample|
 |input_type|String|Three options: "BAM", "CRAM", or "FASTQ" (Default: "FASTQ")|
 |aligned|Boolean|Set TRUE if UMI consensus sequencing building ArCH_Alignment.wdl was done prior to pipeline, FALSE if unaligned|
 |target_intervals|File|Interval list for the sequencing panel|
@@ -160,12 +161,12 @@ For basic usage, please use the following [JSON](https://github.com/kbolton-lab/
 ### Sequence and UMI Information
 | Variable | Type | Definition |
 | --- | --- | --- |
-|platform|String|PL Tag for BAM Metadata e.g. Illumina, PacBio, ElementBio, etc...|
-|platform_unit|String|PU Tag for BAM Metadata e.g. the specific sequencing machine used|
+|platform|String|PL Tag for BAM Metadata e.g. NovaSeq6000, NovaSeqX, etc...|
+|platform_unit|String|PU Tag for BAM Metadata e.g. the specific sequencing machine used e.g. FlowCellID_LaneX|
 |library|String|LB Tag for BAM Metadata e.g. ArcherDX VariantPlex, MGI, IlluminaWES|
 |has_umi|Boolean|Set TRUE if the sequencing data has UMIs, FALSE if it does not|
-|umi_paired|Boolean|Set TRUE if the sequencing data has paired UMIs, FALSE if it does not|
-|where_is_umi|String|Three options: "N = Name", "R = Read", or "T = Tag"|
+|umi_paired|Boolean?|Set TRUE if the sequencing data has paired UMIs, FALSE if it does not|
+|where_is_umi|String|Three options: Use "N = If the UMI is already in the sequence name", "R = If the UMI is contained within the read", or "T = If the UMI has already been tagged"|
 |read_structure|Array[String]|https://github.com/fulcrumgenomics/fgbio/wiki/Read-Structures|
 |min_reads|Array[Int]|Minimum number of reads that constitutes a "read family" (Default: 1)|
 
@@ -173,8 +174,8 @@ For basic usage, please use the following [JSON](https://github.com/kbolton-lab/
 | Variable | Type | Definition |
 | --- | --- | --- |
 |min_base_quality|Integer|During consensus building, any base with a QUAL less than this value is masked with an N (Default: 1)|
-|max_base_error_rate|Float|During consensus building, if this percent of the bases within a "read family" do not match, the base is masked with an N (Default: 0.1)|
-|max_read_error_rate|Float|During consensus building, if this percent of the reads within a "read family" do not match, the entire family is removed (Default: 0.05)|
+|max_base_error_rate|Float?|During consensus building, if this percent of the bases within a "read family" do not match, the base is masked with an N (Default: 0.1)|
+|max_read_error_rate|Float?|During consensus building, if this percent of the reads within a "read family" do not match, the entire family is removed (Default: 0.05)|
 |max_no_call_fraction|Float|During consensus building, the maximum fraction of no-calls (N) within the read after filtering allowed (Default: 0.5)|
 
 ### Reference
@@ -200,8 +201,8 @@ For basic usage, please use the following [JSON](https://github.com/kbolton-lab/
 ### Variant Callers
 |Variable|Type|Definition|
 |---|---|---|
-|tumor_only|Boolean|Set TRUE if the analysis will be done using only Tumor samples, FALSE if there is a matched normal available|
-|af_threshold|Float|Minimum VAF cut-off (Default: 0.0001)|
+|tumor_only|Boolean|Set TRUE if the analysis will be done using only Tumor samples without matched normals, FALSE if there is a matched normals are available|
+|af_threshold|Float?|Optional minimum VAF cut-off (Default: 0.0001)|
 |bcbio_filter_string|String|https://github.com/bcbio/bcbio-nextgen/blob/master/bcbio/variation/vardict.py#L251|
 
 ### Filtering Parameters
@@ -223,8 +224,8 @@ For basic usage, please use the following [JSON](https://github.com/kbolton-lab/
 |---|---|---|
 |vep_cache_dir_zip|File|The VEP cache directory in ZIP format|
 |vep_plugins|Array[String]|List of plugins to be used in VEP (Default: "Frameshift", "Wildtype")|
-|synonyms_file|File|File of chromosome synonyms|
-|annotate_coding_only|Boolean|Set TRUE if VEP should return consequences that fall within the coding only regions of the transcript, FALSE if all consequences should be returned|
+|synonyms_file|File?|Optional file of chromosome synonyms|
+|annotate_coding_only|Boolean?|Set TRUE if VEP should return consequences that fall within the coding only regions of the transcript, FALSE if all consequences should be returned|
 |clinvar_vcf|File|Clinvar VCF file|
 |clinvar_vcf_tbi|File|Clinvar VCF index|
 

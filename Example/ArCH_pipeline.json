@@ -39,7 +39,6 @@
     ],
     "ArCH.normalized_gnomad_exclude": "gnomad.exomes.AF_only.exclude_0.005.normalized.vcf.gz",
     "ArCH.normalized_gnomad_exclude_tbi": "gnomad.exomes.AF_only.exclude_0.005.normalized.vcf.gz.tbi",
-    "ArCH.chrom_sizes":"hg38.chrom.sizes",
     "ArCH.af_only_snp_only_vcf":"sites.hg38.vcf.gz",
     "ArCH.af_threshold": 1.0E-4,
     "ArCH.pon_pvalue": "1",

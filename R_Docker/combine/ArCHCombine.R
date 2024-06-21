@@ -65,7 +65,7 @@ final <- final %>%
 left_join(P, by = c("key")) %>%
 left_join(pileup, by = c("key")) %>%
 mutate(
-    sample_key = paste0(SAMPLE, "_", key),
+    sample_key = paste0(SAMPLE, " ", key),
     ref_len = nchar(REF),
     alt_len = nchar(ALT),
     gt_AD_ref_Mutect_z = abs(gt_AD_ref_Mutect - mean(gt_AD_ref_Mutect, na.rm = TRUE)) / sd(gt_AD_ref_Mutect, na.rm = TRUE),

@@ -15,7 +15,7 @@ library(optparse)
 source("/opt/bin/annotate/supportFunctions.R", local = TRUE)
 
 option_list = list(
-  make_option(c("-i", "--input"), type="character", default=NULL, 
+  make_option(c("-i", "--input"), type="character", default=NULL,
               help="Input VCF File e.g. mutect.sample_name.final.annotated.vcf.gz", metavar="character"),
   make_option(c("-o", "--out"), type="character", default="output", 
               help="Output Filename e.g. mutect.sample_name.final.annotated.Rscript", metavar="character"),
@@ -37,7 +37,7 @@ option_list = list(
               help="The directory path where the 'oncoKB available genes' data for annotate_PD is stored. [default_path = %default]", metavar="character"),
   make_option("--cosmic_dir", type="character", default="/storage1/fs1/bolton/Active/Protected/Annotation_Files/cosmic/",
               help="The directory path where the 'cosmic' files are stored for cosmic function.", metavar="character"),
-  make_option("--api_key", type="char", default="https://www.oncokb.org/account/settings",
+  make_option("--api_key", type="character", default="https://www.oncokb.org/account/settings",
               help="OncoKB API Key [default = %default]", metavar="double"),
   make_option("--p_value", type="double", default=2.114164905e-6,
               help="The Bonferroni Corrected P-Value [default = %default]", metavar="double"),
