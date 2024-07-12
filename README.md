@@ -107,8 +107,13 @@ mkdir REVEL
 curl -o REVEL/revel-v1.3_all_chromosomes.zip https://rothsj06.dmz.hpc.mssm.edu/revel-v1.3_all_chromosomes.zip
 cd REVEL/
 unzip revel-v1.3_all_chromosomes.zip
-tr ',' '\t' < revel_with_transcript_ids > revel_with_transcript_ids.tsv
-gzip revel_with_transcript_ids.tsv && tabix gzip revel_with_transcript_ids.tsv.gz
+cat revel_with_transcript_ids | tr "," "\t" > tabbed_revel.tsv
+sed '1s/.*/#&/' tabbed_revel.tsv > new_tabbed_revel.tsv
+bgzip new_tabbed_revel.tsv
+
+zcat new_tabbed_revel.tsv.gz | head -n1 > h
+zgrep -h -v ^#chr new_tabbed_revel.tsv.gz | awk '$3 != "." ' | sort -k1,1 -k3,3n - | cat h - | bgzip -c > new_tabbed_revel_grch38.tsv.gz
+tabix -f -s 1 -b 3 -e 3 new_tabbed_revel_grch38.tsv.gz
 
 # SpliceAI
 mkdir spliceAI
@@ -155,9 +160,9 @@ For basic usage, please use the following [JSON](https://github.com/kbolton-lab/
 |input_file|File|This will be the first input file. It can be a R1 FASTQ, BAM, or CRAM|
 |input_file_two|File|This will be the second input file. It can be R2 FASTQ, BAI, or CRAI|
 |tumor_sample_name|String|Name of the tumor sample|
-|normal_bam|File?|Optional matched normal sample BAM for variant calling|
-|normal_bai|File?|Optional matched normal sample BAM index for variant calling|
-|normal_sample_name|String?|Optional name of the normal sample|
+|normal_bam|File?|Optional matched normal sample BAM for variant calling, leave blank if not used.|
+|normal_bai|File?|Optional matched normal sample BAM index for variant calling, leave blank if not used.|
+|normal_sample_name|String?|Optional name of the normal sample, leave blank if not used.|
 |input_type|String|Three options: "BAM", "CRAM", or "FASTQ" (Default: "FASTQ")|
 |aligned|Boolean|Set TRUE if UMI consensus sequencing building ArCH_Alignment.wdl was done prior to pipeline, FALSE if unaligned|
 |target_intervals|File|Interval list for the sequencing panel|
@@ -228,7 +233,7 @@ For basic usage, please use the following [JSON](https://github.com/kbolton-lab/
 |---|---|---|
 |vep_cache_dir_zip|File|The VEP cache directory in ZIP format|
 |vep_plugins|Array[String]|List of plugins to be used in VEP (Default: "Frameshift", "Wildtype")|
-|synonyms_file|File?|Optional file of chromosome synonyms|
+|synonyms_file|File?|Optional file of chromosome synonyms, leave blank if not used.|
 |annotate_coding_only|Boolean?|Set TRUE if VEP should return consequences that fall within the coding only regions of the transcript, FALSE if all consequences should be returned|
 |clinvar_vcf|File|Clinvar VCF file|
 |clinvar_vcf_tbi|File|Clinvar VCF index|
