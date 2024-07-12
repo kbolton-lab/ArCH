@@ -46,11 +46,9 @@ This pipeline will generate 3 files:
 - vardict.2N.maxVAF.vcf.gz
 
 ### gnomAD Resource
-<<<<<<< HEAD
 Due to the size of gnomAD. The database is split into individual chromosomes. They will all have to be downloaded individually before merging them into a singular VCF file.
 =======
 Please go to the [official gnomAD download repository](https://gnomad.broadinstitute.org/downloads#summary) to download the latest version of gnomAD (v4.1.0 - as of 05/30/2024)
->>>>>>> a6cd793dc463d28541d4f11e743ab83bccdc666f
 ```sh
 for chr in {1..22} X Y; do
   bcftools view -f PASS -i 'INFO/AF>=0.005' -Ou gnomad.exomes.v4.1.sites.chr${chr}.vcf.bgz | bcftools annotate -x ^INFO/AC,INFO/AF -Ou - | bcftools norm --multiallelics -any -Oz -o gnomad.exomes.v4.1.sites.chr${chr}.AF_only.exclude_0.005.normalized.vcf.gz -  
