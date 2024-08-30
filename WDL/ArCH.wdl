@@ -124,7 +124,7 @@ workflow ArCH {
         File gene_list
         File oncokb_genes
         File cosmic_dir_zip
-        File oncokb_api_key
+        String oncokb_api_key
 
         # VEP Parameters
         File vep_cache_dir_zip                      # WDL does not have a Directory Variable, so the entire cache needs to be ZIP
@@ -1208,7 +1208,7 @@ task createSomalierVcf {
         if (( ${bed_size} > 2*65535 )); then
             cp ~{interval_bed} somalier.bed
         else
-            cut -f1,2 reference_fai > chrom.sizes
+            cut -f1,2 ~{reference_fai} > chrom.sizes
             bedtools slop -i ~{interval_bed} -g chrom.sizes -b 100 > somalier.bed
         fi
         bedtools intersect -a ~{af_only_snp_only_vcf} -b somalier.bed -header > somalier.vcf
