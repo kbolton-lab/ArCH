@@ -36,5 +36,5 @@
     "1000G_phase1.snps.high_confidence.hg38.vcf.gz.tbi",
     "1000G_omni2.5.hg38.vcf.gz.tbi",
     "Mills_and_1000G_gold_standard.indels.hg38.vcf.gz.tbi"
-  ],
+  ]
 }

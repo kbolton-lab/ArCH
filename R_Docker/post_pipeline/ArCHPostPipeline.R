@@ -167,6 +167,8 @@ df$aa.pos <- as.numeric(str_extract(df$AAchange, "\\d+"))
 df$gene_aachange <- with(df, paste(SYMBOL_VEP, AAchange,sep="_"))
 df$n.HGVSc[is.na(df$n.HGVSc)] <- 0
 df$n.HGVSp[is.na(df$n.HGVSp)] <- 0
+df$n.loci.vep[is.na(df$n.loci.vep)] <- 0
+df$n.loci.truncating.vep[is.na(df$n.loci.truncating.vep)] <- 0
 
 df$near.BB.loci.HS <- apply(df, 1, function(x) near_BB_loci_HS(x, vars))
 df$near.COSMIC.loci.HS <- apply(df, 1, function(x) near_COSMIC_loci_HS(x, ct))

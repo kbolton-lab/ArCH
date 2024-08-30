@@ -134,7 +134,15 @@ workflow ArCH {
         File? synonyms_file
         Boolean? annotate_coding_only = true
         #Array[VepCustomAnnotation] vep_custom_annotations
+
+        # Variables Related to Local Execution
+        Boolean local = false
+        String? vep_cache_dir                        # If local is set to true, then this is the directory where the cache is located
     }
+
+    # These are the problematic Calls:
+    # call-mskGetBaseCounts --> Due to the multiple PoN Input BAMs
+    # call-vep --> The cache directory is a problem
 
     # If the BAM file is already aligned and consensus sequencing was done, then alignment can be skipped
     if (!aligned) {
@@ -148,7 +156,8 @@ workflow ArCH {
             sample_name = tumor_sample_name,
             library = library,
             platform_unit = platform_unit,
-            platform = platform
+            platform = platform,
+            local = local
         }
 
         call processUMIs {
@@ -156,12 +165,14 @@ workflow ArCH {
             bam = repair.bam,
             umi_paired = umi_paired,
             where_is_umi = where_is_umi,
-            read_structure = read_structure
+            read_structure = read_structure,
+            local = local
         }
 
         call sortAndMarkIlluminaAdapters {
             input:
-            bam = processUMIs.umi_extracted_bam
+            bam = processUMIs.umi_extracted_bam,
+            local = local
         }
 
         if (has_umi) {
@@ -176,7 +187,8 @@ workflow ArCH {
                 reference_ann = reference_ann,
                 reference_bwt = reference_bwt,
                 reference_pac = reference_pac,
-                reference_sa = reference_sa
+                reference_sa = reference_sa,
+                local = local
             }
 
             # Create Read Families and Perform Consensus Calling
@@ -184,6 +196,7 @@ workflow ArCH {
                 input:
                 bam = align.aligned_bam,
                 umi_paired = umi_paired,
+                local = local
             }
         }
 
@@ -199,7 +212,8 @@ workflow ArCH {
             reference_bwt = reference_bwt,
             reference_pac = reference_pac,
             reference_sa = reference_sa,
-            realign = true
+            realign = true,
+            local = local
         }
 
         # Filter and Clip
@@ -215,7 +229,8 @@ workflow ArCH {
             max_base_error_rate = max_base_error_rate,
             min_base_quality = min_base_quality,
             max_no_call_fraction = max_no_call_fraction,
-            has_umi = has_umi
+            has_umi = has_umi,
+            local = local
         }
     } # END OF ALIGNMENT STEP
 
@@ -232,18 +247,22 @@ workflow ArCH {
         known_sites_tbi = bqsr_known_sites_tbi,
         sample_name = tumor_sample_name,
         apply_bqsr = apply_bqsr,
-        input_type = input_type
+        input_type = input_type,
+        local = local
     }
 
     call fastQC {
         input:
         bam = initialBAM.initial_bam,
-        bai = initialBAM.initial_bai
+        bai = initialBAM.initial_bai,
+        local = local
     }
 
     # Some of our callers use BED file instead of interval list
     call intervalsToBed as interval_to_bed {
-        input: interval_list = target_intervals
+        input: 
+        interval_list = target_intervals,
+        local = local
     }
 
     # Perform Somalier
@@ -252,7 +271,8 @@ workflow ArCH {
         interval_bed = interval_to_bed.interval_bed,
         af_only_snp_only_vcf = af_only_snp_only_vcf,
         reference = reference,
-        reference_fai = reference_fai
+        reference_fai = reference_fai,
+        local = local
     }
 
     call somalier {
@@ -261,13 +281,15 @@ workflow ArCH {
         reference = reference,
         bam = initialBAM.initial_bam,
         bai = initialBAM.initial_bai,
-        sample_name = tumor_sample_name
+        sample_name = tumor_sample_name,
+        local = local
     }
 
     # In order to parallelize as much as the workflow as possible, we analyze by chromosome
     call splitBedToChr {
         input:
-            interval_bed = interval_to_bed.interval_bed
+        interval_bed = interval_to_bed.interval_bed,
+        local = local
     }
 
     scatter (bed_chr in splitBedToChr.split_chr) {
@@ -284,7 +306,8 @@ workflow ArCH {
             normal_bam = normal_bam,
             normal_bai = normal_bai,
             interval_list = bed_chr,
-            tumor_only = tumor_only
+            tumor_only = tumor_only,
+            local = local
         }
 
         # Vardict
@@ -300,7 +323,8 @@ workflow ArCH {
             normal_sample_name = normal_sample_name,
             interval_bed = bed_chr,
             min_var_freq = af_threshold,
-            tumor_only = tumor_only
+            tumor_only = tumor_only,
+            local = local
         }
 
         call lofreq {
@@ -313,7 +337,8 @@ workflow ArCH {
             normal_bam = normal_bam,
             normal_bai = normal_bai,
             interval_bed = bed_chr,
-            tumor_only = tumor_only
+            tumor_only = tumor_only,
+            local = local
         }
 
         call pindel {
@@ -327,11 +352,14 @@ workflow ArCH {
             normal_bai = normal_bai,
             normal_sample_name = normal_sample_name,
             region_file = bed_chr,
-            tumor_only = tumor_only
+            tumor_only = tumor_only,
+            local = local
         }
 
         call removeEndTags {
-            input: pindel_vcf = pindel.vcf
+            input: 
+            pindel_vcf = pindel.vcf,
+            local = local
         }
     } # END OF VARIANT CALLING
 
@@ -339,25 +367,29 @@ workflow ArCH {
         input:
             vcfs = mutect.vcf,
             vcf_tbis = mutect.vcf_tbi,
-            merged_vcf_basename = "mutect." + tumor_sample_name
+            merged_vcf_basename = "mutect." + tumor_sample_name,
+            local = local
     }
     call mergeVcf as merge_vardict {
         input:
             vcfs = vardict.vcf,
             vcf_tbis = vardict.vcf_tbi,
-            merged_vcf_basename = "vardict." + tumor_sample_name
+            merged_vcf_basename = "vardict." + tumor_sample_name,
+            local = local
     }
     call mergeVcf as merge_lofreq {
         input:
             vcfs = lofreq.vcf,
             vcf_tbis = lofreq.vcf_tbi,
-            merged_vcf_basename = "lofreq." + tumor_sample_name
+            merged_vcf_basename = "lofreq." + tumor_sample_name,
+            local = local
     }
     call mergeVcf as merge_pindel {
         input:
             vcfs = removeEndTags.vcf,
             vcf_tbis = removeEndTags.vcf_tbi,
-            merged_vcf_basename = "pindel." + tumor_sample_name
+            merged_vcf_basename = "pindel." + tumor_sample_name,
+            local = local
     }
 
     # Cleans the VCF output that don't match the expected VCF Format
@@ -376,7 +408,8 @@ workflow ArCH {
             vcf2PON_tbi = mutect_pon2_file_tbi,
             caller = "mutect",
             sample_name = tumor_sample_name,
-            filter_string = bcbio_filter_string
+            filter_string = bcbio_filter_string,
+            local = local
     }
 
     call sanitizeNormalizeFilter as vardict_filter {
@@ -391,7 +424,8 @@ workflow ArCH {
             vcf2PON_tbi = vardict_pon2_file_tbi,
             caller = "vardict",
             sample_name = tumor_sample_name,
-            filter_string = bcbio_filter_string
+            filter_string = bcbio_filter_string,
+            local = local
     }
 
     call sanitizeNormalizeFilter as lofreq_filter {
@@ -406,7 +440,8 @@ workflow ArCH {
             vcf2PON_tbi = lofreq_pon2_file_tbi,
             caller = "lofreq",
             sample_name = tumor_sample_name,
-            filter_string = bcbio_filter_string
+            filter_string = bcbio_filter_string,
+            local = local
     }
 
     call sanitizeNormalizeFilter as pindel_filter {
@@ -421,7 +456,8 @@ workflow ArCH {
             vcf2PON_tbi = merge_pindel.merged_vcf_tbi,
             caller = "pindel",
             sample_name = tumor_sample_name,
-            filter_string = bcbio_filter_string
+            filter_string = bcbio_filter_string,
+            local = local
     }
 
     # In order to be efficient, we run all of the annotation and filtering ONCE. In order to do this, we need to merge
@@ -430,7 +466,8 @@ workflow ArCH {
         call createFakeVcf as fake_vcf {
             input:
             vcf = caller_vcf,
-            tumor_sample_name = tumor_sample_name
+            tumor_sample_name = tumor_sample_name,
+            local = local
         }
     }
 
@@ -438,7 +475,8 @@ workflow ArCH {
         input:
         vcfs = fake_vcf.fake_vcf,
         vcf_tbis = fake_vcf.fake_vcf_tbi,
-        merged_vcf_basename = "all_callers." + tumor_sample_name
+        merged_vcf_basename = "all_callers." + tumor_sample_name,
+        local = local
     }
 
     # This is VarScan2's FP Filter. https://github.com/ucscCancer/fpfilter-tool/blob/master/fpfilter.pl
@@ -450,7 +488,8 @@ workflow ArCH {
         vcf=mergeCallers.merged_vcf,
         sample_name=tumor_sample_name,
         min_var_freq=af_threshold,
-        output_vcf_basename = "all_callers." + tumor_sample_name + ".fpfilter"
+        output_vcf_basename = "all_callers." + tumor_sample_name + ".fpfilter",
+        local = local
     }
 
     # Using the fake VCF of all the variants calls, perform a "pileup" on the PoN BAMs`
@@ -461,7 +500,8 @@ workflow ArCH {
             reference_fai = reference_fai,
             normal_bam = pon_bam,
             pon_final_name = "all_callers." + tumor_sample_name + ".pon.pileup",
-            vcf = mergeCallers.merged_vcf
+            vcf = mergeCallers.merged_vcf,
+            local = local
         }
     }
     call bcftoolsMerge as pileup_merge {
@@ -469,21 +509,23 @@ workflow ArCH {
             vcfs = mskGetBaseCounts.pileup,
             vcf_tbis = mskGetBaseCounts.pileup_tbi,
             merged_vcf_basename = tumor_sample_name + ".pon.total.counts",
-            RD_AD = true
+            RD_AD = true,
+            local = local
     }
 
     # Using the fake VCF of all the variants calls, perform VEP on all the variants
     call vep {
         input:
             vcf = mergeCallers.merged_vcf,
-            cache_dir_zip = vep_cache_dir_zip,
+            cache_dir_zip = select_first([vep_cache_dir, vep_cache_dir_zip]),
             reference = reference,
             reference_fai = reference_fai,
             plugins = vep_plugins,
             synonyms_file = synonyms_file,
             coding_only = annotate_coding_only,
             clinvar = clinvar_vcf,
-            clinvar_tbi = clinvar_vcf_tbi
+            clinvar_tbi = clinvar_vcf_tbi,
+            local = local
     }
 
     # Using the "pileup", perform a Fisher's Exact Test with the Variants in each Caller
@@ -497,7 +539,8 @@ workflow ArCH {
         vep = vep.annotated_vcf,
         vep_tbi = vep.annotated_vcf_tbi,
         p_value = pon_pvalue,
-        caller = "mutect"
+        caller = "mutect",
+        local = local
     }
 
     call annotateVcf as vardict_annotate_vcf {
@@ -510,7 +553,8 @@ workflow ArCH {
         vep = vep.annotated_vcf,
         vep_tbi = vep.annotated_vcf_tbi,
         p_value = pon_pvalue,
-        caller = "vardict"
+        caller = "vardict",
+        local = local
     }
 
     call annotateVcf as lofreq_annotate_vcf {
@@ -523,7 +567,8 @@ workflow ArCH {
         vep = vep.annotated_vcf,
         vep_tbi = vep.annotated_vcf_tbi,
         p_value = pon_pvalue,
-        caller = "lofreq"
+        caller = "lofreq",
+        local = local
     }
 
     call annotatePD {
@@ -540,7 +585,8 @@ workflow ArCH {
             oncokb_genes = oncokb_genes,
             cosmic_dir_zip = cosmic_dir_zip,
             pon_pvalue = pon_pvalue,
-            oncokb_api_key = oncokb_api_key
+            oncokb_api_key = oncokb_api_key,
+            local = local
     }
 
     call combine_all {
@@ -552,7 +598,8 @@ workflow ArCH {
             pon = pileup_merge.merged_vcf,
             pon_pvalue = pon_pvalue,
             model = false,
-            tumor_sample_name = tumor_sample_name
+            tumor_sample_name = tumor_sample_name,
+            local = local
     }
 
     output {
@@ -609,11 +656,13 @@ task filterArcherUMILengthAndbbmapRepair {
         String platform_unit
         String platform
         Float? mem_limit_override
+        Boolean local
     }
 
     Float data_size = size(input_file, "GB")
     Int space_needed_gb = ceil(6 * data_size)                   # We need at least 2*3*Data because if it's FASTQ, R1 and R2, then 3 for two steps
-    Float memory = select_first([mem_limit_override, 8])
+    #Float memory = select_first([mem_limit_override, 8])
+    Float memory = select_first([mem_limit_override, if local then 24 else 8])
     Int cores = 1
     Int java_mem = floor(memory)
     Int preemptible = 1
@@ -633,7 +682,7 @@ task filterArcherUMILengthAndbbmapRepair {
         # If it's ArcherDX Sequencing, we can either have a BAM input or FASTQ input. Either way, we need to filter out the 13 bp Adapter Issue
         if [[ "~{library}" == "ArcherDX" ]]; then
             if [ "~{input_type}" == "BAM" ]; then
-                samtools view --no-header ~{input_file} | awk -v regex="~{archer_adapter_sequence}" -v umi_length="~{umi_length}" -F'\t' '{if ($2 == "77") { split($10,a,regex); if(length(a[1]) == umi_length){print$0}} else {print $0}}' > filtered.sam
+                samtools view --no-header ~{input_file} | awk -v regex="~{archer_adapter_sequence}" -v umi_length="~{umi_length}" -F'\t' '{if ($2 == "77") { split($10,a,regex); if(length(a[1]) == umi_length){print$0}} else {print $0}}' | \
                 repair.sh -Xmx~{java_mem}g \
                 repair=t \
                 overwrite=true \
@@ -671,7 +720,12 @@ task filterArcherUMILengthAndbbmapRepair {
                 -r ID:A -r SM:~{sample_name} -r LB:~{library} -r PL:~{platform} -r PU:~{platform_unit}
             fi
         fi
-        
+
+        # For space reasons, we need to remove the original input file
+        rm -f ~{input_file}
+        if ~{defined(input_file_two)}; then
+            rm -f ~{input_file_two}
+        fi
     >>>
 
     output {
@@ -685,6 +739,7 @@ task processUMIs {
         Boolean? umi_paired = true
         String where_is_umi = "T"       # T = Tag, R = Read Name, N = Name
         Array[String] read_structure
+        Boolean local
     }
 
     Float data_size = size(bam, "GB")
@@ -729,6 +784,9 @@ task processUMIs {
         elif [ "~{where_is_umi}" == "T" ]; then     # If UMI is already tagged in the BAM
             cp ~{bam} umi_extracted.bam
         fi
+
+        # For space reasons, we need to remove the BAM
+        rm -f ~{bam}
     >>>
 
     output {
@@ -739,6 +797,7 @@ task processUMIs {
 task sortAndMarkIlluminaAdapters {
     input {
         File bam
+        Boolean local
     }
 
     Float data_size = size(bam, "GB")
@@ -771,6 +830,9 @@ task sortAndMarkIlluminaAdapters {
         INPUT=/dev/stdin \
         OUTPUT=marked.bam \
         METRICS=adapter_metrics.txt
+
+        # For space reasons, we need to remove the BAM
+        rm -f ~{bam}
     >>>
 
     output {
@@ -791,6 +853,7 @@ task umiAlign {
         File reference_sa
         Boolean realign = false
         Int? mem_limit_override
+        Boolean local
     }
 
     Float data_size = size(bam, "GB")
@@ -824,6 +887,17 @@ task umiAlign {
         else
             /bin/bash /usr/bin/umi_alignment.sh ~{bam} ~{reference} ~{cores}
         fi
+
+        # For space reasons, we need to remove the BAM
+        rm -f ~{bam}
+        rm -f ~{reference}
+        rm -f ~{reference_fai}
+        rm -f ~{reference_dict}
+        rm -f ~{reference_amb}
+        rm -f ~{reference_ann}
+        rm -f ~{reference_bwt}
+        rm -f ~{reference_pac}
+        rm -f ~{reference_sa}
     >>>
 
     output {
@@ -838,6 +912,7 @@ task groupReadsAndConsensus {
         File bam
         Boolean umi_paired = true
         Int? reads_per_umi_group = 1
+        Boolean local
     }
 
     Float data_size = size(bam, "GB")
@@ -867,6 +942,9 @@ task groupReadsAndConsensus {
             fgbio -Xmx~{java_mem}g --tmp-dir=`pwd`/large_tmp GroupReadsByUmi --allow-inter-contig false --strategy adjacency --assign-tag MI --raw-tag RX --min-map-q 1 --edits 1 --input ~{bam} --output umi_grouped.bam
         fi
         fgbio -Xmx~{java_mem}g --tmp-dir=`pwd`/large_tmp CallMolecularConsensusReads --sort-order Queryname --input umi_grouped.bam --error-rate-pre-umi 45 --error-rate-post-umi 30 --min-input-base-quality 30 --min-reads ~{reads_per_umi_group} --output consensus_unaligned.bam
+
+        # For space reasons, we need to remove the BAM
+        rm -f ~{bam}
     >>>
 
     output {
@@ -887,6 +965,7 @@ task filterAndClip {
         Int min_base_quality = 1
         Float max_no_call_fraction = 0.5
         Boolean has_umi = true
+        Boolean local
     }
 
     Float data_size = size(bam, "GB")
@@ -938,6 +1017,12 @@ task filterAndClip {
             --output ~{sample_name}.bam \
             --sort-order Coordinate
         fi
+
+        # For space reasons, we need to remove the BAM
+        rm -f ~{bam}
+        rm -f ~{reference}
+        rm -f ~{reference_fai}
+        rm -f ~{reference_dict}
     >>>
 
     output {
@@ -959,6 +1044,7 @@ task processAlignedBAM {
         String sample_name
         Boolean apply_bqsr = false
         String input_type = "FASTQ"
+        Boolean local
     }
 
     Float data_size = size(bam, "GB")
@@ -998,6 +1084,10 @@ task processAlignedBAM {
                 cp ~{bai} ~{sample_name}.bam.bai
             fi
         fi
+
+        # For space reasons, we need to remove the BAM
+        rm -f ~{bam}
+        rm -f ~{bai}
     >>>
 
     output {
@@ -1011,6 +1101,7 @@ task fastQC {
     input {
         File bam
         File bai
+        Boolean local
     }
 
     Int preemptible = 1
@@ -1034,6 +1125,10 @@ task fastQC {
 
     command <<<
         /usr/local/bin/fastqc ~{bam} -outdir $PWD
+
+        # For space reasons, we need to remove the BAM
+        rm -f ~{bam}
+        rm -f ~{bai}
     >>>
 
     output {
@@ -1045,6 +1140,7 @@ task fastQC {
 task intervalsToBed {
     input {
         File interval_list
+        Boolean local
     }
 
     Int preemptible = 1
@@ -1087,6 +1183,7 @@ task createSomalierVcf {
         File af_only_snp_only_vcf
         File reference
         File reference_fai
+        Boolean local
     }
 
     Int preemptible = 1
@@ -1116,6 +1213,11 @@ task createSomalierVcf {
         fi
         bedtools intersect -a ~{af_only_snp_only_vcf} -b somalier.bed -header > somalier.vcf
         bcftools norm --multiallelics -any -Oz -o somalier.norm.vcf.gz -f ~{reference} somalier.vcf
+
+        # For space reasons, we need to remove the Inputs
+        rm -f ~{af_only_snp_only_vcf}
+        rm -f ~{reference}
+        rm -f ~{reference_fai}
     >>>
 
     output {
@@ -1130,6 +1232,7 @@ task somalier {
         File bam
         File bai
         String sample_name = "tumor"
+        Boolean local
     }
 
     Int preemptible = 1
@@ -1151,6 +1254,11 @@ task somalier {
 
     command <<<
         somalier extract --sites ~{somalier_vcf} -f ~{reference} ~{bam}
+
+        # For space reasons, we need to remove the BAM
+        rm -f ~{bam}
+        rm -f ~{bai}
+        rm -f ~{reference}
     >>>
 
     output {
@@ -1161,6 +1269,7 @@ task somalier {
 task splitBedToChr {
     input {
         File interval_bed
+        Boolean local
     }
 
     Float data_size = size(interval_bed, "GB")
@@ -1212,6 +1321,7 @@ task mutect {
         Int? disk_size_override
         Int? mem_limit_override
         Int? cpu_override
+        Boolean local
     }
 
     Float reference_size = size([reference, reference_fai, reference_dict, interval_list], "GB")
@@ -1277,6 +1387,20 @@ task mutect {
             -V mutect.vcf.gz \
             --ob-priors mutect.read-orientation-model.tar.gz \
             -O ~{output_vcf} #Running FilterMutectCalls on the output vcf.
+
+        # For space reasons, we need to remove the BAM
+        rm -f ~{tumor_bam}
+        rm -f ~{tumor_bai}
+        rm -f ~{reference}
+        rm -f ~{reference_fai}
+        rm -f ~{reference_dict}
+
+        if ~{defined(normal_bam)}; then
+            rm -f ~{gnomad}
+            rm -f ~{gnomad_tbi}
+            rm -f ~{normal_bam}
+            rm -f ~{normal_bai}
+        fi
     >>>
 
     output {
@@ -1304,6 +1428,7 @@ task vardict {
         
         Int? mem_limit_override
         Int? cpu_override
+        Boolean local
     }
 
     Float reference_size = size([reference, reference_fai, interval_bed], "GB")
@@ -1377,6 +1502,17 @@ task vardict {
             mv vardict.out.vcf.gz vardict.vcf.gz
             /usr/bin/tabix vardict.vcf.gz
         fi
+
+        # For space reasons, we need to remove the BAM
+        rm -f ~{tumor_bam}
+        rm -f ~{tumor_bai}
+        rm -f ~{reference}
+        rm -f ~{reference_fai}
+
+        if ~{defined(normal_bam)}; then
+            rm -f ~{normal_bam}
+            rm -f ~{normal_bai}
+        fi
     >>>
 
     output {
@@ -1403,6 +1539,7 @@ task lofreq {
         
         Int? mem_limit_override
         Int? cpu_override
+        Boolean local
     }
 
     Float reference_size = size([reference, reference_fai], "GB")
@@ -1464,6 +1601,17 @@ task lofreq {
             {print $0, "GT:"format, "0/1:"sample}
         }' OFS='\t' >> lofreq.reformat.vcf;
         bgzip lofreq.reformat.vcf && tabix lofreq.reformat.vcf.gz
+
+        # For space reasons, we need to remove the BAM
+        rm -f ~{tumor_bam}
+        rm -f ~{tumor_bai}
+        rm -f ~{reference}
+        rm -f ~{reference_fai}
+
+        if ~{defined(normal_bam)}; then
+            rm -f ~{normal_bam}
+            rm -f ~{normal_bai}
+        fi
     >>>
 
     output {
@@ -1493,6 +1641,7 @@ task pindel {
         
         Int? mem_limit_override
         Int? cpu_override
+        Boolean local
 
         # Pindel Specific Parameters
         Int insert_size = 400
@@ -1582,6 +1731,17 @@ task pindel {
             echo -e "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t~{tumor_sample_name}" >> temp.vcf
             mv temp.vcf pindel.vcf
         fi
+
+        # For space reasons, we need to remove the BAM
+        rm -f ~{tumor_bam}
+        rm -f ~{tumor_bai}
+        rm -f ~{reference}
+        rm -f ~{reference_fai}
+
+        if ~{defined(normal_bam)}; then
+            rm -f ~{normal_bam}
+            rm -f ~{normal_bai}
+        fi
     >>>
 
     output {
@@ -1592,6 +1752,7 @@ task pindel {
 task removeEndTags {
     input {
         File pindel_vcf
+        Boolean local
     }
 
     Int preemptible = 1
@@ -1643,6 +1804,8 @@ task sanitizeNormalizeFilter {
 
         #bcbio
         String filter_string
+
+        Boolean local
     }
 
     Int preemptible = 1
@@ -1701,6 +1864,10 @@ task sanitizeNormalizeFilter {
             bcftools annotate -a normal2.txt.gz -h pon2.header -c CHROM,POS,REF,ALT,PON_2AT2_percent,PON_NAT2_percent,PON_MAX_VAF isec.vcf.gz -Oz -o $name
             tabix $name
         fi
+
+        # For space reasons, we need to remove the Inputs
+        rm -f ~{reference}
+        rm -f ~{reference_fai}
     >>>
 
     output {
@@ -1715,6 +1882,7 @@ task createFakeVcf {
     input {
         File vcf
         String tumor_sample_name
+        Boolean local
     }
 
     Int preemptible = 1
@@ -1756,6 +1924,7 @@ task mergeVcf {
         Array[File] vcfs
         Array[File] vcf_tbis
         String merged_vcf_basename = "merged"
+        Boolean local
     }
 
     Int preemptible = 1
@@ -1798,6 +1967,7 @@ task fpFilter {
         String sample_name = "TUMOR"
         Float? min_var_freq = 0.05
         Int? mem_limit_override
+        Boolean local
     }
 
     Float data_size = size(vcf, "GB")
@@ -1851,6 +2021,11 @@ task fpFilter {
             zgrep -v '#' ${vcf} >> ~{output_vcf}
         done
         /usr/bin/bgzip ~{output_vcf} && /usr/bin/tabix ~{output_vcf}.gz
+
+        # For space reasons, we need to remove the Inputs
+        rm -f ~{bam}
+        rm -f ~{reference}
+        rm -f ~{reference_fai}
     >>>
 
     output {
@@ -1869,6 +2044,7 @@ task mskGetBaseCounts {
         Int? mapq = 5
         Int? baseq = 5
         Int? mem_limit_override
+        Boolean local
     }
 
     Float reference_size = size([reference, reference_fai], "GB")
@@ -1923,6 +2099,12 @@ task mskGetBaseCounts {
             fi
         fi
         bgzip ~{pon_final_name}.vcf && tabix ~{pon_final_name}.vcf.gz
+
+        # For space reasons, we need to remove the BAM
+        rm -f ~{normal_bam.left}
+        rm -f ~{normal_bam.right}
+        rm -f ~{reference}
+        rm -f ~{reference_fai}
     >>>
 
     output {
@@ -1937,6 +2119,7 @@ task bcftoolsMerge {
         Array[File] vcf_tbis
         String merged_vcf_basename = "merged"
         Boolean RD_AD = false
+        Boolean local
     }
 
     Float data_size = size(vcfs, "GB")
@@ -1983,16 +2166,17 @@ task vep {
         File reference_fai
         
         # Vep Stuff
-        File cache_dir_zip
+        File cache_dir_zip                      # This can either be the ZIP or the full cache directory depending on local
         Array[String] plugins = ["Frameshift", "Wildtype"]
         Boolean coding_only = false
         File clinvar
         File clinvar_tbi
         File? synonyms_file
         Int? mem_limit_override
+        Boolean local
     }
 
-    Float cache_size = 3*size(cache_dir_zip, "GB")  # doubled to unzip
+    Float cache_size = if local then 400 else 3*size(cache_dir_zip, "GB")  # doubled to unzip
     Float vcf_size = 2*size(vcf, "GB")  # doubled for output vcf
     Float reference_size = size([reference, reference_fai], "GB")
     Int space_needed_gb = ceil(cache_size + vcf_size + reference_size + size(synonyms_file, "GB"))
@@ -2012,11 +2196,15 @@ task vep {
     }
 
     String outfile = basename(basename(vcf, ".gz"), ".vcf") + ".VEP_annotated.vcf"
-    String cache_dir = basename(cache_dir_zip, ".zip")
+    String cache_dir = if local then cache_dir_zip else basename(cache_dir_zip, ".zip")
 
     command <<<
         #mkdir ~{cache_dir} && unzip -qq ~{cache_dir_zip} -d ~{cache_dir}
-        unzip -qq ~{cache_dir_zip}
+        if ~{if local then "true" else "false"}; then
+            echo "The local VEP cache is: " ~{cache_dir}
+        else
+            unzip -qq ~{cache_dir_zip}
+        fi
 
          /opt/vep/src/ensembl-vep/vep -i ~{vcf} --vcf -o ~{outfile}  \
             --cache --offline --dir_cache ~{cache_dir}/VepData/ --merged --assembly GRCh38 --use_given_ref --species homo_sapiens \
@@ -2035,7 +2223,14 @@ task vep {
             --plugin SpliceAI,snv=~{cache_dir}/spliceAI/spliceai_scores.raw.snv.hg38.vcf.gz,indel=~{cache_dir}/spliceAI/spliceai_scores.raw.indel.hg38.vcf.gz \
             --plugin pLI,~{cache_dir}/pLI/plI_gene.txt
 
-            bgzip ~{outfile} && tabix ~{outfile}.gz
+        bgzip ~{outfile} && tabix ~{outfile}.gz
+        
+        # For space reasons, we need to remove the Inputs
+        rm -f ~{reference}
+        rm -f ~{reference_fai}
+        if ~{if local then "false" else "true"}; then
+            rm -f ~{cache_dir_zip}
+        fi
     >>>
 
     output {
@@ -2056,6 +2251,7 @@ task annotateVcf {
         File vep_tbi
         String caller = "caller"
         String? p_value = "0.05"
+        Boolean local
     }
 
 
@@ -2217,6 +2413,7 @@ task annotatePD {
         File cosmic_dir_zip
         String? pon_pvalue = "2.114164905e-6"
         String oncokb_api_key
+        Boolean local
     }
 
     Float caller_size = size([mutect_vcf, lofreq_vcf, vardict_vcf], "GB")
@@ -2309,6 +2506,7 @@ task combine_all {
         String? pon_pvalue = "2.114164905e-6"
         String tumor_sample_name
         Boolean model = false
+        Boolean local
     }
 
     Float data_size = size([mutect_tsv, lofreq_tsv, vardict_tsv, pindel_vcf, pon], "GB")

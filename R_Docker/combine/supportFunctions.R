@@ -13,6 +13,11 @@ combine_all_callers <- function(M, L, V) {
   V <- V %>% mutate(across(where(is.character), as.character),
                   across(ends_with("AF_VEP"), as.numeric))
 
+  # Small checks to account for merging issues with data types
+  M$PUBMED_VEP <- as.character(M$PUBMED_VEP)
+  L$PUBMED_VEP <- as.character(L$PUBMED_VEP)
+  V$PUBMED_VEP <- as.character(V$PUBMED_VEP)
+
   # We can create a single "annotation dataframe"
   A <- bind_rows(M, L, V) %>% 
   select(
@@ -35,6 +40,9 @@ combine_all_callers <- function(M, L, V) {
     ch_pd, WHY_CH
   ) %>% 
   distinct(key, .keep_all = TRUE) 
+
+  A$n.loci.vep <- tidyr::replace_na(A$n.loci.vep, 0)
+  A$n.loci.truncating.vep <- tidyr::replace_na(A$n.loci.truncating.vep, 0)
 
   M <- M %>% select(
       QUAL_mutect, FILTER_mutect, 
