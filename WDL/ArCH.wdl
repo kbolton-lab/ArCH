@@ -854,6 +854,7 @@ task umiAlign {
         File reference_sa
         Boolean realign = false
         Int? mem_limit_override
+        Int? cpu_override
         Boolean local
     }
 
@@ -861,7 +862,7 @@ task umiAlign {
     Float reference_size = size([reference, reference_amb, reference_ann, reference_bwt, reference_pac, reference_sa], "GB")
     Int space_needed_gb = ceil(8 * data_size + reference_size)      # 4 Cores means multiple streams going from /dev/stdin to /dev/stdout
     Float memory = select_first([mem_limit_override, 3])                # No Memory required, everything is streamed straight to output
-    Int cores = 4                   # CPU only affects reading in the SAMtoFASTQ for BWA
+    Int cores = select_first([cpu_override, 4])                   # CPU only affects reading in the SAMtoFASTQ for BWA
     Int preemptible = 1
     Int maxRetries = 2
 
