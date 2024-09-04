@@ -861,8 +861,8 @@ task umiAlign {
     Float data_size = size(bam, "GB")
     Float reference_size = size([reference, reference_amb, reference_ann, reference_bwt, reference_pac, reference_sa], "GB")
     Int space_needed_gb = ceil(8 * data_size + reference_size)      # 4 Cores means multiple streams going from /dev/stdin to /dev/stdout
-    Float memory = select_first([mem_limit_override, 3])                # No Memory required, everything is streamed straight to output
-    Int cores = select_first([cpu_override, 4])                   # CPU only affects reading in the SAMtoFASTQ for BWA
+    Float memory = select_first([mem_limit_override, 3])            # No Memory required, everything is streamed straight to output
+    Int cores = select_first([cpu_override, 4])                     # CPU only affects reading in the SAMtoFASTQ for BWA
     Int preemptible = 1
     Int maxRetries = 2
 
@@ -2228,11 +2228,11 @@ task vep {
         bgzip ~{outfile} && tabix ~{outfile}.gz
         
         # For space reasons, we need to remove the Inputs
-        rm -f ~{reference}
-        rm -f ~{reference_fai}
-        if ~{if local then "false" else "true"}; then
-            rm -f ~{cache_dir_zip}
-        fi
+        #rm -f ~{reference}
+        #rm -f ~{reference_fai}
+        #if ~{if local then "false" else "true"}; then
+        #    rm -f ~{cache_dir_zip}
+        #fi
     >>>
 
     output {
