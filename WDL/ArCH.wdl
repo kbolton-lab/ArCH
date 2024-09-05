@@ -1109,7 +1109,7 @@ task fastQC {
     Int preemptible = 1
     Int maxRetries = 0
     Float data_size = size([bam, bai], "GB")
-    Int space_needed_gb = ceil(data_size)
+    Int space_needed_gb = ceil(2*data_size)
     Float memory = 1
     Int cores = 1
 
