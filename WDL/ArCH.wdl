@@ -1328,7 +1328,7 @@ task mutect {
 
     Float reference_size = size([reference, reference_fai, reference_dict, interval_list], "GB")
     Float data_size = size([tumor_bam, tumor_bai, normal_bam, normal_bai], "GB")
-    Int space_needed_gb = ceil(2 * data_size + reference_size)
+    Int space_needed_gb = ceil(4 * data_size + reference_size)
     Int memory = select_first([mem_limit_override, 6])
     Int cores = select_first([cpu_override, 1])
     Int java_mem = floor(memory)
