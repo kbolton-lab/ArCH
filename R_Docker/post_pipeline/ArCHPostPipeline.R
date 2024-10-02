@@ -118,13 +118,14 @@ df <- df %>% filter(!(CALL_BY_CALLER == "mutect" & average_AF < 0.01))    # Filt
 df <- df %>% filter(Consequence_VEP != "synonymous_variant")              # Throw out Silent Mutations
 df <- df %>% filter(pass_strand_bias)                                     # Has to pass the 90/10 Strand Bias
 df <- df %>% filter(pass_min_alt_count)                                   # Needs to have at least 5 reads with at least 1 count on both Fwd and Rev
+df <- df %>% distinct()
 
 # Adding nsamples and median_vaf
 df <- df %>% 
   left_join(
     df %>%
       group_by(key) %>%
-      mutate(nsamples = n(), median_AF = median(average_AF)) %>%
+      mutate(nsamples = n_distinct(subject), median_AF = median(average_AF)) %>%
       distinct(key, nsamples, median_AF),
     by = "key"
   )
@@ -133,8 +134,8 @@ df <- df %>%
 df <- df %>% filter(!(median_AF >= 0.35 & nsamples > 1 & n.HGVSc == 0 & CosmicCount == 0))
 
 # Recurrent Filter Parameters - Based on 80 Samples have R882H Mutation in ArcherDX Dataset 
-count_threshold<- max(ceiling(length(unique((df$SAMPLE)))*0.06), 5)
-bb_count_threshold<- max(ceiling(length(unique((df$SAMPLE)))*0.03), 2)
+count_threshold<- max(ceiling(length(unique((df$subject)))*0.06), 5)
+bb_count_threshold<- max(ceiling(length(unique((df$subject)))*0.03), 2)
 # We have to save ASXL1 G646W because this is a very recurrent variant that may be removed from our recurrent filter
 df <- df %>% filter(nsamples < count_threshold | (key == 'chr20:32434638:A:AG' & average_AF >= 0.05) | (key == 'chr20:32434638:A:AGG' & average_AF >= 0.05))        # Recurrent Filter
 # Last filter to remove any variants that have a high recurrent count but are not reported inside Kelly's or Bick's dataset
@@ -176,8 +177,8 @@ df$nearBBLogic <- df$near.BB.loci.HS != ''
 df$nearCosmicHemeLogic <- df$near.COSMIC.loci.HS != ''
 
 # Adding Recurrent Proportions
-min_samples_for_recurrent <- max(ceiling(length(unique((df$SAMPLE)))*0.001),2)  # It's 5 in UKBB
-total_samples = length(unique(df$SAMPLE)) # 1934 (for Archer)
+min_samples_for_recurrent <- max(ceiling(length(unique((df$subject)))*0.001),2)  # It's 5 in UKBB
+total_samples = length(unique(df$subject)) # 1934 (for Archer)
 total_heme_cosmic = 29234
 total_BB = 122691
 df <- df %>% mutate(prop_nsamples = nsamples/total_samples, 
@@ -231,7 +232,7 @@ df <- df %>% mutate(pd_reason = case_when(
   Gene %in% gene_list & VariantClass %in% missense_mutation & (n.HGVSp >= 10 | n.HGVSc >= 5) ~ "B/B Hotspot >= 10",
   Gene %in% gene_list & grepl("Neutral", oncoKB) ~ "Not PD",
   Gene %in% gene_list & VariantClass %in% missense_mutation & (CosmicCount >= 10 | heme_cosmic_count >= 5 | myeloid_cosmic_count >= 1) ~ "COSMIC",
-  Gene %in% gene_list & VariantClass %in% missense_mutation & (n.loci.vep - n.loci.truncating.vep) >= 5 & grepl("deleterious", SIFT_VEP) & grepl("damaging", PolyPhen_VEP) ~ "Loci + SIFT/PolyPhen",
+  Gene %in% gene_list & VariantClass %in% missense_mutation & n.loci.truncating.vep >= 5 & grepl("deleterious", SIFT_VEP) & grepl("damaging", PolyPhen_VEP) ~ "Loci + SIFT/PolyPhen",
   Gene %in% gene_list & VariantClass %in% missense_mutation & (nearBBLogic == TRUE | nearCosmicHemeLogic == TRUE) & grepl("deleterious", SIFT_VEP) & grepl("damaging", PolyPhen_VEP) ~ "Near Hotspot + SIFT/PolyPhen",
   Gene == "SRSF2" & VariantClass %in% missense_mutation & aa.pos == 95 ~ "SRSF2 Hotspot",
   # Gene == "SRSF2" & grepl("Oncogenic", oncoKB) ~ "SRSF2 OncoKB", # redundant
@@ -341,4 +342,3 @@ message("Finished determining pathogenicity...")
 write.csv(df, paste0(opt$prefix, ".all.csv"), row.names = FALSE)
 write.csv(passed, paste0(opt$prefix, ".pass.csv"), row.names = FALSE)
 write.csv(review, paste0(opt$prefix, ".review.csv"), row.names = FALSE)
-

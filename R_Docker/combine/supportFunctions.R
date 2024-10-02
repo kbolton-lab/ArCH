@@ -1,22 +1,34 @@
 combine_all_callers <- function(M, L, V) {
 
-  #M <- M %>% mutate_if(is.character, as.character) %>%
-  #  mutate_if(ends_with("AF_VEP"), as.numeric)
+  # Checks to account for merging issues with data types
   M <- M %>% mutate(across(where(is.character), as.character),
-                  across(ends_with("AF_VEP"), as.numeric))
-  #L <- L %>% mutate_if(is.character, as.character) %>%
-  #  mutate_if(ends_with("AF_VEP"), as.numeric)
+                  across(ends_with("_VEP"), as.character))
   L <- L %>% mutate(across(where(is.character), as.character),
-                  across(ends_with("AF_VEP"), as.numeric))
-  #V <- V %>% mutate_if(is.character, as.character) %>%
-  #  mutate_if(ends_with("AF_VEP"), as.numeric)
+                  across(ends_with("_VEP"), as.character))
   V <- V %>% mutate(across(where(is.character), as.character),
-                  across(ends_with("AF_VEP"), as.numeric))
+                  across(ends_with("_VEP"), as.character))                  
 
-  # Small checks to account for merging issues with data types
-  M$PUBMED_VEP <- as.character(M$PUBMED_VEP)
-  L$PUBMED_VEP <- as.character(L$PUBMED_VEP)
-  V$PUBMED_VEP <- as.character(V$PUBMED_VEP)
+  # For the gnomAD fields and the spliceAI fields, we need to convert them to numeric
+  M <- M %>% mutate(across(ends_with("AF_VEP"), as.numeric))
+  L <- L %>% mutate(across(ends_with("AF_VEP"), as.numeric))
+  V <- V %>% mutate(across(ends_with("AF_VEP"), as.numeric))
+
+  M <- M %>% mutate(across(starts_with("SpliceAI_pred_DS"), as.numeric),
+                  across(starts_with("SpliceAI_pred_DP"), as.numeric))
+  L <- L %>% mutate(across(starts_with("SpliceAI_pred_DS"), as.numeric),
+                  across(starts_with("SpliceAI_pred_DP"), as.numeric))
+  V <- V %>% mutate(across(starts_with("SpliceAI_pred_DS"), as.numeric),
+                  across(starts_with("SpliceAI_pred_DP"), as.numeric))
+
+  # There are some special cases that we should consider
+  data_frames <- list(M, L, V)
+  column_names <- c("clinvar_VEP", "MAX_AF_POPS_VEP", "CADD_PHRED_VEP", "CADD_RAW_VEP", "REVEL_VEP")
+
+  for (df in data_frames) {
+    for (col in column_names) {
+      df[[col]] <- as.character(df[[col]])
+    }
+  }
 
   # We can create a single "annotation dataframe"
   A <- bind_rows(M, L, V) %>% 

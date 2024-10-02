@@ -32,6 +32,9 @@ near_BB_loci_HS <- function(df_row, vars) {
     ter_present <- grepl("Ter", df_row[["gene_aachange"]])
     res <- res %>% filter(truncating == ifelse(ter_present, "truncating", "not"))     # Only compare truncating variants to truncating hotspots
     if (nrow(res) != 0){
+      # We only need to return truncating because in bick.bolton.vars3.txt the truncating is grouped by "truncating" so this column has the correct
+      # value for the loci count depending on whether or not it is a truncating mutation or not. n.loci.vep will have the TOTAL number
+      # e.g. If truncating = 9 and missense = 3, n.loci.vep = 12, and n.loci.truncating.vep = 9 or = 3 depending on which one it is
       return_string <- paste(res$gene_loci_vep, ":", res$n.loci.truncating.vep)
       return(paste(return_string, collapse = " | "))
     } else {
