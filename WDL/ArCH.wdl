@@ -509,7 +509,7 @@ workflow ArCH {
         input:
             vcfs = mskGetBaseCounts.pileup,
             vcf_tbis = mskGetBaseCounts.pileup_tbi,
-            merged_vcf_basename = tumor_sample_name + ".pon.total.counts",
+            merged_vcf_basename = tumor_sample_name + ".pon_total_counts",
             RD_AD = true,
             local = local
     }
@@ -2156,8 +2156,8 @@ task bcftoolsMerge {
     output {
         File merged_vcf = output_file
         File merged_vcf_tbi = "~{output_file}.tbi"
-        File? pileup_vcf = "pileup.vcf.gz"
-        File? pileup_vcf_tbi = "pileup.vcf.gz.tbi"
+        File? pileup_vcf = "~{merged_vcf_basename}.pileup.vcf.gz"
+        File? pileup_vcf_tbi = "~{merged_vcf_basename}.pileup.vcf.gz.tbi"
     }
 }
 

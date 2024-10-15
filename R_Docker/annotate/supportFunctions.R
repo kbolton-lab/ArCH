@@ -630,7 +630,8 @@ annotateOncoKb <- function(MUTS, supportData) {
       }
     }
     respContent <- httr::content(resp)
-    respContent <- sapply(respContent, "[[", "oncogenic")
+    oncogenic <- sapply(respContent, "[[", "oncogenic")
+    reviewed <- sapply(respContent, "[[", "variantSummary")
 
     # update redis cache
     if (!is.null(redisConnect)) {
@@ -648,7 +649,8 @@ annotateOncoKb <- function(MUTS, supportData) {
   }
 
   MUTS$oncoKB <- "Unknown" # set as Unknown
-  MUTS$oncoKB[validJson] <- respContent
+  MUTS$oncoKB[validJson] <- oncogenic
+  MUTS$oncoKB_reviewed <- !grepl("mutation has not specifically been reviewed", reviewed)
 
   MUTS
 }
@@ -819,7 +821,7 @@ annotatePD <- function(df, supportData) {
         dplyr::select(
           "CHROM", "POS", "REF", "ALT",
           "COSMIC_ID", "CosmicCount", "heme_cosmic_count", "myeloid_cosmic_count",
-          "VariantClass", "Gene", "oncoKB",
+          "VariantClass", "Gene", "oncoKB", "oncoKB_reviewed",
           "isOncogenic", "isTSG", "isTruncatingHotSpot", "ch_pd", "WHY_CH"
         )
     )

@@ -58,7 +58,7 @@ pileup <- pileup %>%
     distinct(key, .keep_all = TRUE) 
 
 # Combine into one dataframe
-message("Comining all callers into 1...")
+message("Combining all callers into 1...")
 final <- combine_all_callers(M, L, V)
 
 final <- final %>%
@@ -158,7 +158,7 @@ select(
     max_gnomADe_AF_VEP, max_gnomADg_AF_VEP, pass_max_sub_gnomAD_AF, max_sub_gnomAD_AF, max_pop_gnomAD_AF,
     VariantClass, AAchange, gene_loci_p, gene_loci_c, gene_aachange, gene_cDNAchange, 
     source.totals.loci, source.totals.loci.truncating, source.totals.p, source.totals.c, n.loci.vep, n.loci.truncating.vep, n.HGVSp, n.HGVSc,
-    COSMIC_ID, CosmicCount, heme_cosmic_count, myeloid_cosmic_count, oncoKB, isOncogenic, isTSG, isTruncatingHotSpot,
+    COSMIC_ID, CosmicCount, heme_cosmic_count, myeloid_cosmic_count, oncoKB, oncoKB_reviewed, isOncogenic, isTSG, isTruncatingHotSpot,
     ch_pd, WHY_CH
 )
 

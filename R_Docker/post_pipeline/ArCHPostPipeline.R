@@ -228,7 +228,8 @@ ZBTB33 <- ZBTB33[ZBTB33 != "***"]
 # 19) Bick's Email Rules - Other Genes
 df <- df %>% mutate(pd_reason = case_when(
   Gene %in% TSG_gene_list & VariantClass %in% nonsense_mutation ~ "Nonsense Mutation in TSG",
-  grepl("Oncogenic", oncoKB) ~ "OncoKB",
+  grepl("Oncogenic", oncoKB) & oncoKB_reviewed == TRUE ~ "OncoKB",
+  oncoKB == "Likely Oncogenic" & oncoKB_reviewed == FALSE & grepl("deleterious", SIFT_VEP) & grepl("damaging", PolyPhen_VEP) ~ "OncoKB Likely Oncogenic + SIFT/PolyPhen",
   Gene %in% gene_list & VariantClass %in% missense_mutation & (n.HGVSp >= 10 | n.HGVSc >= 5) ~ "B/B Hotspot >= 10",
   Gene %in% gene_list & grepl("Neutral", oncoKB) ~ "Not PD",
   Gene %in% gene_list & VariantClass %in% missense_mutation & (CosmicCount >= 10 | heme_cosmic_count >= 5 | myeloid_cosmic_count >= 1) ~ "COSMIC",
@@ -251,9 +252,48 @@ df <- df %>% mutate(pd_reason = case_when(
   TRUE ~ "Not PD"
 ), putative_driver = ifelse(pd_reason != "Not PD", 1, 0))
 
+# Creating an expanded column for more in-depth analysis
+putative_driver_conditions <- list(
+  list(df$Gene %in% TSG_gene_list & df$VariantClass %in% nonsense_mutation, "Nonsense Mutation in TSG"),
+  list((df$oncoKB == "Oncogenic") | (df$oncoKB == "Likely Oncogenic" & df$oncoKB_reviewed == TRUE), "OncoKB"),
+  list(df$oncoKB == "Likely Oncogenic" & df$oncoKB_reviewed == FALSE & grepl("deleterious", df$SIFT_VEP) & grepl("damaging", df$PolyPhen_VEP), "OncoKB Likely Oncogenic + SIFT/PolyPhen"),
+  list(df$Gene %in% gene_list & df$VariantClass %in% missense_mutation & (df$n.HGVSp >= 10 | df$n.HGVSc >= 5), "B/B Hotspot >= 10"),
+  list(df$Gene %in% gene_list & df$VariantClass %in% missense_mutation & (df$CosmicCount >= 10 | df$heme_cosmic_count >= 5 | df$myeloid_cosmic_count >= 1), "COSMIC"),
+  list(df$Gene %in% gene_list & df$VariantClass %in% missense_mutation & df$n.loci.truncating.vep >= 5 & grepl("deleterious", df$SIFT_VEP) & grepl("damaging", df$PolyPhen_VEP), "Loci + SIFT/PolyPhen"),
+  list(df$Gene %in% gene_list & df$VariantClass %in% missense_mutation & (df$nearBBLogic == TRUE | df$nearCosmicHemeLogic == TRUE) & grepl("deleterious", df$SIFT_VEP) & grepl("damaging", df$PolyPhen_VEP), "Near Hotspot + SIFT/PolyPhen"),
+  list(df$Gene == "SRSF2" & df$VariantClass %in% missense_mutation & df$aa.pos == 95, "SRSF2 Hotspot"),
+  list(df$Gene == "SF3B1" & df$VariantClass %in% missense_mutation & df$aa.pos %in% SF3B1_positions, "SF3B1 Hotspot"),
+  list(df$Gene == "IDH1" & df$VariantClass %in% missense_mutation & df$aa.pos == 132, "IDH1 Hotspot"),
+  list(df$Gene == "IDH2" & df$VariantClass %in% missense_mutation & (df$aa.pos == 140 | df$aa.pos == 172), "IDH2 Hotspot"),
+  list(df$Gene == "PPM1D" & df$VariantClass %in% nonsense_mutation & df$EXON_VEP == "6/6", "Nonsense Mutation on Exon 6"),
+  list(df$Gene %in% gene_list & df$VariantClass %in% missense_mutation & df$n.HGVSp >= 1 & (grepl("deleterious", df$SIFT_VEP) | grepl("damaging", df$PolyPhen_VEP)), "B/B Hotspot + SIFT/PolyPhen"),
+  list(df$Gene %in% TSG_gene_list & df$VariantClass %in% c("splice_donor_variant", "splice_acceptor_variant", "splice_region_variant") & !grepl(paste(splicingSynonymous, collapse = "|"), df$Consequence_VEP), "Splicing Mutation"),
+  list(df$Gene %in% TSG_gene_list & df$clinvar_CLNSIG_VEP %in% clinvar_sig_terms, "ClinVar"),
+  list((df$Gene == "ZBTB33" & df$VariantClass %in% missense_mutation & df$AAchange %in% ZBTB33) | (df$Gene %in% unique(bick_email$Gene) & df$VariantClass %in% nonsense_mutation), "Bick's Email")
+)
+
+df$pd_reason_expanded <- ""
+for (condition in putative_driver_conditions) {
+  df$pd_reason_expanded[condition[[1]]] <- paste(df$pd_reason_expanded[condition[[1]]], condition[[2]], sep = "|")
+}
+df$pd_reason_expanded[df$Gene %in% gene_list & df$oncoKB == "Neutral"] <- "Not PD"
+df$pd_reason_expanded[df$Gene %in% gene_list & grepl(paste(splicingSynonymous, collapse = "|"), df$Consequence_VEP)] <- "Not PD"
+df$pd_reason_expanded[df$pd_reason_expanded == ""] <- "Not PD"
+
 # OncoKB API automatically classifies ALL splicing mutations as oncogenic, however if the mutation is synonymous, then we have to change it
 df <- df %>% mutate(putative_driver = ifelse(grepl("Oncogenic", oncoKB) & grepl(paste(splicingSynonymous, collapse = "|"), Consequence_VEP) & !(clinvar_CLNSIG_VEP %in% clinvar_sig_terms), 0, putative_driver),
-                    pd_reason = ifelse(grepl("Oncogenic", oncoKB) & grepl(paste(splicingSynonymous, collapse = "|"), Consequence_VEP) & !(clinvar_CLNSIG_VEP %in% clinvar_sig_terms), "Not PD", pd_reason))
+                    pd_reason = ifelse(grepl("Oncogenic", oncoKB) & grepl(paste(splicingSynonymous, collapse = "|"), Consequence_VEP) & !(clinvar_CLNSIG_VEP %in% clinvar_sig_terms), "Not PD", pd_reason),
+                    pd_reason_expanded = ifelse(grepl("Oncogenic", oncoKB) & grepl(paste(splicingSynonymous, collapse = "|"), Consequence_VEP) & !(clinvar_CLNSIG_VEP %in% clinvar_sig_terms), "Not PD", pd_reason_expanded))
+
+test_same_pd_reason <- df %>% 
+  select(key, pd_reason, putative_driver, pd_reason_expanded) %>%
+  filter(!vapply(pd_reason, function(x) any(grepl(x, pd_reason_expanded, fixed=TRUE)), logical(1)))
+
+if (nrow(test_same_pd_reason) == 0) {
+  message("pd_reason and pd_reason_expanded agree")
+} else {
+  message("ERROR: pd_reason and pd_reason_expanded disagree")
+}
 
 # Start of Review
 df$Review <- ""

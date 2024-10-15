@@ -48,7 +48,7 @@ combine_all_callers <- function(M, L, V) {
     gene_loci_p, gene_loci_c, gene_loci_vep, gene_aachange, gene_cDNAchange,
     n.loci.vep, source.totals.loci, n.loci.truncating.vep, source.totals.loci.truncating, n.HGVSp, source.totals.p, n.HGVSc, source.totals.c,
     COSMIC_ID, CosmicCount, heme_cosmic_count, myeloid_cosmic_count,
-    VariantClass, Gene, oncoKB, isOncogenic, isTSG, isTruncatingHotSpot,
+    VariantClass, Gene, oncoKB, oncoKB_reviewed, isOncogenic, isTSG, isTruncatingHotSpot,
     ch_pd, WHY_CH
   ) %>% 
   distinct(key, .keep_all = TRUE) 
