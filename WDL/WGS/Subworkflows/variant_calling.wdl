@@ -460,8 +460,7 @@ task mutect_pass {
     }
 
     command <<<
-        bcftools filter -i 'FILTER="PASS" || FILTER="weak_evidence" || FILTER="strand_bias" || FILTER="weak_evidence;strand_bias"' ~{mutect_vcf} > mutect_passed.vcf
-        bcftools view -r 'chr20:32434638' --no-header ~{mutect_vcf} >> mutect_passed.vcf
+        bcftools filter -i 'FILTER="PASS" || FILTER="weak_evidence" || FILTER="strand_bias" || FILTER="weak_evidence;strand_bias" || (CHROM="chr20" && POS=32434638)' ~{mutect_vcf} > mutect_passed.vcf
         bcftools sort -m ~{memory}G mutect_passed.vcf -Oz -o mutect_passed.sorted.vcf.gz 
     >>>
 
