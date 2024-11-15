@@ -1,13 +1,5 @@
 version 1.0
 
-meta {
-    author: "Your Name"
-    email: "tran.n@wustl.edu"
-    description: "Variant calling workflow with U2AF1 region fixed"
-    version: "1.0.0"
-    last_modified: "2024-11-14"
-}
-
 # WORKFLOW DEFINITION 
 # This workflow performs variant calling with U2AF1 region fixed
 # Dependencies:
@@ -98,97 +90,98 @@ workflow variant_calling {
             bwa_index_tar = bwa_index_tar
     }
 
-    call merge_bam {
+    call fix_and_split_bam {
         input:
             realigned_bam = bwa_align.realigned_bam,
             aligned_bam_file = aligned_bam_file,
             aligned_bai_file = aligned_bai_file,
             reference = reference,
             reference_fai = reference_fai,
-            interval_bed = interval_to_bed.interval_bed
+            interval_bed_chrs = splitBedToChr.split_chr
     }
 
-    # scatter (bed_chr in splitBedToChr.split_chr) {
-    #     # Mutect
-    #     call mutect {
-    #         input:
-    #         reference = reference,
-    #         reference_fai = reference_fai,
-    #         reference_dict = reference_dict,
-    #         gnomad = normalized_gnomad_exclude,
-    #         gnomad_tbi = normalized_gnomad_exclude_tbi,
-    #         tumor_bam = aligned_bam_file, 
-    #         tumor_bam_bai = bamIndex.bam_index, 
-    #         interval_list = bed_chr
-    #     }
+    # file_set includes [fixed BAM, BAM index, BED file]
+    scatter (file_set in fix_and_split_bam.fixed_bams) {
+        # Mutect
+        call mutect {
+            input:
+            reference = reference,
+            reference_fai = reference_fai,
+            reference_dict = reference_dict,
+            gnomad = normalized_gnomad_exclude,
+            gnomad_tbi = normalized_gnomad_exclude_tbi,
+            tumor_bam = file_set[0],
+            tumor_bam_bai = file_set[1],
+            interval_list = file_set[2]
+        }
 
-    #     call mutect_pass {
-    #         input:
-    #         mutect_vcf = mutect.vcf,
-    #         mutect_vcf_tbi = mutect.vcf_tbi
-    #     }
+        call mutect_pass {
+            input:
+            mutect_vcf = mutect.vcf,
+            mutect_vcf_tbi = mutect.vcf_tbi
+        }
 
-    #     # Vardict
-    #     call vardict {
-    #         input:
-    #         reference = reference,
-    #         reference_fai = reference_fai,
-    #         tumor_bam = aligned_bam_file, 
-    #         tumor_bam_bai = bamIndex.bam_index,
-    #         interval_bed = bed_chr,
-    #         min_var_freq = af_threshold,
-    #         tumor_sample_name = tumor_sample_name,
-    #         mutect_vcf = mutect_pass.vcf
-    #     }
-    # }
+        # Vardict
+        call vardict {
+            input:
+            reference = reference,
+            reference_fai = reference_fai,
+            tumor_bam = file_set[0],
+            tumor_bam_bai = file_set[1],
+            interval_bed = file_set[2],
+            min_var_freq = af_threshold,
+            tumor_sample_name = tumor_sample_name,
+            mutect_vcf = mutect_pass.vcf
+        }
+    }
 
-    # call mergeVcf as merge_mutect {
-    #     input:
-    #         vcfs = mutect.vcf,
-    #         vcf_tbis = mutect.vcf_tbi,
-    #         merged_vcf_basename = "mutect." + tumor_sample_name
-    # }
+    call mergeVcf as merge_mutect {
+        input:
+            vcfs = mutect.vcf,
+            vcf_tbis = mutect.vcf_tbi,
+            merged_vcf_basename = "mutect." + tumor_sample_name
+    }
 
-    # call mergeVcf as merge_vardict {
-    #     input:
-    #         vcfs = vardict.vcf,
-    #         vcf_tbis = vardict.vcf_tbi,
-    #         merged_vcf_basename = "vardict." + tumor_sample_name
-    # }
+    call mergeVcf as merge_vardict {
+        input:
+            vcfs = vardict.vcf,
+            vcf_tbis = vardict.vcf_tbi,
+            merged_vcf_basename = "vardict." + tumor_sample_name
+    }
 
-    # call sanitizeNormalizeFilter as mutect_filter {
-    #     input:
-    #         vcf = merge_mutect.merged_vcf,
-    #         vcf_tbi = merge_mutect.merged_vcf_tbi,
-    #         reference = reference,
-    #         reference_fai = reference_fai,
-    #         exclude_vcf = normalized_gnomad_exclude,
-    #         exclude_vcf_tbi = normalized_gnomad_exclude_tbi,
-    #         vcf2PON = mutect_pon2_file,
-    #         vcf2PON_tbi = mutect_pon2_file_tbi,
-    #         caller = "mutect",
-    #         sample_name = tumor_sample_name,
-    #         filter_string = bcbio_filter_string
-    # }
+    call sanitizeNormalizeFilter as mutect_filter {
+        input:
+            vcf = merge_mutect.merged_vcf,
+            vcf_tbi = merge_mutect.merged_vcf_tbi,
+            reference = reference,
+            reference_fai = reference_fai,
+            exclude_vcf = normalized_gnomad_exclude,
+            exclude_vcf_tbi = normalized_gnomad_exclude_tbi,
+            vcf2PON = mutect_pon2_file,
+            vcf2PON_tbi = mutect_pon2_file_tbi,
+            caller = "mutect",
+            sample_name = tumor_sample_name,
+            filter_string = bcbio_filter_string
+    }
 
-    # call sanitizeNormalizeFilter as vardict_filter {
-    #     input:
-    #         vcf = merge_vardict.merged_vcf,
-    #         vcf_tbi = merge_vardict.merged_vcf_tbi,
-    #         reference = reference,
-    #         reference_fai = reference_fai,
-    #         exclude_vcf = normalized_gnomad_exclude,
-    #         exclude_vcf_tbi = normalized_gnomad_exclude_tbi,
-    #         vcf2PON = vardict_pon2_file,
-    #         vcf2PON_tbi = vardict_pon2_file_tbi,
-    #         caller = "vardict",
-    #         sample_name = tumor_sample_name,
-    #         filter_string = bcbio_filter_string
-    # }
+    call sanitizeNormalizeFilter as vardict_filter {
+        input:
+            vcf = merge_vardict.merged_vcf,
+            vcf_tbi = merge_vardict.merged_vcf_tbi,
+            reference = reference,
+            reference_fai = reference_fai,
+            exclude_vcf = normalized_gnomad_exclude,
+            exclude_vcf_tbi = normalized_gnomad_exclude_tbi,
+            vcf2PON = vardict_pon2_file,
+            vcf2PON_tbi = vardict_pon2_file_tbi,
+            caller = "vardict",
+            sample_name = tumor_sample_name,
+            filter_string = bcbio_filter_string
+    }
 
     output {
-        # File mutect_vcf = mutect_filter.annotated_vcf
-        # File vardict_vcf = vardict_filter.annotated_vcf
+        File mutect_vcf = mutect_filter.annotated_vcf
+        File vardict_vcf = vardict_filter.annotated_vcf
     }
 }
 
@@ -423,14 +416,14 @@ task bwa_align {
     }
 }
 
-task merge_bam {
+task fix_and_split_bam {
     input {
         File realigned_bam
         File aligned_bam_file 
         File aligned_bai_file
         File reference
         File reference_fai
-        File interval_bed
+        Array[File] interval_bed_chrs
     }
 
     Int preemptible = 1
@@ -456,26 +449,39 @@ task merge_bam {
  
         # Extract read name from the realigned bam
         samtools view ~{realigned_bam} | cut -f1 | sort | uniq > realigned_read_names.txt
-        # Remove the realigned reads from the original BAM file
-        # Extract the reads that are not realigned
-        # Then merge the realigned reads with the original BAM file
-        #! Some read names have additional non-primary alignments in the original BAM file, so after removing the realigned reads by read names, the number of reads in the merged BAM file is less than the original BAM file. But it should not affect the downstream analysis.
-        samtools view -h -@ ~{cores} -T ~{reference} -t ~{reference_fai} ~{aligned_bam_file} | \
-            grep -F -vf realigned_read_names.txt | \
-            samtools merge -u -@ ~{cores} - - ~{realigned_bam} | \
-            samtools sort -u -m 4G -@ ~{cores} - | \
-            samtools view -hC -1 -@ ~{cores} -T ~{reference} -t ~{reference_fai} - > fixed.sorted.cram 
-        samtools index fixed.sorted.cram
+
+        # Use interval bed to split the BAM file
+        for interval_bed in ~{sep=" " interval_bed_chrs}; do
+            # Get the chromosome name
+            chr=$(basename $interval_bed | sed 's/.*chr//;s/\.bed//')
+            chr="chr${chr}"
+            # Only do the merge if the chromosome is chr21 (U2AF1 region)
+            # Otherwise, just extract the reads
+            if [[ $chr == "chr21" ]]; then
+                # Remove the realigned reads from the original BAM file
+                # Extract the reads that are not realigned
+                # Then merge the realigned reads with the original BAM file
+                #! Some read names have additional non-primary alignments in the original BAM file, so after removing the realigned reads by read names, the number of reads in the merged BAM file is less than the original BAM file. But it should not affect the downstream analysis.
+                samtools view -h -@ ~{cores} -T ~{reference} -t ~{reference_fai} ~{aligned_bam_file} $chr | \
+                    grep -F -vf realigned_read_names.txt | \
+                    samtools merge -u -@ ~{cores} - - ~{realigned_bam} | \
+                    samtools sort -u -m 4G -@ ~{cores} - | \
+                    samtools view -hC -1 -@ ~{cores} -T ~{reference} -t ~{reference_fai} - > ${chr}.fixed.sorted.cram
+                samtools index ${chr}.fixed.sorted.cram
+                # Make the bed name to be consistent with cram and crai
+                cp $interval_bed ${chr}.fixed.sorted.bed
+            else 
+                samtools view -hC -1 -@ ~{cores} -T ~{reference} -t ~{reference_fai} ~{aligned_bam_file} $chr > ${chr}.fixed.sorted.cram
+                samtools index ${chr}.fixed.sorted.cram
+                cp $interval_bed ${chr}.fixed.sorted.bed
+            fi
+        done
     >>>
 
     output {
-        File merged_bam = "fixed.sorted.cram"
-        File merged_bai = "fixed.sorted.cram.bai"
+        Array[Array[File]] fixed_bams = transpose([glob("chr*.fixed.sorted.cram"), glob("chr*.fixed.sorted.cram.crai"), glob("chr*.fixed.sorted.bed")])
     }
 }
-
-
-
 
 task mutect {
     input {
@@ -514,10 +520,15 @@ task mutect {
     command <<<
         set -e -x -o pipefail
 
+        # Link the reference files
+        ln -s ~{reference} .
+        ln -s ~{reference_fai} .
+        ln -s ~{reference_dict} .
+
         /gatk/gatk Mutect2 --java-options "-Xmx~{memory}g" \
         --native-pair-hmm-threads ~{cores} \
             -O mutect.vcf.gz \
-            -R ~{reference} \
+            -R $(basename ~{reference}) \
             -L ~{interval_list} \
             -I ~{tumor_bam} \
             ~{"--germline-resource " + gnomad} \
@@ -529,7 +540,7 @@ task mutect {
             -O mutect.read-orientation-model.tar.gz
 
         /gatk/gatk FilterMutectCalls \
-            -R ~{reference} \
+            -R $(basename ~{reference}) \
             -V mutect.vcf.gz \
             --ob-priors mutect.read-orientation-model.tar.gz \
             -O ~{output_vcf} #Running FilterMutectCalls on the output vcf.
@@ -596,8 +607,11 @@ task sanitizeNormalizeFilter {
         gunzip -c bcbio.vcf.gz | perl -a -F'\t' -ne 'print $_ if $_ =~ /^#/ || $F[3] !~ /[^ACTGNactgn]/' | sed -e "s/ALT_F1R2/ALTF1R2/g;s/ALT_F2R1/ALTF2R1/g;s/REF_F1R2/REFF1R2/g;s/REF_F2R1/REFF2R1/g" > sanitized.vcf
         bgzip sanitized.vcf && tabix sanitized.vcf.gz
         
+        # Link the reference files
+        ln -s ~{reference} .
+        ln -s ~{reference_fai} .
         # Normalize Step
-        bcftools norm --check-ref w --multiallelics -any --output-type z --output norm.vcf.gz sanitized.vcf.gz -f ~{reference}
+        bcftools norm --check-ref w --multiallelics -any --output-type z --output norm.vcf.gz sanitized.vcf.gz -f $(basename ~{reference})
         tabix norm.vcf.gz
 
         # gnomAD Intersection
@@ -605,7 +619,7 @@ task sanitizeNormalizeFilter {
 
         # PoN2
         export name=~{caller}.~{sample_name}.vcf.gz
-        if [[ -n ~{vcf2PON} ]]; then
+        if [[ -n "~{vcf2PON}" ]]; then
             printf "##INFO=<ID=PON_2AT2_percent,Number=1,Type=Integer,Description=\"If 2 PoN samples have variant at >=2 percent\">\n" > pon2.header;
             printf "##INFO=<ID=PON_NAT2_percent,Number=1,Type=Integer,Description=\"Number of samples with variant at >=2 percent\">\n" >> pon2.header;
             printf "##INFO=<ID=PON_MAX_VAF,Number=1,Type=Float,Description=\"The maximum VAF found in the PoN Samples\">\n" >> pon2.header;
@@ -697,6 +711,9 @@ task vardict {
         set -e -x -o pipefail
 
         echo ~{space_needed_gb}
+        # Link the reference files
+        ln -s ~{reference} .
+        ln -s ~{reference_fai} .
 
         # TODO: Account for when Mutect File is "Empty"..
 
@@ -707,8 +724,7 @@ task vardict {
         # Merge small intervals
         bedtools merge -i interval_list_mutect.bed > interval_list_mutect_merged.bed
         # intersect with bed file
-        samtools view -u -b -M -L interval_list_mutect_merged.bed -T ~{reference} -t ~{reference_fai} \
-            -o intersected.bam -X ~{tumor_bam} ~{tumor_bam_bai}
+        samtools view -u -b -M -L interval_list_mutect_merged.bed -T $(basename ~{reference}) -o intersected.bam -X ~{tumor_bam} ~{tumor_bam_bai}
         samtools index intersected.bam
 
         # Make windows
@@ -733,7 +749,7 @@ task vardict {
             echo ${part}
 
             /opt/VarDictJava/build/install/VarDict/bin/VarDict \
-                -U -G ~{reference} \
+                -U -G $(basename ~{reference}) \
                 -X 1 \
                 -f ~{min_var_freq} \
                 -N ~{tumor_sample_name} \
