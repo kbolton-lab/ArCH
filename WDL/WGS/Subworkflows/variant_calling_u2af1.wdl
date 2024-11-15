@@ -514,11 +514,11 @@ task mutect {
     Int memory = select_first([mem_limit_override, 4])
     Int cores = select_first([cpu_override, 1])
     Int preemptible = 3
-    Int maxRetries = 3
+    Int maxRetries = 1
 
     runtime {
         cpu: cores
-        docker: "broadinstitute/gatk:4.2.0.0"
+        docker: "broadinstitute/gatk:4.6.0.0"
         memory: cores * memory + "GB"
         bootDiskSizeGb: 10
         disks: "local-disk ~{space_needed_gb} HDD"
@@ -537,7 +537,9 @@ task mutect {
         ln -s ~{reference_dict} .
 
         /gatk/gatk Mutect2 --java-options "-Xmx~{memory}g" \
-        --native-pair-hmm-threads ~{cores} \
+            --native-pair-hmm-threads ~{cores} \
+            --pair-hmm-implementation FASTEST_AVAILABLE \
+            --smith-waterman FASTEST_AVAILABLE \
             -O mutect.vcf.gz \
             -R $(basename ~{reference}) \
             -L ~{interval_list} \
@@ -702,7 +704,7 @@ task vardict {
     Float data_size = size([tumor_bam, tumor_bam_bai, mutect_vcf], "GB")
     Int space_needed_gb = ceil(10 + 2.5 * data_size + reference_size)
     Int preemptible = 3
-    Int maxRetries = 3
+    Int maxRetries = 1
     Int memory = select_first([mem_limit_override, 2])
     Int cores = select_first([cpu_override, 2])
 
