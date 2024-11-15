@@ -97,7 +97,8 @@ workflow variant_calling {
             aligned_bai_file = aligned_bai_file,
             reference = reference,
             reference_fai = reference_fai,
-            interval_bed_chrs = splitBedToChr.split_chr
+            interval_bed_chrs = splitBedToChr.split_chr,
+            exclusion_intervals = exclusion_intervals
     }
 
     # file_set includes [fixed BAM, BAM index, BED file]
@@ -424,6 +425,7 @@ task fix_and_split_bam {
         File reference
         File reference_fai
         Array[File] interval_bed_chrs
+        File exclusion_intervals
     }
 
     Int preemptible = 1
@@ -450,31 +452,40 @@ task fix_and_split_bam {
         # Extract read name from the realigned bam
         samtools view ~{realigned_bam} | cut -f1 | sort | uniq > realigned_read_names.txt
 
+        # Get the chromosome need to be checked from the exclusion intervals
+        exclusion_intervals=$(grep -v "#" ~{exclusion_intervals} | cut -f1 | uniq)
+        exclusion_intervals=($exclusion_intervals)
+
         # Use interval bed to split the BAM file
         for interval_bed in ~{sep=" " interval_bed_chrs}; do
             # Get the chromosome name
             chr=$(basename $interval_bed | sed 's/.*chr//;s/\.bed//')
             chr="chr${chr}"
-            # Only do the merge if the chromosome is chr21 (U2AF1 region)
+            # Only chr21 needs to be checked and merged
+            # Other chromosomes have exclusion intervals, so they need to be checked
             # Otherwise, just extract the reads
-            if [[ $chr == "chr21" ]]; then
+            if [[ ${chr} == "chr21" ]]; then
+                echo "$chr needs to be checked and merged"
                 # Remove the realigned reads from the original BAM file
-                # Extract the reads that are not realigned
-                # Then merge the realigned reads with the original BAM file
+                # Then merge the realigned reads with the rest of the reads from the original BAM file
                 #! Some read names have additional non-primary alignments in the original BAM file, so after removing the realigned reads by read names, the number of reads in the merged BAM file is less than the original BAM file. But it should not affect the downstream analysis.
                 samtools view -h -@ ~{cores} -T ~{reference} -t ~{reference_fai} ~{aligned_bam_file} $chr | \
                     grep -F -vf realigned_read_names.txt | \
                     samtools merge -u -@ ~{cores} - - ~{realigned_bam} | \
                     samtools sort -u -m 4G -@ ~{cores} - | \
                     samtools view -hC -1 -@ ~{cores} -T ~{reference} -t ~{reference_fai} - > ${chr}.fixed.sorted.cram
-                samtools index ${chr}.fixed.sorted.cram
-                # Make the bed name to be consistent with cram and crai
-                cp $interval_bed ${chr}.fixed.sorted.bed
+            elif [[ " ${exclusion_intervals[@]} " =~ " ${chr} " ]]; then
+                echo "$chr have exclusion intervals, need to be checked to remove realigned reads"
+                samtools view -h -@ ~{cores} -T ~{reference} -t ~{reference_fai} ~{aligned_bam_file} $chr | \
+                    grep -F -vf realigned_read_names.txt | \
+                    samtools view -hC -1 -@ ~{cores} -T ~{reference} -t ~{reference_fai} - > ${chr}.fixed.sorted.cram
             else 
+                echo "$chr does not have exclusion intervals, no need to be checked"
                 samtools view -hC -1 -@ ~{cores} -T ~{reference} -t ~{reference_fai} ~{aligned_bam_file} $chr > ${chr}.fixed.sorted.cram
-                samtools index ${chr}.fixed.sorted.cram
-                cp $interval_bed ${chr}.fixed.sorted.bed
             fi
+            samtools index ${chr}.fixed.sorted.cram
+            # Make the bed name to be consistent with cram and crai
+            cp $interval_bed ${chr}.fixed.sorted.bed
         done
     >>>
 
