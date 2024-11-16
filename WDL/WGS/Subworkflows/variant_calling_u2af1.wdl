@@ -138,8 +138,8 @@ workflow variant_calling {
 
     call mergeVcf as merge_mutect {
         input:
-            vcfs = mutect.vcf,
-            vcf_tbis = mutect.vcf_tbi,
+            vcfs = mutect_pass.vcf,
+            vcf_tbis = mutect_pass.vcf_tbi,
             merged_vcf_basename = "mutect." + tumor_sample_name
     }
 
@@ -385,8 +385,6 @@ task bwa_align {
         # Ln the reference
         ln -s ~{reference_u2af1} .
         ln -s ~{reference_u2af1_fai} .
-        # cp ~{reference_u2af1} .
-        # cp ~{reference_u2af1_fai} .
 
         # Unpack the bwa index
         tar -xvzf ~{bwa_index_tar}
@@ -678,10 +676,12 @@ task mutect_pass {
     command <<<
         bcftools filter -i 'FILTER="PASS" || FILTER="weak_evidence" || FILTER="strand_bias" || FILTER="weak_evidence;strand_bias" || (CHROM="chr20" && POS=32434638)' ~{mutect_vcf} > mutect_passed.vcf
         bcftools sort -m ~{memory}G mutect_passed.vcf -Oz -o mutect_passed.sorted.vcf.gz 
+        bcftools index -t mutect_passed.sorted.vcf.gz
     >>>
 
     output {
         File vcf = "mutect_passed.sorted.vcf.gz"
+        File vcf_tbi = "mutect_passed.sorted.vcf.gz.tbi"
     }
 }
 
