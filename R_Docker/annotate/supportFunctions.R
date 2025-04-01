@@ -597,18 +597,11 @@ annotateOncoKb <- function(MUTS, supportData) {
   validJson <- which(jsonGene %in% supportData[["oncoKbAvailGene"]]) # Gene not in oncoKB will return Unknown
   allJsonQuery <- allJsonQuery[validJson]
 
-  # Try redis cache first
-  redisHost <- paste0("compute1-exec-", supportData[["redisHost"]], ".ris.wustl.edu")
-  redisConnect <- NULL
-  try({
-    redisConnect <- redux::hiredis(url = redisHost, port = 8101)
-  })
-  if (!is.null(redisConnect)) {
-    jsonKey <- sapply(allJsonQuery, function(x) paste0(unlist(x[sort(names(x))]), collapse = "_")) # reusable key even if the json structure changes a bit
-    cmds <- lapply(jsonKey, function(k) redux::redis$GET(k))
-    names(cmds) <- jsonKey
-    redisResp <- redisConnect$pipeline(.commands = cmds)
-    allJsonQuery <- allJsonQuery[sapply(redisResp, is.null)]
+    # If there are no valid json set all to Unknown for oncoKB and TRUE for oncoKB_reviewed then return
+  if (length(validJson) == 0) {
+    MUTS$oncoKB <- "Unknown"
+    MUTS$oncoKB_reviewed <- TRUE
+    return(MUTS)
   }
 
   # If there are unavailable keys
@@ -621,36 +614,25 @@ annotateOncoKb <- function(MUTS, supportData) {
       try(
         resp <- httr::POST(
           url = "https://www.oncokb.org/api/v1/annotate/mutations/byProteinChange",
-          httr::add_headers(c("Content-Type" = "application/json", "Authorization" = paste0("Bearer ", supportData[["oncoKbApiKey"]]))),
+          httr::add_headers(c("Content-Type" = "application/json", "Authorization" = "Bearer fbfe6c86-20aa-4603-879d-b3cc3c908735")),
           body = jsonlite::toJSON(unname(allJsonQuery), auto_unbox = TRUE)
         )
       )
       if (is.null(resp) || httr::status_code(resp) != 200) {
-        Sys.sleep(runif(1, min = 0.5, max = 1))
+        Sys.sleep(runif(1, min = 0.5, max = 1)) # Wait for a bit before retrying
       }
     }
     respContent <- httr::content(resp)
     oncogenic <- sapply(respContent, "[[", "oncogenic")
     reviewed <- sapply(respContent, "[[", "variantSummary")
-
-    # update redis cache
-    if (!is.null(redisConnect)) {
-      jsonKeyToUpdate <- jsonKey[sapply(redisResp, is.null)]
-      redisResp[sapply(redisResp, is.null)] <- respContent
-      names(redisResp) <- jsonKey
-
-      cmds <- lapply(jsonKeyToUpdate, function(k) redux::redis$SET(k, redisResp[[k]]))
-      redisConnect$pipeline(.commands = cmds)
-
-      respContent <- unlist(redisResp)
-    }
-  } else { # if not then just return redis result
-    respContent <- unlist(redisResp)
   }
 
-  MUTS$oncoKB <- "Unknown" # set as Unknown
+  # Set the rest to Unknown and reviewed to TRUE
+  MUTS$oncoKB <- "Unknown"
+  MUTS$oncoKB_reviewed <- TRUE
+  # Assign the response content to the correct positions
   MUTS$oncoKB[validJson] <- oncogenic
-  MUTS$oncoKB_reviewed <- !grepl("mutation has not specifically been reviewed", reviewed)
+  MUTS$oncoKB_reviewed[validJson] <- !grepl("mutation has not specifically been reviewed", reviewed)
 
   MUTS
 }

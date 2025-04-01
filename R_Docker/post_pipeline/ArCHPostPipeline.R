@@ -42,7 +42,9 @@ pd_table <- fread(opt$pd_table, sep = "\t", header = TRUE)
 vars <- prepare_vars_file(vars)
 ct <- prepare_cosmic_file(ct)
 TSG_gene_list <- gene_list[isTSG == 1]$Gene
+TSG_gene_list <- setdiff(TSG_gene_list, c("PPM1D", "SRSF2", "SF3B1", "IDH1", "IDH2"))
 gene_list <- gene_list$Gene
+gene_list <- setdiff(gene_list, c("PPM1D", "SRSF2", "SF3B1", "IDH1", "IDH2"))
 bick_email <- pd_table[source == "Bick_email"]
 
 # all_fp_pass summarizes:
@@ -228,8 +230,8 @@ ZBTB33 <- ZBTB33[ZBTB33 != "***"]
 # 19) Bick's Email Rules - Other Genes
 df <- df %>% mutate(pd_reason = case_when(
   Gene %in% TSG_gene_list & VariantClass %in% nonsense_mutation ~ "Nonsense Mutation in TSG",
-  grepl("Oncogenic", oncoKB) & oncoKB_reviewed == TRUE ~ "OncoKB",
-  oncoKB == "Likely Oncogenic" & oncoKB_reviewed == FALSE & grepl("deleterious", SIFT_VEP) & grepl("damaging", PolyPhen_VEP) ~ "OncoKB Likely Oncogenic + SIFT/PolyPhen",
+  Gene %in% gene_list & grepl("Oncogenic", oncoKB) & oncoKB_reviewed == TRUE  ~ "OncoKB",
+  Gene %in% gene_list & oncoKB == "Likely Oncogenic" & oncoKB_reviewed == FALSE & grepl("deleterious", SIFT_VEP) & grepl("damaging", PolyPhen_VEP) ~ "OncoKB Likely Oncogenic + SIFT/PolyPhen",
   Gene %in% gene_list & VariantClass %in% missense_mutation & (n.HGVSp >= 10 | n.HGVSc >= 5) ~ "B/B Hotspot >= 10",
   Gene %in% gene_list & grepl("Neutral", oncoKB) ~ "Not PD",
   Gene %in% gene_list & VariantClass %in% missense_mutation & (CosmicCount >= 10 | heme_cosmic_count >= 5 | myeloid_cosmic_count >= 1) ~ "COSMIC",
@@ -255,8 +257,8 @@ df <- df %>% mutate(pd_reason = case_when(
 # Creating an expanded column for more in-depth analysis
 putative_driver_conditions <- list(
   list(df$Gene %in% TSG_gene_list & df$VariantClass %in% nonsense_mutation, "Nonsense Mutation in TSG"),
-  list((df$oncoKB == "Oncogenic") | (df$oncoKB == "Likely Oncogenic" & df$oncoKB_reviewed == TRUE), "OncoKB"),
-  list(df$oncoKB == "Likely Oncogenic" & df$oncoKB_reviewed == FALSE & grepl("deleterious", df$SIFT_VEP) & grepl("damaging", df$PolyPhen_VEP), "OncoKB Likely Oncogenic + SIFT/PolyPhen"),
+  list(df$Gene %in% gene_list & ((df$oncoKB == "Oncogenic") | (df$oncoKB == "Likely Oncogenic" & df$oncoKB_reviewed == TRUE)), "OncoKB"),
+  list(df$Gene %in% gene_list & df$oncoKB == "Likely Oncogenic" & df$oncoKB_reviewed == FALSE & grepl("deleterious", df$SIFT_VEP) & grepl("damaging", df$PolyPhen_VEP), "OncoKB Likely Oncogenic + SIFT/PolyPhen"),
   list(df$Gene %in% gene_list & df$VariantClass %in% missense_mutation & (df$n.HGVSp >= 10 | df$n.HGVSc >= 5), "B/B Hotspot >= 10"),
   list(df$Gene %in% gene_list & df$VariantClass %in% missense_mutation & (df$CosmicCount >= 10 | df$heme_cosmic_count >= 5 | df$myeloid_cosmic_count >= 1), "COSMIC"),
   list(df$Gene %in% gene_list & df$VariantClass %in% missense_mutation & df$n.loci.truncating.vep >= 5 & grepl("deleterious", df$SIFT_VEP) & grepl("damaging", df$PolyPhen_VEP), "Loci + SIFT/PolyPhen"),
@@ -313,6 +315,7 @@ df <- df %>% filter(ifelse(
 ))
 
 review_conditions <- list(
+  list((df$pd_reason_expanded == "|OncoKB" | df$pd_reason_expanded == "|OncoKB Likely Oncogenic + SIFT/PolyPhen") & df$VariantClass %in% missense_mutation, "OncoKB Only Missense Variant"),
   list((df$CALL_BY_CALLER == "mutect") & (df$average_AF >= 0.01 & df$average_AF < 0.02), "LowVAF Mutect"),
   list((nchar(df$REF) > 5) | (nchar(df$ALT) > 5), "Long INDEL"),
   list((nchar(df$REF) >= 2) & (nchar(df$ALT) >= 2), "Complex INDEL"),
@@ -351,6 +354,7 @@ if ("SpliceAI_pred_SYMBOL_VEP" %in% colnames(df)){
 df <- df %>% arrange(CHROM, POS, REF, ALT)
 
 review <- df %>% filter(case_when(
+  grepl("OncoKB Only Missense Variant", Review) &  putative_driver == 1 ~ TRUE,
   grepl("LowVAF Mutect", Review) & putative_driver == 1 ~ TRUE,
   grepl("Long INDEL", Review) & putative_driver == 1 ~ TRUE,
   grepl("Complex INDEL", Review) & putative_driver == 1 ~ TRUE,
