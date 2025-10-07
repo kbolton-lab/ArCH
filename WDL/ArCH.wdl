@@ -2149,7 +2149,7 @@ task bcftoolsMerge {
         
         if ~{if RD_AD then "true" else "false"}; then
             bcftools +fill-tags -Ov ~{output_file} -- -t "PON_RefDepth=sum(RD)" | \
-            bcftools +fill-tags -Oz -o pileup.vcf.gz - -- -t "PON_AltDepth=sum(AD)" && tabix pileup.vcf.gz
+            bcftools +fill-tags -Oz -o ~{merged_vcf_basename}.pileup.vcf.gz - -- -t "PON_AltDepth=sum(AD)" && tabix ~{merged_vcf_basename}.pileup.vcf.gz
         fi
     >>>
 
