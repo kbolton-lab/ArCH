@@ -123,11 +123,11 @@ workflow ArCH {
         File truncating
         File gene_list
         File oncokb_genes
-        File cosmic_dir_zip
+        File? cosmic_dir_zip
         String oncokb_api_key
 
         # VEP Parameters
-        File vep_cache_dir_zip                      # WDL does not have a Directory Variable, so the entire cache needs to be ZIP
+        File? vep_cache_dir_zip                      # WDL does not have a Directory Variable, so the entire cache needs to be ZIP
         Array[String] vep_plugins = ["Frameshift", "Wildtype"]
         File clinvar_vcf
         File clinvar_vcf_tbi
@@ -138,6 +138,7 @@ workflow ArCH {
         # Variables Related to Local Execution
         Boolean local = false
         String? vep_cache_dir                        # If local is set to true, then this is the directory where the cache is located
+        String? cosmic_dir
     }
 
     # These are the problematic Calls:
@@ -518,7 +519,9 @@ workflow ArCH {
     call vep {
         input:
             vcf = mergeCallers.merged_vcf,
-            cache_dir_zip = select_first([vep_cache_dir, vep_cache_dir_zip]),
+            #cache_dir_zip = select_first([vep_cache_dir, vep_cache_dir_zip]),
+            cache_dir_zip = vep_cache_dir_zip,
+            cache_dir_string = vep_cache_dir,
             reference = reference,
             reference_fai = reference_fai,
             plugins = vep_plugins,
@@ -585,6 +588,7 @@ workflow ArCH {
             gene_list = gene_list,
             oncokb_genes = oncokb_genes,
             cosmic_dir_zip = cosmic_dir_zip,
+            cosmic_dir_string = cosmic_dir,
             pon_pvalue = pon_pvalue,
             oncokb_api_key = oncokb_api_key,
             local = local
@@ -671,6 +675,7 @@ task filterArcherUMILengthAndbbmapRepair {
 
     runtime {
         docker: "quay.io/biocontainers/bbmap:39.01--h92535d8_1"
+        docker_slurm: "quay.io#biocontainers/bbmap:39.01--h92535d8_1"
         memory: cores * memory + "GB"
         cpu: cores
         disks: "local-disk ~{space_needed_gb} SSD"
@@ -753,6 +758,7 @@ task processUMIs {
 
     runtime {
         docker: "quay.io/biocontainers/fgbio:2.0.2--hdfd78af_0"
+        docker_slurm: "quay.io#biocontainers/fgbio:2.0.2--hdfd78af_0"
         memory: cores * memory + "GB"
         cpu: cores
         disks: "local-disk ~{space_needed_gb} SSD"
@@ -927,6 +933,7 @@ task groupReadsAndConsensus {
 
     runtime {
         docker: "quay.io/biocontainers/fgbio:2.0.2--hdfd78af_0"
+        docker_slurm: "quay.io#biocontainers/fgbio:2.0.2--hdfd78af_0"
         memory: cores * memory + "GB"
         cpu: cores
         disks: "local-disk ~{space_needed_gb} SSD"
@@ -981,6 +988,7 @@ task filterAndClip {
 
     runtime {
         docker: "quay.io/biocontainers/fgbio:2.0.2--hdfd78af_0"
+        docker_slurm: "quay.io#biocontainers/fgbio:2.0.2--hdfd78af_0"
         memory: cores * memory + "GB"
         cpu: cores
         disks: "local-disk ~{space_needed_gb} SSD"
@@ -1568,7 +1576,11 @@ task lofreq {
         samtools index lofreq.indel.bam
 
         if ~{if tumor_only then "true" else "false"}; then
-            /opt/lofreq/bin/lofreq call-parallel --pp-threads ~{cores} -A -B -f ~{reference} --call-indels --bed ~{interval_bed} -o unsorted.lofreq.vcf lofreq.indel.bam
+            if [ ~{cores} -eq 1 ]; then
+                /opt/lofreq/bin/lofreq call -A -B -f ~{reference} --call-indels --bed ~{interval_bed} -o unsorted.lofreq.vcf lofreq.indel.bam
+            else
+                /opt/lofreq/bin/lofreq call-parallel --pp-threads ~{cores} -A -B -f ~{reference} --call-indels --bed ~{interval_bed} -o unsorted.lofreq.vcf lofreq.indel.bam
+            fi
             cat unsorted.lofreq.vcf | awk '$1 ~ /^#/ {print $0;next} {print $0 | "sort -k1,1 -k2,2n"}' > lofreq.vcf
         else
             /opt/lofreq/bin/lofreq somatic --call-indels -n ~{normal_bam} -t lofreq.indel.bam -f ~{reference} -l ~{interval_bed} -o lofreq_ --threads ~{cores}
@@ -1714,7 +1726,7 @@ task pindel {
             wait
         }
 
-        /bin/cat *_D *_SI *_TD *_LI *_INV | /bin/grep "ChrID" /dev/stdin > pindel.head
+        /bin/cat *_D *_SI *_TD *_LI *_INV | /bin/grep "ChrID" > pindel.head || touch pindel.head
 
         time {
             if ~{if tumor_only then "true" else "false"}; then
@@ -1727,7 +1739,7 @@ task pindel {
         }
 
         # If pindel returns empty pindel.head file, need to account for empty file.
-        is_empty=$(grep "~{tumor_sample_name}" pindel.vcf)
+        is_empty=$(grep "~{tumor_sample_name}" pindel.vcf || true)
         if [[ ${is_empty} == "" ]]; then
             grep "##" pindel.vcf > temp.vcf
             echo -e "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t~{tumor_sample_name}" >> temp.vcf
@@ -1896,6 +1908,7 @@ task createFakeVcf {
 
     runtime {
         docker: "quay.io/biocontainers/samtools:1.11--h6270b1f_0"
+        docker_slurm: "quay.io#biocontainers/samtools:1.11--h6270b1f_0"
         memory: cores * memory + "GB"
         cpu: cores
         disks: "local-disk ~{space_needed_gb} HDD"
@@ -2168,7 +2181,8 @@ task vep {
         File reference_fai
         
         # Vep Stuff
-        File cache_dir_zip                      # This can either be the ZIP or the full cache directory depending on local
+        File? cache_dir_zip                      # This can either be the ZIP or the full cache directory depending on local
+        String? cache_dir_string
         Array[String] plugins = ["Frameshift", "Wildtype"]
         Boolean coding_only = false
         File clinvar
@@ -2178,7 +2192,7 @@ task vep {
         Boolean local
     }
 
-    Float cache_size = if local then 400 else 3*size(cache_dir_zip, "GB")  # doubled to unzip
+    Float cache_size = if local then 400 else 3*size(select_first([cache_dir_zip]), "GB")  # doubled to unzip
     Float vcf_size = 2*size(vcf, "GB")  # doubled for output vcf
     Float reference_size = size([reference, reference_fai], "GB")
     Int space_needed_gb = ceil(cache_size + vcf_size + reference_size + size(synonyms_file, "GB"))
@@ -2198,7 +2212,8 @@ task vep {
     }
 
     String outfile = basename(basename(vcf, ".gz"), ".vcf") + ".VEP_annotated.vcf"
-    String cache_dir = if local then cache_dir_zip else basename(cache_dir_zip, ".zip")
+    #String cache_dir = if local then cache_dir_zip else basename(cache_dir_zip, ".zip")
+    String cache_dir = if local then select_first([cache_dir_string]) else basename(select_first([cache_dir_zip]), ".zip")
 
     command <<<
         #mkdir ~{cache_dir} && unzip -qq ~{cache_dir_zip} -d ~{cache_dir}
@@ -2368,28 +2383,27 @@ task annotateVcf {
         tabix -f -s1 -b2 -e2 fp_filter.results.gz
 
         # Depending on how we split, we might have caller_vcf that doesn't have any variants called
-        if [ -s $name.fisher.input ]; then
-            LC_ALL=C.UTF-8 Rscript --vanilla ./fisherTestInput.R $name.fisher.input $name.fisher.output
-            bgzip -f $name.fisher.output
-            tabix -f -s1 -b2 -e2 $name.fisher.output.gz
-            # Annotate with PoN Fisher Test
-            bcftools annotate -a $name.fisher.output.gz -h fisher.header -c CHROM,POS,REF,ALT,-,-,-,-,PON_FISHER $name.sample.pileup.vcf.gz -Oz -o $name.pileup.fisherPON.vcf.gz && tabix $name.pileup.fisherPON.vcf.gz
-            # Annotate with fp_filter
-            bcftools annotate -a fp_filter.results.gz -h fp_filter.header -c CHROM,POS,ID,REF,ALT,-,FP_filter $name.pileup.fisherPON.vcf.gz -Oz -o $name.pileup.fisherPON.fp_filter.vcf.gz && tabix $name.pileup.fisherPON.fp_filter.vcf.gz
-            # Annotate with VEP
-            bcftools annotate -a ~{vep} -h vep.header -c CSQ $name.pileup.fisherPON.fp_filter.vcf.gz -Oz -o $name.pileup.fisherPON.fp_filter.VEP.vcf.gz && tabix $name.pileup.fisherPON.fp_filter.VEP.vcf.gz
-            # Filter based on the PoN
-            bcftools filter -i "INFO/PON_FISHER<=~{p_value}" $name.pileup.fisherPON.fp_filter.VEP.vcf.gz -Oz -o $name.pileup.fisherPON.filtered.fp_filter.VEP.vcf.gz && tabix $name.pileup.fisherPON.filtered.fp_filter.VEP.vcf.gz
-        else
-            # Annotate with PoN Fisher Test
-            bcftools annotate -a $name.fisher.output.gz -h fisher.header -c CHROM,POS,REF,ALT,-,-,-,-,PON_FISHER $name.sample.pileup.vcf.gz -Oz -o $name.pileup.fisherPON.vcf.gz && tabix $name.pileup.fisherPON.vcf.gz
-            # Annotate with fp_filter
-            bcftools annotate -a fp_filter.results.gz -h fp_filter.header -c CHROM,POS,ID,REF,ALT,-,FP_filter $name.pileup.fisherPON.vcf.gz -Oz -o $name.pileup.fisherPON.fp_filter.vcf.gz && tabix $name.pileup.fisherPON.fp_filter.vcf.gz
-            # Annotate with VEP
-            bcftools annotate -a ~{vep} -h vep.header -c CSQ $name.pileup.fisherPON.fp_filter.vcf.gz -Oz -o $name.pileup.fisherPON.fp_filter.VEP.vcf.gz && tabix $name.pileup.fisherPON.fp_filter.VEP.vcf.gz
-            # Filter based on the PoN
-            bcftools filter -i "INFO/PON_FISHER<=~{p_value}" $name.pileup.fisherPON.fp_filter.VEP.vcf.gz -Oz -o $name.pileup.fisherPON.filtered.fp_filter.VEP.vcf.gz && tabix $name.pileup.fisherPON.filtered.fp_filter.VEP.vcf.gz
+        # generate fisher output if missing or empty
+        if [ ! -s "${name}.fisher.output.gz" ]; then
+            if [ -s "${name}.fisher.input" ]; then
+                LC_ALL=C.UTF-8 Rscript --vanilla ./fisherTestInput.R "${name}.fisher.input" "${name}.fisher.output"
+                bgzip -f "${name}.fisher.output"
+                tabix -f -s1 -b2 -e2 "${name}.fisher.output.gz"
+            else
+        # create empty indexed file so bcftools annotate has something (or handle as needed)
+                printf "" | bgzip -c > "${name}.fisher.output.gz"
+                tabix -f -s1 -b2 -e2 "${name}.fisher.output.gz" || true
+            fi
         fi
+
+        # Annotate with PoN Fisher Test
+        bcftools annotate -a "${name}.fisher.output.gz" -h fisher.header -c CHROM,POS,REF,ALT,-,-,-,-,PON_FISHER "${name}.sample.pileup.vcf.gz" -Oz -o "${name}.pileup.fisherPON.vcf.gz" && tabix "${name}.pileup.fisherPON.vcf.gz"
+        # Annotate with fp_filter
+        bcftools annotate -a fp_filter.results.gz -h fp_filter.header -c CHROM,POS,ID,REF,ALT,-,FP_filter "${name}.pileup.fisherPON.vcf.gz" -Oz -o "${name}.pileup.fisherPON.fp_filter.vcf.gz" && tabix "${name}.pileup.fisherPON.fp_filter.vcf.gz"
+        # Annotate with VEP
+        bcftools annotate -a ~{vep} -h vep.header -c CSQ "${name}.pileup.fisherPON.fp_filter.vcf.gz" -Oz -o "${name}.pileup.fisherPON.fp_filter.VEP.vcf.gz" && tabix "${name}.pileup.fisherPON.fp_filter.VEP.vcf.gz"
+        # Filter based on the PoN
+        bcftools filter -i "INFO/PON_FISHER<=~{p_value}" "${name}.pileup.fisherPON.fp_filter.VEP.vcf.gz" -Oz -o "${name}.pileup.fisherPON.filtered.fp_filter.VEP.vcf.gz" && tabix "${name}.pileup.fisherPON.filtered.fp_filter.VEP.vcf.gz"
     >>>
 
     output {
@@ -2412,7 +2426,8 @@ task annotatePD {
         File truncating
         File gene_list
         File oncokb_genes
-        File cosmic_dir_zip
+        File? cosmic_dir_zip
+        String? cosmic_dir_string
         String? pon_pvalue = "2.114164905e-6"
         String oncokb_api_key
         Boolean local
@@ -2420,7 +2435,7 @@ task annotatePD {
 
     Float caller_size = size([mutect_vcf, lofreq_vcf, vardict_vcf], "GB")
     Float file_size = size([bolton_bick_vars, mut2_bick, mut2_kelly, matches2, truncating, gene_list, oncokb_genes], "GB")
-    Float cosmic_size = 6*size(cosmic_dir_zip, "GB")        #cosmic_zip.zip is 194MB, but unzipped is 895MB
+    Float cosmic_size = if local then 400 else 6*size(select_first([cosmic_dir_zip]), "GB")        #cosmic_zip.zip is 194MB, but unzipped is 895MB
     Int space_needed_gb = ceil(10 + caller_size + file_size + cosmic_size)
     Float memory = 12
     Int cores = 1
@@ -2437,58 +2452,81 @@ task annotatePD {
       maxRetries: maxRetries
     }
 
-    String cosmic_dir = basename(cosmic_dir_zip, ".zip") + "/"
+    String cosmic_dir = if local then select_first([cosmic_dir_string]) else basename(select_first([cosmic_dir_zip]), ".zip")
+    #String cosmic_dir = basename(cosmic_dir_zip, ".zip") + "/"
 
     command <<<
         set -eou pipefail
 
-        unzip -qq ~{cosmic_dir_zip}
+        if ~{if local then "true" else "false"}; then
+            echo "The local COSMIC directory is: " ~{cosmic_dir}
+        else
+            unzip -qq ~{cosmic_dir_zip}
+        fi
 
         CSQ_string=$(zgrep 'Ensembl VEP. Format:' ~{mutect_vcf} | cut -d":" -f2)
         CSQ_string="${CSQ_string%??}"
         CSQ_string="${CSQ_string// /}"
 
-        LC_ALL=C.UTF-8 Rscript --vanilla /opt/bin/annotate/ArCHAnnotationScript.R --input ~{mutect_vcf} --out $(basename ~{mutect_vcf} .vcf.gz) --caller mutect \
-        --bolton_bick_vars ~{bolton_bick_vars} \
-        --mut2_bick ~{mut2_bick} \
-        --mut2_kelly ~{mut2_kelly} \
-        --matches2 ~{matches2} \
-        --truncating ~{truncating} \
-        --gene_list ~{gene_list} \
-        --oncokb_genes ~{oncokb_genes} \
-        --cosmic_dir ~{cosmic_dir} \
-        --p_value ~{pon_pvalue} \
-        --api_key ~{oncokb_api_key} \
-        --csq_string ${CSQ_string}
-        echo "Mutect AnnotatePD Finished..."
+        num_variants=$(zgrep -v '#' ~{mutect_vcf} | wc -l || true)
+        if [ $num_variants -gt 0 ]; then
+            LC_ALL=C.UTF-8 Rscript --vanilla /opt/bin/annotate/ArCHAnnotationScript.R --input ~{mutect_vcf} --out $(basename ~{mutect_vcf} .vcf.gz) --caller mutect \
+            --bolton_bick_vars ~{bolton_bick_vars} \
+            --mut2_bick ~{mut2_bick} \
+            --mut2_kelly ~{mut2_kelly} \
+            --matches2 ~{matches2} \
+            --truncating ~{truncating} \
+            --gene_list ~{gene_list} \
+            --oncokb_genes ~{oncokb_genes} \
+            --cosmic_dir ~{cosmic_dir} \
+            --p_value ~{pon_pvalue} \
+            --api_key ~{oncokb_api_key} \
+            --csq_string ${CSQ_string}
+            echo "Mutect AnnotatePD Finished..."
+        else
+            echo "No variants found in Mutect VCF, skipping annotation."
+            cp /opt/bin/FakeHeadersAnnotatePD/mutect.fake_empty_vcf.tsv $(basename ~{mutect_vcf} .vcf.gz).tsv
+        fi
 
-        LC_ALL=C.UTF-8 Rscript --vanilla /opt/bin/annotate/ArCHAnnotationScript.R --input ~{lofreq_vcf} --out $(basename ~{lofreq_vcf} .vcf.gz) --caller lofreq \
-        --bolton_bick_vars ~{bolton_bick_vars} \
-        --mut2_bick ~{mut2_bick} \
-        --mut2_kelly ~{mut2_kelly} \
-        --matches2 ~{matches2} \
-        --truncating ~{truncating} \
-        --gene_list ~{gene_list} \
-        --oncokb_genes ~{oncokb_genes} \
-        --cosmic_dir ~{cosmic_dir} \
-        --p_value ~{pon_pvalue} \
-        --api_key ~{oncokb_api_key} \
-        --csq_string ${CSQ_string}
-        echo "Lofreq AnnotatePD Finished..."
+        num_variants=$(zgrep -v '#' ~{lofreq_vcf} | wc -l || true)
+        if [ $num_variants -gt 0 ]; then
+            LC_ALL=C.UTF-8 Rscript --vanilla /opt/bin/annotate/ArCHAnnotationScript.R --input ~{lofreq_vcf} --out $(basename ~{lofreq_vcf} .vcf.gz) --caller lofreq \
+            --bolton_bick_vars ~{bolton_bick_vars} \
+            --mut2_bick ~{mut2_bick} \
+            --mut2_kelly ~{mut2_kelly} \
+            --matches2 ~{matches2} \
+            --truncating ~{truncating} \
+            --gene_list ~{gene_list} \
+            --oncokb_genes ~{oncokb_genes} \
+            --cosmic_dir ~{cosmic_dir} \
+            --p_value ~{pon_pvalue} \
+            --api_key ~{oncokb_api_key} \
+            --csq_string ${CSQ_string}
+            echo "Lofreq AnnotatePD Finished..."
+        else
+            echo "No variants found in Lofreq VCF, skipping annotation."
+            cp /opt/bin/FakeHeadersAnnotatePD/lofreq.fake_empty_vcf.tsv $(basename ~{lofreq_vcf} .vcf.gz).tsv
+        fi 
 
-        LC_ALL=C.UTF-8 Rscript --vanilla /opt/bin/annotate/ArCHAnnotationScript.R --input ~{vardict_vcf} --out $(basename ~{vardict_vcf} .vcf.gz) --caller vardict \
-        --bolton_bick_vars ~{bolton_bick_vars} \
-        --mut2_bick ~{mut2_bick} \
-        --mut2_kelly ~{mut2_kelly} \
-        --matches2 ~{matches2} \
-        --truncating ~{truncating} \
-        --gene_list ~{gene_list} \
-        --oncokb_genes ~{oncokb_genes} \
-        --cosmic_dir ~{cosmic_dir} \
-        --p_value ~{pon_pvalue} \
-        --api_key ~{oncokb_api_key} \
-        --csq_string ${CSQ_string}
-        echo "Vardict AnnotatePD Finished..."
+        num_variants=$(zgrep -v '#' ~{vardict_vcf} | wc -l || true)
+        if [ $num_variants -gt 0 ]; then
+            LC_ALL=C.UTF-8 Rscript --vanilla /opt/bin/annotate/ArCHAnnotationScript.R --input ~{vardict_vcf} --out $(basename ~{vardict_vcf} .vcf.gz) --caller vardict \
+            --bolton_bick_vars ~{bolton_bick_vars} \
+            --mut2_bick ~{mut2_bick} \
+            --mut2_kelly ~{mut2_kelly} \
+            --matches2 ~{matches2} \
+            --truncating ~{truncating} \
+            --gene_list ~{gene_list} \
+            --oncokb_genes ~{oncokb_genes} \
+            --cosmic_dir ~{cosmic_dir} \
+            --p_value ~{pon_pvalue} \
+            --api_key ~{oncokb_api_key} \
+            --csq_string ${CSQ_string}
+            echo "Vardict AnnotatePD Finished..."
+        else
+            echo "No variants found in Vardict VCF, skipping annotation."
+            cp /opt/bin/FakeHeadersAnnotatePD/vardict.fake_empty_vcf.tsv $(basename ~{vardict_vcf} .vcf.gz).tsv
+        fi
     >>>
 
     output {

@@ -178,6 +178,7 @@ task filterArcherUMILengthAndbbmapRepair {
 
     runtime {
         docker: "quay.io/biocontainers/bbmap:39.01--h92535d8_1"
+        docker_slurm: "quay.io#biocontainers/bbmap:39.01--h92535d8_1"
         memory: cores * memory + "GB"
         cpu: cores
         disks: "local-disk ~{space_needed_gb} SSD"
@@ -254,6 +255,7 @@ task processUMIs {
 
     runtime {
         docker: "quay.io/biocontainers/fgbio:2.0.2--hdfd78af_0"
+        docker_slurm: "quay.io#biocontainers/fgbio:2.0.2--hdfd78af_0"
         memory: cores * memory + "GB"
         cpu: cores
         disks: "local-disk ~{space_needed_gb} SSD"
@@ -407,6 +409,7 @@ task groupReadsAndConsensus {
 
     runtime {
         docker: "quay.io/biocontainers/fgbio:2.0.2--hdfd78af_0"
+        docker_slurm: "quay.io#biocontainers/fgbio:2.0.2--hdfd78af_0"
         memory: cores * memory + "GB"
         cpu: cores
         disks: "local-disk ~{space_needed_gb} SSD"
@@ -457,6 +460,7 @@ task filterAndClip {
 
     runtime {
         docker: "quay.io/biocontainers/fgbio:2.0.2--hdfd78af_0"
+        docker_slurm: "quay.io#biocontainers/fgbio:2.0.2--hdfd78af_0"
         memory: cores * memory + "GB"
         cpu: cores
         disks: "local-disk ~{space_needed_gb} SSD"

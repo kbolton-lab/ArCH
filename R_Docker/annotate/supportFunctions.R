@@ -397,44 +397,64 @@ prepareAnnotatePdData <- function(df, supportData) {
       gene_cDNAchange %in% vars$gene_cDNAchange) %>%
     dplyr::select(key, gene_loci_vep, gene_aachange, gene_cDNAchange)
 
-  finalTmp$truncating <- "not"
-  finalTmp <- finalTmp %>%
-    mutate(
-      truncating = ifelse(str_detect(gene_aachange, "Ter"), "truncating", truncating)
+  # There is a bug where finalTmp could be 0 rows after filtering
+  if (nrow(finalTmp) == 0) {
+    # Create empty dataframe with required columns for the join
+    finalTmp <- data.frame(
+      key = character(0),
+      gene_loci_vep = character(0), 
+      gene_aachange = character(0),
+      gene_cDNAchange = character(0),
+      n.loci.vep = numeric(0),
+      source.totals.loci = character(0),
+      n.loci.truncating.vep = numeric(0),
+      source.totals.loci.truncating = character(0),
+      n.HGVSp = numeric(0),
+      source.totals.p = character(0),
+      n.HGVSc = numeric(0),
+      source.totals.c = character(0),
+      stringsAsFactors = FALSE
     )
-  
-  tmp <- vars[vars$key %in% finalTmp$key |
-    vars$gene_loci_vep %in% finalTmp$gene_loci_vep, ]
-  finalTmp <- sqldf("SELECT l.*, r.`n.loci.vep`, r.`source.totals.loci`
-            FROM `finalTmp` as l
-            LEFT JOIN `tmp` as r
-            on l.key = r.key OR l.gene_loci_vep = r.gene_loci_vep")
-  finalTmp <- finalTmp %>% distinct()
+  } else {
+    finalTmp$truncating <- "not"
+    finalTmp <- finalTmp %>%
+      mutate(
+        truncating = ifelse(str_detect(gene_aachange, "Ter"), "truncating", truncating)
+      )
+    
+    tmp <- vars[vars$key %in% finalTmp$key |
+      vars$gene_loci_vep %in% finalTmp$gene_loci_vep, ]
+    finalTmp <- sqldf("SELECT l.*, r.`n.loci.vep`, r.`source.totals.loci`
+              FROM `finalTmp` as l
+              LEFT JOIN `tmp` as r
+              on l.key = r.key OR l.gene_loci_vep = r.gene_loci_vep")
+    finalTmp <- finalTmp %>% distinct()
 
-  finalTmp <- sqldf("SELECT l.*, r.`n.loci.truncating.vep`, r.`source.totals.loci.truncating`
-            FROM `finalTmp` as l
-            LEFT JOIN `tmp` as r
-            on (l.key = r.key AND l.truncating = r.truncating) OR (l.gene_loci_vep = r.gene_loci_vep AND l.truncating = r.truncating)")
-  finalTmp <- finalTmp %>% distinct()
-  finalTmp <- finalTmp %>% dplyr::select(-truncating)
+    finalTmp <- sqldf("SELECT l.*, r.`n.loci.truncating.vep`, r.`source.totals.loci.truncating`
+              FROM `finalTmp` as l
+              LEFT JOIN `tmp` as r
+              on (l.key = r.key AND l.truncating = r.truncating) OR (l.gene_loci_vep = r.gene_loci_vep AND l.truncating = r.truncating)")
+    finalTmp <- finalTmp %>% distinct()
+    finalTmp <- finalTmp %>% dplyr::select(-truncating)
 
-  ## make sure aachange exists as in doesn't end with an '_'; example: DNMT3A_ for splice
-  vars <- vars[!(grepl("_$", vars$gene_aachange) | grepl("_$", vars$gene_cDNAchange)), ]
-  tmp <- vars[vars$key %in% finalTmp$key |
-    vars$gene_aachange %in% finalTmp$gene_aachange, ]
-  finalTmp <- sqldf("SELECT l.*, r.`n.HGVSp`, r.`source.totals.p`
-            FROM `finalTmp` as l
-            LEFT JOIN `tmp` as r
-            on l.key = r.key OR (l.gene_aachange = r.gene_aachange)")
-  finalTmp <- finalTmp %>% distinct()
+    ## make sure aachange exists as in doesn't end with an '_'; example: DNMT3A_ for splice
+    vars <- vars[!(grepl("_$", vars$gene_aachange) | grepl("_$", vars$gene_cDNAchange)), ]
+    tmp <- vars[vars$key %in% finalTmp$key |
+      vars$gene_aachange %in% finalTmp$gene_aachange, ]
+    finalTmp <- sqldf("SELECT l.*, r.`n.HGVSp`, r.`source.totals.p`
+              FROM `finalTmp` as l
+              LEFT JOIN `tmp` as r
+              on l.key = r.key OR (l.gene_aachange = r.gene_aachange)")
+    finalTmp <- finalTmp %>% distinct()
 
-  tmp <- vars[vars$key %in% finalTmp$key |
-    vars$gene_cDNAchange %in% finalTmp$gene_cDNAchange, ]
-  finalTmp <- sqldf("SELECT l.*, r.`n.HGVSc`, r.`source.totals.c`
-            FROM `finalTmp` as l
-            LEFT JOIN `tmp` as r
-            on l.key = r.key OR (l.gene_cDNAchange = r.gene_cDNAchange)")
-  finalTmp <- finalTmp %>% distinct()
+    tmp <- vars[vars$key %in% finalTmp$key |
+      vars$gene_cDNAchange %in% finalTmp$gene_cDNAchange, ]
+    finalTmp <- sqldf("SELECT l.*, r.`n.HGVSc`, r.`source.totals.c`
+              FROM `finalTmp` as l
+              LEFT JOIN `tmp` as r
+              on l.key = r.key OR (l.gene_cDNAchange = r.gene_cDNAchange)")
+    finalTmp <- finalTmp %>% distinct()
+  }
 
   final <- final %>%
     left_join(finalTmp %>% dplyr::select(-gene_loci_vep, -gene_aachange, -gene_cDNAchange),
@@ -624,15 +644,25 @@ annotateOncoKb <- function(MUTS, supportData) {
     }
     respContent <- httr::content(resp)
     oncogenic <- sapply(respContent, "[[", "oncogenic")
-    reviewed <- sapply(respContent, "[[", "variantSummary")
+    variantSummary <- sapply(respContent, "[[", "variantSummary")
+    mutation_effect_desc <- sapply(respContent, function(x) {
+      if (!is.null(x$mutationEffect) && !is.null(x$mutationEffect$description)) {
+        x$mutationEffect$description
+      } else {
+        NA_character_
+      }
+    })
+    reviewed <- paste(variantSummary, mutation_effect_desc, sep = " ")
   }
 
   # Set the rest to Unknown and reviewed to TRUE
   MUTS$oncoKB <- "Unknown"
-  MUTS$oncoKB_reviewed <- TRUE
+  MUTS$oncoKB_reviewed <- FALSE
   # Assign the response content to the correct positions
   MUTS$oncoKB[validJson] <- oncogenic
-  MUTS$oncoKB_reviewed[validJson] <- !grepl("mutation has not specifically been reviewed", reviewed)
+  #MUTS$oncoKB_reviewed[validJson] <- !grepl("mutation has not specifically been reviewed", reviewed)
+  MUTS$oncoKB_reviewed[validJson] <- !grepl("not .* been reviewed", reviewed, ignore.case = TRUE, perl = TRUE)
+  #MUTS$oncoKB_reviewed[validJson][is.na(MUTS$oncoKB_reviewed[validJson])] <- TRUE
 
   MUTS
 }

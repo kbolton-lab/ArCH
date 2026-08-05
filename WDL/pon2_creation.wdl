@@ -443,7 +443,11 @@ task lofreq {
         # Lofreq
         /opt/lofreq/bin/lofreq indelqual --dindel -f ~{reference} -o lofreq.indel.bam ~{tumor_bam}
         samtools index lofreq.indel.bam
-        /opt/lofreq/bin/lofreq call-parallel --pp-threads ~{cores} -A -B -f ~{reference} --call-indels --bed ~{interval_bed} -o unsorted.lofreq.vcf lofreq.indel.bam
+        if [ ~{cores} -eq 1 ]; then
+            /opt/lofreq/bin/lofreq call -A -B -f ~{reference} --call-indels --bed ~{interval_bed} -o unsorted.lofreq.vcf lofreq.indel.bam
+        else
+            /opt/lofreq/bin/lofreq call-parallel --pp-threads ~{cores} -A -B -f ~{reference} --call-indels --bed ~{interval_bed} -o unsorted.lofreq.vcf lofreq.indel.bam
+        fi
         cat unsorted.lofreq.vcf | awk '$1 ~ /^#/ {print $0;next} {print $0 | "sort -k1,1 -k2,2n"}' > lofreq.vcf
 
         # Reformat

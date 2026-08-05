@@ -24,7 +24,11 @@ option_list = list(
   make_option("--pd_table", type="character", default="/storage1/fs1/bolton/Active/Protected/Annotation_Files/pd_table_kbreview_bick_trunc4_oncoKB_SAFE.filtered_genes_oncoKB_CGC.tsv",
               help="The directory path where the 'putative driver annotations for specific gene and loci' data is stored. [default_path = %default]", metavar="character"),
   make_option("--prefix", type="character", default="final", 
-              help="The output prefix e.g. <prefix>.all.csv [default = %default]", metavar="character")
+              help="The output prefix e.g. <prefix>.all.csv [default = %default]", metavar="character"),
+  make_option("--n_samples", type="integer", default=NA, 
+              help="The cut-off value for the n_sampels filter used for recurrent filtering. [default = %default]", metavar="integer"),
+  make_option("--whitelist", action="store_true", default=FALSE,
+              help="Whether to whitelist variants that are recurrent in B/B or COSMIC even if they are recurrent in our dataset. [default = %default]", metavar="boolean")
 ); 
 opt_parser = OptionParser(option_list=option_list);
 opt <- parse_args(opt_parser);
@@ -69,9 +73,9 @@ df <- df %>%
       is.na(pon_pvalue_Mutect) & is.na(pon_pvalue_Lofreq) & is.na(pon_pvalue_Vardict),
       FALSE,
       ifelse(
-        (is.na(pon_pvalue_Mutect) | pon_pvalue_Mutect <= 2.1e-6) & 
-          (is.na(pon_pvalue_Lofreq) | pon_pvalue_Lofreq <= 2.1e-6) & 
-          (is.na(pon_pvalue_Vardict) | pon_pvalue_Vardict <= 2.1e-6),
+        (is.na(pon_pvalue_Mutect) | pon_pvalue_Mutect <= opt$p_value) & 
+          (is.na(pon_pvalue_Lofreq) | pon_pvalue_Lofreq <= opt$p_value) & 
+          (is.na(pon_pvalue_Vardict) | pon_pvalue_Vardict <= opt$p_value),
         TRUE,
         FALSE
       ))
@@ -81,7 +85,7 @@ df <- df %>% filter(pon_FP_pass)
 # Handle Varscan's FP Filters
 df <- df %>% filter(FP_Filter_DETP20 == 0,
                     FP_Filter_MMQS100 == 0,
-                    FP_Filter_MMQSD50 == 0,
+                    FP_Filter_MMQSD50 == 0,      # VANTAGE requires this be turned off because of the low coverage in the panel
                     FP_Filter_NRC == 0,
                     FP_Filter_PB10 == 0,
                     FP_Filter_RLD25 == 0)
@@ -99,9 +103,9 @@ df <- df %>%
       FILTER_Mutect == "" & FILTER_Lofreq == "" & FILTER_Vardict != "" ~ TRUE,
       TRUE ~ FALSE
     ),
-    FILTER_Mutect = replace_na(FILTER_Mutect, ""),
-    FILTER_Lofreq = replace_na(FILTER_Lofreq, ""),
-    FILTER_Vardict = replace_na(FILTER_Vardict, ""),
+    FILTER_Mutect = replace_na(as.character(FILTER_Mutect), ""),
+    FILTER_Lofreq = replace_na(as.character(FILTER_Lofreq), ""),
+    FILTER_Vardict = replace_na(as.character(FILTER_Vardict), ""),
     CALL_BY_CALLER = case_when(
       FILTER_Mutect != "" & FILTER_Lofreq == "" & FILTER_Vardict == "" ~ 'mutect',
       FILTER_Mutect == "" & FILTER_Lofreq != "" & FILTER_Vardict == "" ~ 'lofreq',
@@ -135,13 +139,29 @@ df <- df %>%
 # If median_AF >= 35% and NEVER REPORTED in B/B or COSMIC
 df <- df %>% filter(!(median_AF >= 0.35 & nsamples > 1 & n.HGVSc == 0 & CosmicCount == 0))
 
-# Recurrent Filter Parameters - Based on 80 Samples have R882H Mutation in ArcherDX Dataset 
-count_threshold<- max(ceiling(length(unique((df$subject)))*0.06), 5)
-bb_count_threshold<- max(ceiling(length(unique((df$subject)))*0.03), 2)
-# We have to save ASXL1 G646W because this is a very recurrent variant that may be removed from our recurrent filter
-df <- df %>% filter(nsamples < count_threshold | (key == 'chr20:32434638:A:AG' & average_AF >= 0.05) | (key == 'chr20:32434638:A:AGG' & average_AF >= 0.05))        # Recurrent Filter
-# Last filter to remove any variants that have a high recurrent count but are not reported inside Kelly's or Bick's dataset
-df <- df %>% dplyr::filter(!(nsamples > bb_count_threshold & (n.HGVSc <= 25 & CosmicCount <= 50)))
+if (is.na(opt$n_samples)) {
+  message("Calculating n_samples threshold for recurrent filtering...")
+  # Recurrent Filter Parameters - Based on 80 Samples have R882H Mutation in ArcherDX Dataset
+  count_threshold<- max(ceiling(length(unique((df$subject)))*0.06), 5)
+  bb_count_threshold<- max(ceiling(length(unique((df$subject)))*0.03), 2)
+} else {
+  message("Using user-defined n_samples threshold for recurrent filtering...")
+  count_threshold <- opt$n_samples
+  bb_count_threshold <- ceiling(count_threshold/2)
+}
+message("Recurrent Filter Parameters: count_threshold = ", count_threshold, ", bb_count_threshold = ", bb_count_threshold)
+
+if (opt$whitelist) {
+  message("Whitelisting variants that are recurrent in B/B even if they are recurrent in our dataset...")
+  df <- df %>% filter(nsamples < count_threshold | n.HGVSc >= 10 | (key == 'chr20:32434638:A:AG' & average_AF >= 0.05) | (key == 'chr20:32434638:A:AGG' & average_AF >= 0.05))        # Recurrent Filter with Whitelisting
+  df <- df %>% dplyr::filter(!(nsamples > bb_count_threshold & dplyr::coalesce(n.HGVSc, 0) < 10 & dplyr::coalesce(CosmicCount, 0) <= 50))
+} else {
+  message("Not whitelisting variants that are recurrent in B/B or COSMIC...")
+  # We have to save ASXL1 G646W because this is a very recurrent variant that may be removed from our recurrent filter
+  df <- df %>% filter(nsamples < count_threshold | (key == 'chr20:32434638:A:AG' & average_AF >= 0.05) | (key == 'chr20:32434638:A:AGG' & average_AF >= 0.05))        # Recurrent Filter
+  # Last filter to remove any variants that have a high recurrent count but are not reported inside Kelly's or Bick's dataset
+  df <- df %>% dplyr::filter(!(nsamples > bb_count_threshold & (n.HGVSc <= 25 & CosmicCount <= 50)))
+}
 
 nonsense_mutation <- c("frameshift_variant", "stop_lost", "stop_gained", "transcript_ablation")
 # Germline Filters
@@ -179,6 +199,7 @@ df$nearBBLogic <- df$near.BB.loci.HS != ''
 df$nearCosmicHemeLogic <- df$near.COSMIC.loci.HS != ''
 
 # Adding Recurrent Proportions
+# NOTE: I think this should really only be run for larger datasets... under 100, or even 200 samples may not be reliable
 min_samples_for_recurrent <- max(ceiling(length(unique((df$subject)))*0.001),2)  # It's 5 in UKBB
 total_samples = length(unique(df$subject)) # 1934 (for Archer)
 total_heme_cosmic = 29234
@@ -195,7 +216,11 @@ df <- df %>% mutate(pass_prop_recurrent = case_when(
   nsamples > min_samples_for_recurrent & n.HGVSc != 0 & heme_cosmic_count != 0 & (ratio_to_BB > 1335 & ratio_to_cosmic > 835) ~ FALSE,
   TRUE ~ TRUE
 )) 
-df <- df %>% filter(pass_prop_recurrent == TRUE | (key == 'chr20:32434638:A:AG' & average_AF >= 0.05) | (key == 'chr20:32434638:A:AGG' & average_AF >= 0.05))
+if (total_samples < 200) {
+  message("Total samples less than 200, skipping recurrent proportion filtering...")
+} else {
+  df <- df %>% filter(pass_prop_recurrent == TRUE | (key == 'chr20:32434638:A:AG' & average_AF >= 0.05) | (key == 'chr20:32434638:A:AGG' & average_AF >= 0.05))
+}
 
 # DETERMINE PATHOGENICITY
 nonsense_mutation <- c("frameshift_variant", "stop_lost", "stop_gained", "transcript_ablation")
@@ -205,7 +230,7 @@ clinvar_sig_terms <- c("Likely_pathogenic", "Likely_pathogenic&_drug_response", 
 splicingSynonymous = c("splice_donor_5th_base_variant", "splice_donor_region_variant", "splice_polypyrimidine_tract_variant", "splice_region_variant,intron_variant", "splice_region_variant,non_coding_transcript_exon_variant", "synonymous_variant", "splice_region_variant,synonymous_variant")
 ZBTB33 <- bick_email[Gene == "ZBTB33"] %>% mutate(AAchange = paste0(aa_ref, aa_pos, aa_alt)) %>% pull(AAchange)
 ZBTB33 <- ZBTB33[ZBTB33 != "***"]
-
+ 
 # Putative Driver Rules 
 # ---------------------
 # 1) TSG + Nonsense Mutation --> PD = 1
@@ -247,7 +272,7 @@ df <- df %>% mutate(pd_reason = case_when(
   Gene %in% gene_list & VariantClass %in% missense_mutation & n.HGVSp >= 1 & (grepl("deleterious", SIFT_VEP) | grepl("damaging", PolyPhen_VEP)) ~ "B/B Hotspot + SIFT/PolyPhen",
   # Gene %in% gene_list & VariantClass %in% missense_mutation & grepl("extTer", gene_aachange) ~ "Termination Extension", # remove
   Gene %in% TSG_gene_list & VariantClass %in% c("splice_donor_variant", "splice_acceptor_variant", "splice_region_variant") & !grepl(paste(splicingSynonymous, collapse = "|"), Consequence_VEP) ~ "Splicing Mutation",
-  Gene %in% TSG_gene_list & clinvar_CLNSIG_VEP %in% clinvar_sig_terms ~ "ClinVar",
+  Gene %in% gene_list & clinvar_CLNSIG_VEP %in% clinvar_sig_terms ~ "ClinVar",
   Gene %in% gene_list & grepl(paste(splicingSynonymous, collapse = "|"), Consequence_VEP) ~ "Not PD",
   Gene == "ZBTB33" & VariantClass %in% missense_mutation & AAchange %in% ZBTB33 ~ "Bick's Email",
   Gene %in% unique(bick_email$Gene) & VariantClass %in% nonsense_mutation ~ "Bick's Email",
@@ -270,7 +295,7 @@ putative_driver_conditions <- list(
   list(df$Gene == "PPM1D" & df$VariantClass %in% nonsense_mutation & df$EXON_VEP == "6/6", "Nonsense Mutation on Exon 6"),
   list(df$Gene %in% gene_list & df$VariantClass %in% missense_mutation & df$n.HGVSp >= 1 & (grepl("deleterious", df$SIFT_VEP) | grepl("damaging", df$PolyPhen_VEP)), "B/B Hotspot + SIFT/PolyPhen"),
   list(df$Gene %in% TSG_gene_list & df$VariantClass %in% c("splice_donor_variant", "splice_acceptor_variant", "splice_region_variant") & !grepl(paste(splicingSynonymous, collapse = "|"), df$Consequence_VEP), "Splicing Mutation"),
-  list(df$Gene %in% TSG_gene_list & df$clinvar_CLNSIG_VEP %in% clinvar_sig_terms, "ClinVar"),
+  list(df$Gene %in% gene_list & df$clinvar_CLNSIG_VEP %in% clinvar_sig_terms, "ClinVar"),
   list((df$Gene == "ZBTB33" & df$VariantClass %in% missense_mutation & df$AAchange %in% ZBTB33) | (df$Gene %in% unique(bick_email$Gene) & df$VariantClass %in% nonsense_mutation), "Bick's Email")
 )
 
@@ -278,7 +303,8 @@ df$pd_reason_expanded <- ""
 for (condition in putative_driver_conditions) {
   df$pd_reason_expanded[condition[[1]]] <- paste(df$pd_reason_expanded[condition[[1]]], condition[[2]], sep = "|")
 }
-df$pd_reason_expanded[df$Gene %in% gene_list & df$oncoKB == "Neutral"] <- "Not PD"
+#df$pd_reason_expanded[df$Gene %in% gene_list & df$oncoKB == "Neutral"] <- "Not PD"
+df$pd_reason_expanded[df$Gene %in% gene_list & !is.na(df$oncoKB) & grepl("Neutral", df$oncoKB, fixed = TRUE)] <- "Not PD"
 df$pd_reason_expanded[df$Gene %in% gene_list & grepl(paste(splicingSynonymous, collapse = "|"), df$Consequence_VEP)] <- "Not PD"
 df$pd_reason_expanded[df$pd_reason_expanded == ""] <- "Not PD"
 
@@ -319,8 +345,8 @@ review_conditions <- list(
   list((df$CALL_BY_CALLER == "mutect") & (df$average_AF >= 0.01 & df$average_AF < 0.02), "LowVAF Mutect"),
   list((nchar(df$REF) > 5) | (nchar(df$ALT) > 5), "Long INDEL"),
   list((nchar(df$REF) >= 2) & (nchar(df$ALT) >= 2), "Complex INDEL"),
-  list((df$average_af >= 0.2), "High VAF"),
-  list((df$Gene %in% gene_list) & (df$VariantClass %in% missense_mutation) & (!is.na(df$homopolymerCase)), "Homopolymer Region"),
+  list((df$average_AF >= 0.2), "High VAF"),
+  list((df$Gene %in% gene_list) & (df$VariantClass %in% missense_mutation) & (!is.na(df$homopolymerCase) & df$homopolymerCase != ""), "Homopolymer Region"),
   list((df$Gene %in% gene_list) & (df$VariantClass %in% missense_mutation) & grepl("deleterious", df$SIFT_VEP) & grepl("damaging", df$PolyPhen_VEP) & (df$putative_driver == 0) & (df$n.HGVSc >= 1), "B/B Missense Review"),
   list((df$Gene %in% gene_list) & (df$VariantClass %in% missense_mutation) & grepl("deleterious", df$SIFT_VEP) & grepl("damaging", df$PolyPhen_VEP) & (df$putative_driver == 0), "S/P Missense Review"),
   list((df$Gene %in% gene_list) & (df$VariantClass %in% missense_mutation) & (df$nearBBLogic | df$nearCosmicHemeLogic) & (grepl("deleterious", df$SIFT_VEP) | grepl("damaging", df$PolyPhen_VEP)) & (df$putative_driver == 0), "NHS Missense Review"),
@@ -354,7 +380,7 @@ if ("SpliceAI_pred_SYMBOL_VEP" %in% colnames(df)){
 df <- df %>% arrange(CHROM, POS, REF, ALT)
 
 review <- df %>% filter(case_when(
-  grepl("OncoKB Only Missense Variant", Review) &  putative_driver == 1 ~ TRUE,
+  grepl("OncoKB Only Missense Variant", Review) & putative_driver == 1 ~ TRUE,
   grepl("LowVAF Mutect", Review) & putative_driver == 1 ~ TRUE,
   grepl("Long INDEL", Review) & putative_driver == 1 ~ TRUE,
   grepl("Complex INDEL", Review) & putative_driver == 1 ~ TRUE,

@@ -71,6 +71,8 @@ if (opt$caller == "mutect") {
 } else if (opt$caller == "vardict") {
   vcf <- vcfR2tidy(read.vcfR(opt$input), single_frame = TRUE, info_types = TRUE, format_types = TRUE)$dat
   vcf <- vcf %>% dplyr::rename(QUAL = QUAL...6, ReadQual = QUAL...20)
+} else if (opt$caller == "varscan") {
+  vcf <- vcfR2tidy(read.vcfR(opt$input), single_frame = TRUE, info_types = TRUE, format_types = TRUE)$dat
 }
 vcf <- as.data.frame(vcf)
 message("Finished reading in VCF file.")
@@ -82,7 +84,6 @@ if (nrow(vcf %>% dplyr::filter(CSQ != "")) != 0){
 } else {
   vcf <- vcf %>% mutate(CSQ = "Off-Target | Intron")
 }
-
 vcf <- vcf %>%
   dplyr::filter(PON_FISHER <= opt$p_value)
 
@@ -138,6 +139,13 @@ if (opt$caller == "mutect") {
            RDR_vardict = as.numeric(as.character(RDR_vardict)),
            ADF_vardict = as.numeric(as.character(ADF_vardict)),
            ADR_vardict = as.numeric(as.character(ADR_vardict)))
+} else if (opt$caller == "varscan") {
+  vcf <- vcf %>%
+    #separate(gt_AD_varscan, c("gt_AD_ref_varscan", "gt_AD_alt_varscan"), sep = ",", extra = "merge", fill = "right") %>%
+    mutate(gt_AF_varscan = as.numeric(gsub("%", "", as.character(gt_FREQ_varscan))) / 100,
+           gt_AD_ref_varscan = as.numeric(as.character(gt_RD_varscan)),
+           gt_AD_alt_varscan = as.numeric(as.character(gt_AD_varscan))) %>%
+    filter(CHROM %in% paste0("chr", c(1:22, "X", "Y")))
 }
 
 # Split VEP String into individual colums

@@ -21,14 +21,21 @@ combine_all_callers <- function(M, L, V) {
                   across(starts_with("SpliceAI_pred_DP"), as.numeric))
 
   # There are some special cases that we should consider
-  data_frames <- list(M, L, V)
   column_names <- c("clinvar_VEP", "MAX_AF_POPS_VEP", "CADD_PHRED_VEP", "CADD_RAW_VEP", "REVEL_VEP")
 
-  for (df in data_frames) {
+  # Make sure we modify the originals by working on a named list and reassigning
+  data_frames <- list(M = M, L = L, V = V)
+  data_frames <- lapply(data_frames, function(df) {
     for (col in column_names) {
-      df[[col]] <- as.character(df[[col]])
+      if (col %in% colnames(df)) df[[col]] <- as.character(df[[col]])
     }
-  }
+    df
+  })
+
+  # Reassign back to M, L, V
+  M <- data_frames$M
+  L <- data_frames$L
+  V <- data_frames$V
 
   # We can create a single "annotation dataframe"
   A <- bind_rows(M, L, V) %>% 
